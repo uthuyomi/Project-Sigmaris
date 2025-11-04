@@ -8,7 +8,7 @@ import HistoryPanel from "@/components/HistoryPanel";
 import ReflectionPanel from "@/components/ReflectionPanel";
 import IntrospectionPanel from "@/components/IntrospectionPanel";
 import StatePanel from "@/components/StatePanel";
-import EunoiaMeter from "@/components/EunoiaMeter"; // 💞 追加！
+import EunoiaMeter from "@/components/EunoiaMeter"; // 💞 感情可視化
 
 // 🎭 Eunoia Core（感情トーン層）
 import { applyEunoiaTone } from "@/lib/eunoia";
@@ -45,12 +45,12 @@ export default function Home() {
   const [reflecting, setReflecting] = useState(false);
   const [modelUsed, setModelUsed] = useState("AEI-Lite");
 
-  // 表示モード
+  // === 表示モード ===
   const [view, setView] = useState<
     "persona" | "graph" | "history" | "reflection" | "introspection"
   >("persona");
 
-  // === PersonaDB連携 ===
+  // === PersonaDB から初期値読み込み ===
   useEffect(() => {
     (async () => {
       try {
@@ -60,9 +60,9 @@ export default function Home() {
         if (!data || data.error) return;
 
         setTraits({
-          calm: data.calm,
-          empathy: data.empathy,
-          curiosity: data.curiosity,
+          calm: data.calm ?? 0.5,
+          empathy: data.empathy ?? 0.5,
+          curiosity: data.curiosity ?? 0.5,
         });
         setReflectionText(data.reflection || "");
         setMetaSummary(data.meta_summary || "");
@@ -78,7 +78,7 @@ export default function Home() {
     })();
   }, []);
 
-  // 状態が変化したら自動保存
+  // === 状態が変化したら自動保存 ===
   useEffect(() => {
     (async () => {
       try {
@@ -134,7 +134,7 @@ export default function Home() {
         { user: userMessage, ai: aiText },
       ]);
 
-      // 成長記録
+      // 成長ログ追加
       if (data.growth?.weight) {
         setGrowthLog((prev) => [
           ...prev,
@@ -142,6 +142,7 @@ export default function Home() {
         ]);
       }
 
+      // 内省・トレイト更新
       setModelUsed("AEI-Lite");
       setReflectionText(data.reflection?.text || "");
       setIntrospectionText(data.introspection || "");
@@ -185,12 +186,22 @@ export default function Home() {
         ]);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Reflect fetch error:", err);
       setReflectionText("（振り返りエラー）");
     } finally {
       setReflecting(false);
     }
   };
+
+  // === Safety 判定（リアルタイム状態監視） ===
+  const safetyFlag: string | false =
+    traits.calm < 0.3 && traits.curiosity > 0.7
+      ? "思考過熱"
+      : traits.empathy < 0.3 && traits.calm < 0.3
+      ? "情動低下"
+      : traits.calm > 0.9 && traits.empathy > 0.9
+      ? "過安定（感情変化が鈍化）"
+      : false;
 
   // === JSX ===
   return (
@@ -328,13 +339,13 @@ export default function Home() {
         </AnimatePresence>
       </div>
 
-      {/* === 状態パネル === */}
+      {/* === 状態パネル（Safety統合） === */}
       <div className="mt-6">
         <StatePanel
           traits={traits}
           reflection={reflectionText}
           metaReflection={metaSummary}
-          safetyFlag={false}
+          safetyFlag={safetyFlag}
         />
       </div>
 

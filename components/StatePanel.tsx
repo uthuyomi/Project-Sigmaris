@@ -11,7 +11,7 @@ interface Props {
   traits: Trait;
   reflection: string;
   metaReflection: string;
-  safetyFlag: boolean;
+  safetyFlag: string | boolean; // ← 修正ポイント！
 }
 
 export default function StatePanel({
@@ -20,6 +20,21 @@ export default function StatePanel({
   metaReflection,
   safetyFlag,
 }: Props) {
+  // Safetyメッセージ（stringならそのまま、booleanならSafe/Alertを表示）
+  const safetyMessage =
+    typeof safetyFlag === "string"
+      ? safetyFlag
+      : safetyFlag
+      ? "⚠️ Flagged content detected"
+      : "✅ Safe";
+
+  const safetyColor =
+    typeof safetyFlag === "string"
+      ? "text-yellow-400"
+      : safetyFlag
+      ? "text-red-400"
+      : "text-green-400";
+
   return (
     <div className="bg-gray-800 p-4 rounded-lg text-sm space-y-3 w-full max-w-2xl">
       <h2 className="text-lg font-semibold text-blue-400">🧠 Sigmaris State</h2>
@@ -34,7 +49,7 @@ export default function StatePanel({
             <span className="w-20 capitalize text-gray-300">{k}</span>
             <div className="flex-1 bg-gray-700 h-2 rounded">
               <div
-                className="bg-blue-500 h-2 rounded"
+                className="bg-blue-500 h-2 rounded transition-all duration-500"
                 style={{ width: `${v * 100}%` }}
               />
             </div>
@@ -50,7 +65,7 @@ export default function StatePanel({
         <p>
           🪞 <b>Reflection</b>
         </p>
-        <p className="text-gray-300 italic">
+        <p className="text-gray-300 italic whitespace-pre-line">
           {reflection || "（まだ内省はありません）"}
         </p>
       </div>
@@ -60,7 +75,7 @@ export default function StatePanel({
         <p>
           🧬 <b>Meta Reflection</b>
         </p>
-        <p className="text-gray-300 italic">
+        <p className="text-gray-300 italic whitespace-pre-line">
           {metaReflection || "（統合中…）"}
         </p>
       </div>
@@ -70,8 +85,10 @@ export default function StatePanel({
         <p>
           🛡️ <b>Guardian</b>
         </p>
-        <p className={safetyFlag ? "text-red-400" : "text-green-400"}>
-          {safetyFlag ? "⚠️ Flagged content detected" : "✅ Safe"}
+        <p className={`${safetyColor} font-semibold`}>
+          {typeof safetyFlag === "string"
+            ? `⚠️ ${safetyMessage}`
+            : safetyMessage}
         </p>
       </div>
     </div>
