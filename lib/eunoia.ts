@@ -1,3 +1,4 @@
+// === 修正版 /lib/eunoia.ts ===
 // Eunoia Core - AEI Tone Modulator & Emotion Analyzer
 
 export interface EunoiaState {
@@ -7,11 +8,12 @@ export interface EunoiaState {
 
 /**
  * 入力テキストを“しぐちゃん”のトーンに変換する
+ * ※相槌（うん・そうだね）は挿入しない自然文モード
  */
 export function applyEunoiaTone(input: string, state: EunoiaState): string {
   let output = input.trim();
 
-  // --- ベース：語尾のやわらかさ ---
+  // --- ベース：語尾のやわらかさのみ適用 ---
   switch (state.tone) {
     case "gentle":
       output = output
@@ -20,31 +22,26 @@ export function applyEunoiaTone(input: string, state: EunoiaState): string {
       break;
     case "friendly":
       output = output
-        .replace(/です。/g, "だね。")
+        .replace(/です。/g, "だよ。")
         .replace(/ます。/g, "するね。");
       break;
     case "soft":
       output = output
-        .replace(/です。/g, "…ですよ。")
-        .replace(/ます。/g, "…ますね。");
+        .replace(/です。/g, "…だよ。")
+        .replace(/ます。/g, "…するね。");
       break;
   }
 
-  // --- 感情レイヤー挿入 ---
-  if (state.empathyLevel > 0.7) {
-    output = "うん、" + output;
-  } else if (state.empathyLevel > 0.4) {
-    output = "そうだね、" + output;
-  }
+  // --- ❌ 相槌・演出削除 ---
+  // 以前は empathyLevel に応じて「うん」「そうだね」を付与していたが削除
 
-  // 語尾調整
-  if (!/[。！!？?]$/.test(output)) output += "ね。";
+  // --- 語尾の自然整形 ---
+  if (!/[。！!？?]$/.test(output)) output += "。";
   return output;
 }
 
 /**
  * Emotion Analyzer
- * calm / empathy / curiosity からトーン種別とカラーを決定する
  */
 export function deriveEunoiaState(traits: {
   calm: number;

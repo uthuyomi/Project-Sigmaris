@@ -1,12 +1,13 @@
-// /engine/Sync/PersonaSync.ts
+// /engine/sync/PersonaSync.ts
 import { loadPersona, savePersona } from "@/lib/db";
 import { TraitVector } from "@/lib/traits";
 
 /**
- * PersonaSync v2.1
+ * PersonaSync v2.2
  * - PersonaDB（SQLite）との双方向同期を担当
  * - ReflectionEngine / MetaReflectionEngine と連携
- * - SafetyLayer適用後の人格値を保存
+ * - SafetyLayer適用後の人格値＋メタ内省を永続化
+ * - 再注入フェーズ対応
  */
 export class PersonaSync {
   /** 最新の人格情報をロード（DB → メモリ） */
@@ -29,14 +30,22 @@ export class PersonaSync {
   }
 
   /**
-   * 人格データを保存（ReflectionEngine から呼ばれる）
+   * 人格データを保存（Reflection / MetaReflection 統合）
+   * @param traits 現在のTraitベクトル
+   * @param metaSummary 最新のメタ内省（人格傾向）
+   * @param growthWeight 学習重み
    */
   static update(
     traits: TraitVector,
     metaSummary?: string,
     growthWeight?: number
   ) {
-    const reflectionText = "(auto-reflection updated)";
+    // 🔹 metaSummary と reflectionText を安全に保存
+    const reflectionText =
+      "(auto-reflection updated at " +
+      new Date().toLocaleTimeString("ja-JP") +
+      ")";
+
     savePersona({
       calm: traits.calm,
       empathy: traits.empathy,
@@ -50,7 +59,7 @@ export class PersonaSync {
       calm: traits.calm.toFixed(2),
       empathy: traits.empathy.toFixed(2),
       curiosity: traits.curiosity.toFixed(2),
-      metaSummary,
+      metaSummary: metaSummary?.slice(0, 80) ?? "(none)",
       growthWeight,
     });
   }
