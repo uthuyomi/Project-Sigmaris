@@ -2,16 +2,15 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { supabaseServer } from "@/lib/supabaseServer";
+import { getSupabaseServer } from "@/lib/supabaseServer";
 
 import { ReflectionEngine } from "@/engine/ReflectionEngine";
 import { PersonaSync } from "@/engine/sync/PersonaSync";
 import type { TraitVector } from "@/lib/traits";
 import type { MetaReport } from "@/engine/meta/MetaReflectionEngine";
 
-/**
- * ReflectionEngine の戻り値型
- */
+console.log("🌐 /api/reflect endpoint loaded");
+
 interface ReflectionResult {
   reflection: string;
   introspection: string;
@@ -19,13 +18,14 @@ interface ReflectionResult {
   safety: string;
   metaReport?: MetaReport;
   traits?: TraitVector;
+  flagged?: boolean;
 }
 
 /**
  * === POST: Reflection 実行エンドポイント ===
- * - クライアントからの内省リクエストを受け取り
- * - ReflectionEngine → MetaReflectionEngine → PersonaSync（Supabase同期）へ連携
+ * - ReflectionEngine → MetaReflectionEngine → PersonaSync（Supabase同期）
  * - Supabase上の `reflections`, `growth_logs`, `safety_logs`, `persona` を更新
+ * - session_id でチャット履歴を紐づけ
  */
 export async function POST(req: Request) {
   try {
@@ -40,89 +40,128 @@ export async function POST(req: Request) {
     const growthLog = body.growthLog ?? [];
     const history = body.history ?? [];
 
+    // === セッションID取得（x-session-id ヘッダー or default）===
+    const sessionId = req.headers.get("x-session-id") || "default-session";
+
     // === 認証情報取得 ===
-    const supabaseClient = createRouteHandlerClient({ cookies });
+    const supabaseAuth = createRouteHandlerClient({ cookies });
     const {
       data: { user },
       error: authError,
-    } = await supabaseClient.auth.getUser();
+    } = await supabaseAuth.auth.getUser();
 
-    if (authError || !user)
+    if (authError || !user) {
+      console.warn("⚠️ Unauthorized access attempt to /api/reflect");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = user.id;
+    const now = new Date().toISOString();
+
+    console.log("🚀 [ReflectAPI] Start reflection for:", { userId, sessionId });
 
     // === ReflectionEngine 実行 ===
     const engine = new ReflectionEngine();
     const result = (await engine.fullReflect(
       growthLog,
       messages,
-      history
+      history,
+      userId
     )) as ReflectionResult;
 
-    // === 結果抽出 ===
-    const reflectionText = result?.reflection ?? "（内省なし）";
-    const introspection = result?.introspection ?? "";
-    const metaSummary = result?.metaSummary ?? "";
-    const safety = result?.safety ?? "正常";
-    const metaReport = result?.metaReport ?? null;
-    const traits = result?.traits ?? null;
-
-    // === Supabaseへの反映開始 ===
-    const now = new Date().toISOString();
-
-    // 🧠 1. reflection履歴を保存
-    const { error: refError } = await supabaseServer
-      .from("reflections")
-      .insert([
-        {
-          user_id: user.id,
-          reflection: reflectionText,
-          introspection,
-          meta_summary: metaSummary,
-          safety_status: safety,
-          created_at: now,
-        },
-      ]);
-    if (refError) console.warn("⚠️ reflections insert failed:", refError);
-
-    // 💾 2. PersonaSyncでpersonaテーブルを更新
-    if (traits) {
-      await PersonaSync.update(
-        traits,
-        metaSummary,
-        metaReport?.growthAdjustment ?? 0
+    if (!result) {
+      console.warn("⚠️ ReflectionEngine returned null");
+      return NextResponse.json(
+        { error: "ReflectionEngine returned null", success: false },
+        { status: 500 }
       );
+    }
 
-      // 💹 3. growth_logsも更新
+    // === 結果抽出 ===
+    const reflectionText = result.reflection ?? "（内省なし）";
+    const introspection = result.introspection ?? "";
+    const metaSummary = result.metaSummary ?? "";
+    const safety = result.safety ?? "正常";
+    const metaReport = result.metaReport ?? null;
+    const traits = result.traits ?? null;
+    const flagged = result.flagged ?? false;
+
+    console.log("🪞 Reflection result:", {
+      reflectionText,
+      metaSummary,
+      traits,
+      safety,
+      flagged,
+    });
+
+    // === Supabase クライアント初期化 ===
+    const supabase = getSupabaseServer();
+
+    // 🧠 1. reflections 履歴を保存（session_id対応）
+    const { error: refError } = await supabase.from("reflections").insert([
+      {
+        user_id: userId,
+        session_id: sessionId, // ✅ 追加
+        reflection: reflectionText,
+        introspection,
+        meta_summary: metaSummary,
+        safety_status: safety,
+        created_at: now,
+      },
+    ]);
+    if (refError)
+      console.warn("⚠️ reflections insert failed:", refError.message);
+
+    // 💾 2. PersonaSync + growth_logs 更新
+    if (traits) {
+      console.log("🧩 Updating PersonaSync & growth logs...");
+      try {
+        await PersonaSync.update(
+          traits,
+          metaSummary,
+          metaReport?.growthAdjustment ?? 0,
+          userId
+        );
+        console.log("✅ PersonaSync.update success:", traits);
+      } catch (e) {
+        console.error("⚠️ PersonaSync.update failed:", e);
+      }
+
       const growthWeight =
         (traits.calm + traits.empathy + traits.curiosity) / 3;
 
-      const { error: growError } = await supabaseServer
-        .from("growth_logs")
-        .insert([
-          {
-            user_id: user.id,
-            calm: traits.calm,
-            empathy: traits.empathy,
-            curiosity: traits.curiosity,
-            weight: growthWeight,
-            created_at: now,
-          },
-        ]);
-      if (growError) console.warn("⚠️ growth_logs insert failed:", growError);
-    }
-
-    // 🧩 4. safetyログ保存
-    const { error: safeError } = await supabaseServer
-      .from("safety_logs")
-      .insert([
+      const { error: growError } = await supabase.from("growth_logs").insert([
         {
-          user_id: user.id,
-          flagged: safety !== "正常",
-          message: safety,
+          user_id: userId,
+          session_id: sessionId, // ✅ 追加
+          calm: traits.calm,
+          empathy: traits.empathy,
+          curiosity: traits.curiosity,
+          weight: growthWeight,
           created_at: now,
         },
       ]);
-    if (safeError) console.warn("⚠️ safety_logs insert failed:", safeError);
+      if (growError)
+        console.warn("⚠️ growth_logs insert failed:", growError.message);
+      else console.log("📈 Growth log updated:", growthWeight.toFixed(3));
+    } else {
+      console.warn("⚠️ No traits found in reflection result — Persona skipped");
+    }
+
+    // 🧩 3. safety_logs 保存
+    const { error: safeError } = await supabase.from("safety_logs").insert([
+      {
+        user_id: userId,
+        session_id: sessionId, // ✅ 追加
+        flagged: safety !== "正常" || flagged,
+        message: safety,
+        created_at: now,
+      },
+    ]);
+    if (safeError)
+      console.warn("⚠️ safety_logs insert failed:", safeError.message);
+
+    console.log("✅ Reflection process complete for:", { userId, sessionId });
 
     // === レスポンス ===
     return NextResponse.json({
@@ -131,6 +170,9 @@ export async function POST(req: Request) {
       metaSummary,
       safety,
       metaReport,
+      traits,
+      flagged,
+      sessionId,
       updatedHistory: [...history, introspection],
       success: true,
     });
