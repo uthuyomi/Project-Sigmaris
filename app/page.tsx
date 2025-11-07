@@ -40,8 +40,8 @@ export default function Home() {
     reflecting,
     modelUsed,
     traits,
-    reflectionText,
-    metaSummary,
+    reflectionText, // ← これが現在言語での本文
+    metaSummary, // ← これも同じ
     safetyReport,
     handleSend,
     handleReflect,
@@ -124,7 +124,7 @@ export default function Home() {
             </button>
             <h1 className="text-lg font-semibold">Sigmaris Studio</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items中心 gap-3">
             <span className="hidden sm:block text-xs text-gray-400">
               Model: <span className="text-blue-400">{modelUsed}</span>
             </span>
@@ -246,19 +246,9 @@ export default function Home() {
                 level={safetyFlag ? "notice" : "ok"}
               />
 
-              {/*<PersonaPanel traits={traits} />*/}
-
               <TraitVisualizer key={graphData.length} data={graphData} />
 
-              {/* ReflectionPanel に言語を渡す 
-              <ReflectionPanel
-                reflection={reflectionText}
-                metaSummary={metaSummary}
-                lang={lang}
-              />
-              */}
-
-              {/* StatePanel にも言語を渡す */}
+              {/* StatePanel に現在言語の本文をそのまま渡す */}
               <StatePanel
                 traits={traits}
                 reflection={reflectionText}

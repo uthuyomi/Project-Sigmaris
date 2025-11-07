@@ -10,7 +10,9 @@ interface Trait {
 interface Props {
   traits: Trait;
   reflection?: string;
+  reflection_en?: string;
   metaReflection?: string;
+  metaReflection_en?: string;
   safetyFlag: string | boolean;
   lang?: "ja" | "en";
 }
@@ -18,7 +20,9 @@ interface Props {
 export default function StatePanel({
   traits,
   reflection,
+  reflection_en,
   metaReflection,
+  metaReflection_en,
   safetyFlag,
   lang = "en",
 }: Props) {
@@ -65,6 +69,17 @@ export default function StatePanel({
     curiosity: lang === "ja" ? labels.curiosity.ja : labels.curiosity.en,
   };
 
+  // ==== 表示用テキスト ====
+  const reflectionDisplay =
+    lang === "en"
+      ? reflection_en || reflection || labels.noReflection.en
+      : reflection || labels.noReflection.ja;
+
+  const metaReflectionDisplay =
+    lang === "en"
+      ? metaReflection_en || metaReflection || labels.integrating.en
+      : metaReflection || labels.integrating.ja;
+
   return (
     <div className="bg-gray-800 p-4 rounded-lg text-sm space-y-3 w-full max-w-2xl">
       <h2 className="text-lg font-semibold text-blue-400">
@@ -96,11 +111,7 @@ export default function StatePanel({
       <div>
         <p>{lang === "ja" ? labels.reflection.ja : labels.reflection.en}</p>
         <p className="text-gray-300 italic whitespace-pre-line">
-          {reflection && reflection.trim().length > 0
-            ? reflection
-            : lang === "ja"
-            ? labels.noReflection.ja
-            : labels.noReflection.en}
+          {reflectionDisplay}
         </p>
       </div>
 
@@ -108,11 +119,7 @@ export default function StatePanel({
       <div>
         <p>{lang === "ja" ? labels.meta.ja : labels.meta.en}</p>
         <p className="text-gray-300 italic whitespace-pre-line">
-          {metaReflection && metaReflection.trim().length > 0
-            ? metaReflection
-            : lang === "ja"
-            ? labels.integrating.ja
-            : labels.integrating.en}
+          {metaReflectionDisplay}
         </p>
       </div>
 
