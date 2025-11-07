@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ChatList from "@/components/chat/ChatList";
 import { useSigmarisChat } from "@/hooks/useSigmarisChat";
@@ -11,17 +12,19 @@ import { TraitVisualizer } from "@/ui/TraitVisualizer";
 import { SafetyIndicator } from "@/ui/SafetyIndicator";
 import { EmotionBadge } from "@/ui/EmotionBadge";
 
-import { useState } from "react";
-
 export default function Home() {
   // ====== UI制御 ======
-  const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  const [leftOpen, setLeftOpen] = useState(false); // 初期クローズ
+  const [rightOpen, setRightOpen] = useState(false); // 初期クローズ
   const toggleLeft = () => setLeftOpen((v) => !v);
   const toggleRight = () => setRightOpen((v) => !v);
   const closeLeft = () => setLeftOpen(false);
   const closeRight = () => setRightOpen(false);
-  const drawerTransition = { type: "tween", duration: 0.28, ease: "easeOut" };
+  const drawerTransition = {
+    type: "tween" as const,
+    duration: 0.28,
+    ease: "easeOut",
+  };
 
   // ====== シグマリスチャットフック ======
   const {
@@ -44,6 +47,28 @@ export default function Home() {
     handleDeleteChat,
     handleRenameChat,
   } = useSigmarisChat();
+
+  // ====== 初回マウント時に自動で新規チャット作成（入力を最初から有効にする） ======
+  useEffect(() => {
+    if (!currentChatId) {
+      handleNewChat();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 初回のみ
+
+  // ====== currentChatId が無い場合でも送信可能にするスマート送信 ======
+  const handleSmartSend = useCallback(async () => {
+    if (!input?.trim()) return;
+    let chatId = currentChatId;
+    if (!chatId) {
+      await handleNewChat(); // 先にチャットを作る
+      // フック側が state 反映するまでのタイムラグを吸収
+      // 次ティックで送る
+      setTimeout(() => handleSend(), 0);
+      return;
+    }
+    handleSend();
+  }, [currentChatId, handleNewChat, handleSend, input]);
 
   // ====== Safety Flag ======
   const safetyFlag: string | false =
@@ -88,6 +113,7 @@ export default function Home() {
             <button
               onClick={toggleLeft}
               className="px-2 py-1 rounded hover:bg-gray-800"
+              aria-label="Toggle chat list"
             >
               ☰
             </button>
@@ -100,6 +126,7 @@ export default function Home() {
             <button
               onClick={toggleRight}
               className="px-2 py-1 rounded hover:bg-gray-800"
+              aria-label="Toggle right panel"
             >
               🧠
             </button>
@@ -136,13 +163,13 @@ export default function Home() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onKeyDown={(e) => e.key === "Enter" && handleSmartSend()}
             placeholder="メッセージを入力..."
             className="flex-grow bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
           />
           <button
-            onClick={handleSend}
-            disabled={loading || !currentChatId}
+            onClick={handleSmartSend}
+            disabled={loading}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm disabled:opacity-50"
           >
             {loading ? "..." : "Send"}
@@ -169,7 +196,11 @@ export default function Home() {
           >
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">Sigmaris Mind</h2>
-              <button onClick={closeRight} className="lg:hidden text-gray-400">
+              <button
+                onClick={closeRight}
+                className="lg:hidden text-gray-400"
+                aria-label="Close right panel"
+              >
                 ✕
               </button>
             </div>
