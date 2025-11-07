@@ -13,6 +13,20 @@ import { MetaMemory } from "@/engine/MetaMemory";
 import { PersonalityLoop } from "@/engine/PersonalityLoop";
 import { PersonaDB } from "@/engine/PersonaDB"; // 🧩 永続人格DB
 
+// ===== 型（最低限：他のファイルに依存しないローカル定義） =====
+type TraitTriplet = {
+  calm: number;
+  empathy: number;
+  curiosity: number;
+};
+
+type StoredPersona = Partial<TraitTriplet> & {
+  metaSummary?: string;
+  reflection?: string;
+  introspection?: string;
+  timestamp?: string;
+};
+
 // === エンジン初期化 ===
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const sem = new SemanticMap();
@@ -56,8 +70,8 @@ function selectModel(
   ];
 
   const depthScore =
-    0.7 * clamp01(frame.abstractRatio ?? 0) +
-    0.2 * (frame.hasSelfReference ? 1 : 0) +
+    0.7 * clamp01(frame?.abstractRatio ?? 0) +
+    0.2 * (frame?.hasSelfReference ? 1 : 0) +
     0.1 * (deepWords.some((w) => message.includes(w)) ? 1 : 0);
 
   const contextScore = clamp01(contextDepth / 10);
@@ -92,21 +106,40 @@ function clamp01(v: number) {
 // === メイン処理 ===
 export async function POST(req: Request) {
   try {
-    // 🧩 DBから最新人格ロード（await追加）
-    const stored = await db.loadLatest();
+    // 🧩 DBから最新人格ロード（型を明示）
+    const stored = (await db.loadLatest()) as StoredPersona | null;
 
-    const {
-      message,
-      traits = stored
+    // 🔒 DB由来のデフォルトtraits（型が{}にならないよう明示）
+    const storedDefaults: TraitTriplet = {
+      calm: stored?.calm ?? 0.5,
+      empathy: stored?.empathy ?? 0.5,
+      curiosity: stored?.curiosity ?? 0.5,
+    };
+
+    // リクエストボディ
+    const body = await req.json().catch(() => ({} as any));
+
+    const message: string = String(body?.message ?? "");
+    const traits: TraitTriplet =
+      (body?.traits as Partial<TraitTriplet>)?.calm !== undefined ||
+      (body?.traits as Partial<TraitTriplet>)?.empathy !== undefined ||
+      (body?.traits as Partial<TraitTriplet>)?.curiosity !== undefined
         ? {
-            calm: stored.calm ?? 0.5,
-            empathy: stored.empathy ?? 0.5,
-            curiosity: stored.curiosity ?? 0.5,
+            calm:
+              (body?.traits?.calm as number | undefined) ?? storedDefaults.calm,
+            empathy:
+              (body?.traits?.empathy as number | undefined) ??
+              storedDefaults.empathy,
+            curiosity:
+              (body?.traits?.curiosity as number | undefined) ??
+              storedDefaults.curiosity,
           }
-        : { calm: 0.5, empathy: 0.5, curiosity: 0.5 },
-      growthLog = [],
-      reflections = [],
-    } = await req.json();
+        : storedDefaults;
+
+    const growthLog = Array.isArray(body?.growthLog) ? body.growthLog : [];
+    const reflections = Array.isArray(body?.reflections)
+      ? body.reflections
+      : [];
 
     // === 1️⃣ 意図・感情解析 ===
     const intentFrame = intentCls.classify(message);
@@ -136,11 +169,9 @@ export async function POST(req: Request) {
 
     const userPrompt = [
       contextSummary,
-      `意味解析: intents=${frame.intents.join(
-        ","
-      )}, 抽象度=${frame.abstractRatio.toFixed(2)}, 自己参照=${
-        frame.hasSelfReference
-      }`,
+      `意味解析: intents=${(frame?.intents ?? []).join(",")}, 抽象度=${Number(
+        frame?.abstractRatio ?? 0
+      ).toFixed(2)}, 自己参照=${Boolean(frame?.hasSelfReference)}`,
       `入力文: ${message}`,
     ].join("\n");
 
@@ -238,9 +269,12 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("[ChatAPI Error]", err);
-    return NextResponse.json({
-      reply: "……考えがまとまらなかった。もう一度お願いできる？",
-      error: err.message || String(err),
-    });
+    return NextResponse.json(
+      {
+        reply: "……考えがまとまらなかった。もう一度お願いできる？",
+        error: err?.message || String(err),
+      },
+      { status: 500 }
+    );
   }
 }
