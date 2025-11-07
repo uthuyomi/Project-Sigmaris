@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Roboto_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/react"; // ← ★追加
 
 // ✅ フォントをApp Router形式で定義（Geist → Inter、Mono → Roboto_Mono）
 const inter = Inter({
@@ -31,6 +32,7 @@ export default function RootLayout({
         className={`${inter.variable} ${robotoMono.variable} antialiased bg-background text-foreground`}
       >
         {children}
+        <Analytics /> {/* ← ★Vercel解析タグを追加 */}
       </body>
     </html>
   );
