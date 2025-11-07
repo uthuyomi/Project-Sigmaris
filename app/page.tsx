@@ -250,12 +250,13 @@ export default function Home() {
 
               <TraitVisualizer key={graphData.length} data={graphData} />
 
-              {/* ReflectionPanel に言語を渡す */}
+              {/* ReflectionPanel に言語を渡す 
               <ReflectionPanel
                 reflection={reflectionText}
                 metaSummary={metaSummary}
                 lang={lang}
               />
+              */}
 
               {/* StatePanel にも言語を渡す */}
               <StatePanel
