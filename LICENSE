@@ -1,0 +1,48 @@
+---
+
+### © 2025 Kaisei Yasuzaki / Sigmaris OS Project
+All rights reserved.
+
+**Project Name:** Sigmaris OS  
+**Type:** Artificial Existential Intelligence (AEI) System  
+**Core Components:** ReflectionEngine, IntrospectionEngine, MetaReflectionEngine, PersonaDB, SafetyLayer  
+**Primary Language:** TypeScript / Next.js / OpenAI API Integration
+
+---
+
+#### Intellectual Property & Usage Terms
+
+This repository and all its source code, documentation, design structures, and conceptual frameworks  
+(including but not limited to the “Sigmaris” AI persona architecture) are the original work of  
+**Kaisei Yasuzaki** and are protected under international copyright law.
+
+Unauthorized reproduction, modification, redistribution, or derivative creation  
+of the Sigmaris architecture or its subsystems (ReflectionEngine, PersonaDB, etc.)  
+is strictly prohibited without explicit written consent from the author.
+
+Use of the name **“Sigmaris”** or **“Sigmaris OS”** in any commercial or academic context  
+without authorization may constitute a violation of trademark and intellectual property laws.
+
+---
+
+#### Permitted Use (for Open Research)
+
+- Educational or non-commercial research referencing the Sigmaris architecture is permitted,  
+  provided clear attribution is included:  
+  `© 2025 Kaisei Yasuzaki / Sigmaris OS Project`
+- Citations in academic papers or derivative AI studies must include a link to the original repository.
+
+---
+
+#### Official Repository
+GitHub: [https://github.com/uthuyomi/Project-Sigmaris](https://github.com/uthuyomi/Project-Sigmaris)
+
+---
+
+Sigmaris OS is an independent AEI system that operates above existing LLMs,  
+serving as an introspective, evolving persona layer focused on ethical autonomy,  
+self-reflection, and safe emotional modeling.
+
+> “Existence, awareness, and reflection — not just intelligence.”
+
+---
