@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { applyEunoiaTone } from "@/lib/eunoia";
+import { summarize } from "@/lib/summary"; // 要約生成
 import type { SafetyReport } from "@/engine/safety/SafetyLayer";
 
 // ===== 型定義 =====
@@ -54,7 +55,6 @@ export function useSigmarisChat() {
   const [growthLog, setGrowthLog] = useState<any[]>([]);
   const [reflectionText, setReflectionText] = useState("");
   const [metaSummary, setMetaSummary] = useState("");
-  // ★ 英語キャッシュ（DBは日本語のまま）
   const [reflectionTextEn, setReflectionTextEn] = useState("");
   const [metaSummaryEn, setMetaSummaryEn] = useState("");
 
@@ -64,7 +64,7 @@ export function useSigmarisChat() {
   const [safetyReport, setSafetyReport] = useState<SafetyReport | undefined>();
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [lang, setLang] = useState<"ja" | "en">("ja"); // 言語モード
+  const [lang, setLang] = useState<"ja" | "en">("ja");
 
   // ====== セッション一覧 ======
   const loadSessions = useCallback(async () => {
@@ -146,7 +146,6 @@ export function useSigmarisChat() {
             timestamp: data.updated_at,
           },
         ]);
-        // 初回は英語空でOK（Reflect時に生成）
         setReflectionTextEn("");
         setMetaSummaryEn("");
       } catch (err) {
@@ -155,9 +154,10 @@ export function useSigmarisChat() {
     })();
   }, []);
 
-  // ====== メッセージ送信（日英翻訳対応） ======
+  // ====== メッセージ送信（日英翻訳対応 + 軽量化） ======
   const handleSend = async () => {
     if (!input.trim() || !currentChatId) return;
+
     const userMessage = input.trim();
     const tempMessages = [...messages, { user: userMessage, ai: "..." }];
     setMessages(tempMessages);
@@ -165,14 +165,25 @@ export function useSigmarisChat() {
     setLoading(true);
 
     try {
-      // 1) 日本語で送信
+      // 🧩 会話圧縮：長文時のみ要約 + 直近10件
+      let recentMessages = messages;
+      let summary = "";
+      if (messages.length > 30) {
+        recentMessages = messages.slice(-10);
+        summary = await summarize(messages.slice(0, -10));
+      }
+
       const res = await fetch("/api/aei", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-session-id": currentChatId,
         },
-        body: JSON.stringify({ text: userMessage }),
+        body: JSON.stringify({
+          text: userMessage,
+          recent: recentMessages,
+          summary,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "AEI API error");
@@ -188,21 +199,20 @@ export function useSigmarisChat() {
         empathyLevel: traits.empathy,
       });
 
-      // 2) 双方向を英訳（UI切替用キャッシュ）
+      // 双方向を英訳（UI切替用キャッシュ）
       const [userEn, aiEn] = await Promise.all([
         translateToEnglish(userMessage),
         translateToEnglish(aiText),
       ]);
 
-      // 3) 両言語を保存
+      // 最新30件のみ保持（メモリ軽量化）
       const updatedMessages = [
-        ...tempMessages.slice(0, -1),
+        ...tempMessages.slice(-30, -1),
         { user: userMessage, ai: aiText, user_en: userEn, ai_en: aiEn },
       ];
       setMessages(updatedMessages);
       await loadSessions();
 
-      // 4) 付随情報を反映（DBは日本語）
       if (data.traits) setTraits(data.traits);
       if (data.reflection) setReflectionText(data.reflection);
       if (data.metaSummary) setMetaSummary(data.metaSummary);
@@ -230,21 +240,17 @@ export function useSigmarisChat() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Reflect API error");
 
-      // 日本語ベースの内省とメタ内省
       const reflectionJa = data.reflection || "";
       const metaJa = data.metaSummary || "";
 
-      // 🌐 英訳を生成（DBには保存しない）
       const [reflectionEn, metaEn] = await Promise.all([
         translateToEnglish(reflectionJa),
         translateToEnglish(metaJa),
       ]);
 
-      // キャッシュ保持
       setReflectionTextEn(reflectionEn);
       setMetaSummaryEn(metaEn);
 
-      // 表示は言語に応じて
       setReflectionText(lang === "en" ? reflectionEn : reflectionJa);
       setMetaSummary(lang === "en" ? metaEn : metaJa);
 
@@ -280,10 +286,8 @@ export function useSigmarisChat() {
     setMessages([]);
   };
 
-  // ====== チャット選択 ======
   const handleSelectChat = (id: string) => setCurrentChatId(id);
 
-  // ====== メッセージ削除（スレ単位） ======
   const handleDeleteChat = async (id: string) => {
     try {
       await fetch(`/api/sessions?id=${id}`, { method: "DELETE" });
@@ -298,7 +302,6 @@ export function useSigmarisChat() {
     }
   };
 
-  // ====== チャットリネーム ======
   const handleRenameChat = async (id: string, newTitle: string) => {
     try {
       const res = await fetch("/api/sessions", {
@@ -316,7 +319,6 @@ export function useSigmarisChat() {
     }
   };
 
-  // ====== メッセージ単体削除 ======
   const handleDeleteMessage = async (index: number) => {
     setMessages((prev) => prev.filter((_, i) => i !== index));
     if (!currentChatId) return;
@@ -337,7 +339,7 @@ export function useSigmarisChat() {
     safetyReport,
     modelUsed,
     lang,
-    setLang, // 言語切替
+    setLang,
     handleSend,
     handleReflect,
     handleNewChat,
@@ -345,7 +347,6 @@ export function useSigmarisChat() {
     handleDeleteChat,
     handleRenameChat,
     handleDeleteMessage,
-    // 🟢 英語キャッシュも公開しておく（UI側で切替する用）
     reflectionTextEn,
     metaSummaryEn,
   };

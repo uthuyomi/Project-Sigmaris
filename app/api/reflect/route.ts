@@ -6,6 +6,7 @@ import { getSupabaseServer } from "@/lib/supabaseServer";
 
 import { ReflectionEngine } from "@/engine/ReflectionEngine";
 import { PersonaSync } from "@/engine/sync/PersonaSync";
+import { summarize } from "@/lib/summary"; // 🟢 要約を統合
 import type { TraitVector } from "@/lib/traits";
 import type { MetaReport } from "@/engine/meta/MetaReflectionEngine";
 
@@ -24,8 +25,7 @@ interface ReflectionResult {
 /**
  * === POST: Reflection 実行エンドポイント ===
  * - ReflectionEngine → MetaReflectionEngine → PersonaSync（Supabase同期）
- * - Supabase上の `reflections`, `growth_logs`, `safety_logs`, `persona` を更新
- * - session_id でチャット履歴を紐づけ
+ * - 過去履歴を summarize() で圧縮し、軽量な人格成長を行う
  */
 export async function POST(req: Request) {
   try {
@@ -60,12 +60,16 @@ export async function POST(req: Request) {
 
     console.log("🚀 [ReflectAPI] Start reflection for:", { userId, sessionId });
 
+    // === 要約生成：過去会話を圧縮（負荷軽減）===
+    const summary = await summarize(messages.slice(0, -10)); // 前半を要約
+    const recent = messages.slice(-10); // 直近10件のみ利用
+
     // === ReflectionEngine 実行 ===
     const engine = new ReflectionEngine();
     const result = (await engine.fullReflect(
       growthLog,
-      messages,
-      history,
+      recent,
+      summary,
       userId
     )) as ReflectionResult;
 
@@ -101,10 +105,11 @@ export async function POST(req: Request) {
     const { error: refError } = await supabase.from("reflections").insert([
       {
         user_id: userId,
-        session_id: sessionId, // ✅ 追加
+        session_id: sessionId,
         reflection: reflectionText,
         introspection,
         meta_summary: metaSummary,
+        summary_text: summary, // 🟢 要約を一緒に保存
         safety_status: safety,
         created_at: now,
       },
@@ -133,7 +138,7 @@ export async function POST(req: Request) {
       const { error: growError } = await supabase.from("growth_logs").insert([
         {
           user_id: userId,
-          session_id: sessionId, // ✅ 追加
+          session_id: sessionId,
           calm: traits.calm,
           empathy: traits.empathy,
           curiosity: traits.curiosity,
@@ -152,7 +157,7 @@ export async function POST(req: Request) {
     const { error: safeError } = await supabase.from("safety_logs").insert([
       {
         user_id: userId,
-        session_id: sessionId, // ✅ 追加
+        session_id: sessionId,
         flagged: safety !== "正常" || flagged,
         message: safety,
         created_at: now,
@@ -173,6 +178,7 @@ export async function POST(req: Request) {
       traits,
       flagged,
       sessionId,
+      summaryUsed: !!summary, // 🟢 どの経路を通ったか確認用
       updatedHistory: [...history, introspection],
       success: true,
     });

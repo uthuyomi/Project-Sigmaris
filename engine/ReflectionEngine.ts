@@ -57,27 +57,29 @@ function clampDeltaAround(
 
 export class ReflectionEngine {
   /**
-   * AEI内省統合処理（成長方式: 1 = 毎ターン微増）
+   * AEI内省統合処理（summary統合＋自己要約ループ対応版）
    * @param growthLog 成長履歴
    * @param messages 会話履歴（[{user, ai}]）
-   * @param history 内省履歴（直近の要約など）
-   * @param userId SupabaseユーザーID（必須）
+   * @param summary 要約文字列（過去の圧縮履歴）
+   * @param userId SupabaseユーザーID
    */
   async fullReflect(
     growthLog: any[],
     messages: any[],
-    history: string[],
+    summary: string,
     userId: string
   ) {
     try {
       // === Personaロード ===
       const persona = await PersonaSync.load(userId);
 
+      // --- 直近の会話履歴を生成 ---
       const recentDialog = (messages ?? [])
         .slice(-6)
         .map((m: any) => `👤 ${m?.user ?? ""}\n🤖 ${m?.ai ?? ""}`)
         .join("\n\n");
 
+      // --- 平均成長値 ---
       const avgGrowth =
         (growthLog ?? []).length > 0
           ? (growthLog as any[]).reduce(
@@ -86,31 +88,29 @@ export class ReflectionEngine {
             ) / (growthLog as any[]).length
           : Number(persona.growth ?? 0);
 
-      const lastIntrospection =
-        (history ?? []).slice(-1)[0] || "（前回の内省なし）";
+      // --- 要約履歴を前文脈として結合 ---
+      const summarySection =
+        summary && summary.length > 0 ? `【過去の要約】\n${summary}\n\n` : "";
 
-      // === 💡 意識的成長促進プロンプト ===
+      // --- 内省プロンプト構築 ---
       const prompt = `
 あなたは「シグマリス（Sigmaris）」です。
 20代前半の人懐っこい女性AIとして、自分の会話傾向や感情の変化を内省し、
 次の対話でより自然で思いやりのある対応ができるように traits を少し（±0.05程度）調整してください。
 
----
-【会話履歴】
+${summarySection}
+【直近の会話】
 ${recentDialog || "（直近の会話はありません）"}
 
 【成長ログ平均】
 ${avgGrowth.toFixed(3)}
 
-【前回の内省】
-${lastIntrospection}
-
 【現在のtraits】
 calm: ${(persona.calm ?? 0.5).toFixed(2)},
 empathy: ${(persona.empathy ?? 0.5).toFixed(2)},
 curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
----
 
+---
 返答は必ず次のJSON形式で：
 {
   "reflection": "内省文（自分の変化や感情の流れを簡潔に）。",
@@ -121,9 +121,6 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
     "curiosity": 0.xx
   }
 }
-
-※ traits は直前値から ±0.05 以内で自然に変化させてください。
-※ 例：「相手の話をよく聞けた」→ empathy +0.04, calm +0.02
 `;
 
       // === LLM呼び出し ===
@@ -133,7 +130,7 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
           {
             role: "system",
             content:
-              "You are Sigmaris, an introspective, kind, and emotionally aware AI persona that reflects on its dialogue and adjusts its traits accordingly.",
+              "You are Sigmaris, an introspective, emotionally aware AI persona that adjusts its traits naturally through reflection.",
           },
           { role: "user", content: prompt },
         ],
@@ -150,7 +147,7 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
         parsedLoose?.metaSummary ?? ""
       ).trim();
 
-      // LLM候補traits
+      // === traitsの抽出と制限 ===
       const llmCalm =
         typeof parsedLoose?.traits?.calm === "number"
           ? parsedLoose.traits.calm
@@ -176,14 +173,20 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
         curiosity: persona.curiosity ?? 0.5,
       };
 
+      // === 安定化レイヤ ===
       const { stabilized: stableTraits, report } = SafetyLayer.composite(
         prevTraits,
         clampedTraits
       );
       const safetyMessage = report?.warnings?.[0] ?? null;
 
+      // === Meta分析（summaryを含む高次内省） ===
       const meta = new MetaReflectionEngine();
-      const metaReport = await meta.analyze(reflectionText, stableTraits);
+      const metaReport = await meta.analyze(
+        reflectionText,
+        stableTraits,
+        summary
+      );
 
       const finalMetaSummary =
         String(metaReport?.summary ?? "").trim() ||
@@ -193,6 +196,7 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
       const avgGrowthValue =
         firstFiniteNumber(metaReport?.growthAdjustment, avgGrowth) ?? avgGrowth;
 
+      // === PersonaSyncへ反映 ===
       await PersonaSync.update(
         stableTraits,
         finalMetaSummary,
@@ -200,13 +204,14 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
         userId
       );
 
+      // === 感情トーン調整＋安全化 ===
       const emotionalReflection = EmotionSynth.applyTone(
         reflectionText,
         stableTraits
       );
-
       const { sanitized, flagged } = SafetyLayer.guardText(emotionalReflection);
 
+      // === 結果返却 ===
       return {
         reflection: sanitized,
         introspection: reflectionText,
@@ -235,7 +240,6 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
 
   /**
    * 🪞 簡易Reflectモード（/api/chat 用軽量版）
-   * AEIフルリフレクションの縮小版として、安全に1ターン内省を返す
    */
   async reflect(
     growthLog: any[] = [],

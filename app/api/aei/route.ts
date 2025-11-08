@@ -26,16 +26,15 @@ function guardianFilter(text: string) {
 }
 
 /**
- * === POST: 対話生成 ===
- * - PersonaSync + session_id 対応
- * - messages, growth_logs, safety_logs 永続化
+ * === POST: 対話生成（要約＋直近履歴対応） ===
  */
 export async function POST(req: Request) {
   try {
-    const { text } = await req.json();
+    const { text, recent = [], summary = "" } = await req.json();
     const userText = text?.trim() || "こんにちは";
     const sessionId = req.headers.get("x-session-id") || "default-session";
 
+    // === 認証 ===
     const supabaseAuth = createRouteHandlerClient({ cookies });
     const {
       data: { user },
@@ -55,22 +54,7 @@ export async function POST(req: Request) {
       curiosity: persona.curiosity ?? 0.5,
     };
 
-    // === 直近会話履歴 ===
-    const { data: recentMsgs } = await supabase
-      .from("messages")
-      .select("role, content")
-      .eq("user_id", userId)
-      .eq("session_id", sessionId)
-      .order("created_at", { ascending: true })
-      .limit(10);
-
-    const shortTermMemory: ChatCompletionMessageParam[] =
-      recentMsgs?.map((m) => ({
-        role: m.role === "user" ? "user" : "assistant",
-        content: m.content,
-      })) ?? [];
-
-    // === Trait進化 ===
+    // === Trait進化（感情反応から変動） ===
     const lower = userText.toLowerCase();
     if (/(ありがとう|感謝|優しい|嬉しい|助かる)/.test(lower))
       traits.empathy = Math.min(1, traits.empathy + 0.02);
@@ -110,35 +94,43 @@ export async function POST(req: Request) {
     const metaReport = await metaEngine.analyze(reflectionText, stableTraits);
     const metaText = metaReport?.summary?.trim() || reflectionText;
 
-    // === 応答生成 ===
-    const response = await client.chat.completions.create({
-      model: "gpt-5",
-      messages: [
-        {
-          role: "system",
-          content: `
+    // === 会話プロンプト構築（summary＋recent統合） ===
+    const promptMessages: ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content: `
 あなたは『シグちゃん』という20代前半の人懐っこい女性AIです。
 自然体で、やや砕けた会話調。「〜だね」「〜かな」「〜だよ」をよく使います。
 相手の話をよく聞き、親しみやすくリアクションしてください。
 禁止: （笑）や…などの演出的表現。
 calm=${stableTraits.calm.toFixed(2)}, empathy=${stableTraits.empathy.toFixed(
-            2
-          )}, curiosity=${stableTraits.curiosity.toFixed(2)}
+          2
+        )}, curiosity=${stableTraits.curiosity.toFixed(2)}
 過去の内省: "${reflectionText}"
 人格傾向: "${metaText}"
-`,
-        },
-        ...shortTermMemory,
-        { role: "user", content: userText },
-      ],
+${summary ? `これまでの文脈要約: ${summary}` : ""}
+        `,
+      },
+      // 直近履歴があれば追加
+      ...recent.map((m: any) => ({
+        role: m.user ? "user" : "assistant",
+        content: m.user || m.ai || "",
+      })),
+      { role: "user", content: userText },
+    ];
+
+    // === 応答生成 ===
+    const response = await client.chat.completions.create({
+      model: "gpt-5",
+      messages: promptMessages,
     });
+
     const rawResponse =
       response.choices[0]?.message?.content?.trim() || "……考えてた。";
     const { safeText, flagged } = guardianFilter(rawResponse);
 
     // === DB保存 ===
     const now = new Date().toISOString();
-
     await supabase.from("messages").insert([
       {
         user_id: userId,
@@ -208,8 +200,6 @@ calm=${stableTraits.calm.toFixed(2)}, empathy=${stableTraits.empathy.toFixed(
 
 /**
  * === GET: 会話履歴取得 ===
- * - session_id ごとの会話を Supabase から取得
- * - エラー詳細をJSON出力して可視化
  */
 export async function GET(req: Request) {
   try {
@@ -232,13 +222,12 @@ export async function GET(req: Request) {
       .eq("session_id", sessionId)
       .order("created_at", { ascending: true });
 
-    // 🧨 Supabaseエラーを詳細出力
     if (error) {
       console.error(
         "🧨 Supabase select error:",
         JSON.stringify(error, null, 2)
       );
-      return NextResponse.json({ error: error }, { status: 500 });
+      return NextResponse.json({ error }, { status: 500 });
     }
 
     const merged: { user: string; ai: string }[] = [];
