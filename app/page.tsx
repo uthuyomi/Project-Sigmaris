@@ -114,8 +114,50 @@ export default function Home() {
 
   // =================== UI ===================
   return (
-    <div className="relative h-screen w-full bg-[#111] text-white">
-      <main className="h-full w-full overflow-hidden flex">
+    <main className="h-screen w-full bg-[#111] text-white overflow-hidden flex flex-col">
+      {/* 上部ヘッダー */}
+      <header className="flex items-center justify-between px-4 lg:px-8 py-3 border-b border-gray-800 bg-[#111]">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold">Sigmaris Studio</h1>
+        </div>
+
+        {/* 💬🧠 言語切替など右側UI群 */}
+        <div className="flex items-center gap-3">
+          <motion.button
+            onClick={toggleLeft}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            className="bg-blue-600 hover:bg-blue-700 text-white text-lg rounded-full w-9 h-9 flex items-center justify-center shadow"
+            title="Open Chat List"
+          >
+            💬
+          </motion.button>
+
+          <motion.button
+            onClick={toggleRight}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-lg rounded-full w-9 h-9 flex items-center justify-center shadow"
+            title="Open Sigmaris Mind"
+          >
+            🧠
+          </motion.button>
+
+          <button
+            onClick={toggleLang}
+            className="text-xs border border-gray-600 rounded px-2 py-1 hover:bg-gray-800 transition"
+          >
+            {lang === "ja" ? "EN" : "JP"}
+          </button>
+
+          <span className="hidden sm:block text-xs text-gray-400">
+            Model: <span className="text-blue-400">{modelUsed}</span>
+          </span>
+        </div>
+      </header>
+
+      {/* メインエリア */}
+      <div className="flex-1 w-full flex overflow-hidden">
         {/* 左ドロワー */}
         <ChatList
           leftOpen={leftOpen}
@@ -130,13 +172,6 @@ export default function Home() {
 
         {/* チャット本体 */}
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="flex items-center justify-between px-4 lg:px-6 py-3 border-b border-gray-800 bg-[#111]">
-            <h1 className="text-lg font-semibold">Sigmaris Studio</h1>
-            <span className="hidden sm:block text-xs text-gray-400">
-              Model: <span className="text-blue-400">{modelUsed}</span>
-            </span>
-          </header>
-
           <div className="flex-1 overflow-y-auto no-scrollbar px-4 lg:px-6 py-4 space-y-4">
             {messages.length === 0 ? (
               <p className="text-gray-500 text-center mt-20">
@@ -211,10 +246,11 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">Sigmaris Mind</h2>
                 <button
-                  onClick={toggleLang}
-                  className="text-xs border border-gray-600 rounded px-2 py-1 hover:bg-gray-800"
+                  onClick={closeRight}
+                  className="lg:hidden text-gray-400"
+                  aria-label="Close"
                 >
-                  {lang === "ja" ? "EN" : "JP"}
+                  ✕
                 </button>
               </div>
 
@@ -244,26 +280,7 @@ export default function Home() {
             </motion.aside>
           )}
         </AnimatePresence>
-      </main>
-
-      {/* === フローティングボタン（main外） === */}
-      <motion.button
-        onClick={toggleLeft}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        className="fixed bottom-6 left-6 z-[9999] bg-blue-600 hover:bg-blue-700 text-white text-2xl rounded-full w-12 h-12 shadow-lg flex items-center justify-center"
-      >
-        💬
-      </motion.button>
-
-      <motion.button
-        onClick={toggleRight}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        className="fixed bottom-6 right-6 z-[9999] bg-indigo-600 hover:bg-indigo-700 text-white text-2xl rounded-full w-12 h-12 shadow-lg flex items-center justify-center"
-      >
-        🧠
-      </motion.button>
-    </div>
+      </div>
+    </main>
   );
 }
