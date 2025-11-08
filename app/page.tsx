@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react"; // ← useRefを追加
 import { motion, AnimatePresence } from "framer-motion";
 import ChatList from "@/components/chat/ChatList";
 import { useSigmarisChat } from "@/hooks/useSigmarisChat";
@@ -29,6 +29,9 @@ export default function Home() {
     ease: "easeOut",
   };
 
+  // ====== メッセージエリア参照 ======
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
+
   // ====== シグマリスチャットフック ======
   const {
     chats,
@@ -40,8 +43,8 @@ export default function Home() {
     reflecting,
     modelUsed,
     traits,
-    reflectionText, // ← これが現在言語での本文
-    metaSummary, // ← これも同じ
+    reflectionText,
+    metaSummary,
     safetyReport,
     handleSend,
     handleReflect,
@@ -56,6 +59,13 @@ export default function Home() {
     if (!currentChatId) handleNewChat();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ====== メッセージ追加時に自動スクロール ======
+  useEffect(() => {
+    if (messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   // ====== Smart Send ======
   const handleSmartSend = useCallback(async () => {
@@ -124,7 +134,7 @@ export default function Home() {
             </button>
             <h1 className="text-lg font-semibold">Sigmaris Studio</h1>
           </div>
-          <div className="flex items中心 gap-3">
+          <div className="flex items-center gap-3">
             <span className="hidden sm:block text-xs text-gray-400">
               Model: <span className="text-blue-400">{modelUsed}</span>
             </span>
@@ -139,7 +149,7 @@ export default function Home() {
         </header>
 
         {/* メッセージエリア */}
-        <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto no-scrollbar px-4 lg:px-6 py-4 space-y-4">
           {messages.length === 0 ? (
             <p className="text-gray-500 text-center mt-20">
               {lang === "ja"
@@ -162,6 +172,8 @@ export default function Home() {
               </div>
             ))
           )}
+          {/* 👇 スクロールアンカー */}
+          <div ref={messageEndRef} />
         </div>
 
         {/* 入力欄 */}
@@ -248,7 +260,6 @@ export default function Home() {
 
               <TraitVisualizer key={graphData.length} data={graphData} />
 
-              {/* StatePanel に現在言語の本文をそのまま渡す */}
               <StatePanel
                 traits={traits}
                 reflection={reflectionText}
@@ -256,8 +267,6 @@ export default function Home() {
                 safetyFlag={safetyFlag}
                 lang={lang}
               />
-
-              {/*<EunoiaMeter traits={traits} safety={safetyReport} />*/}
             </div>
           </motion.aside>
         )}
