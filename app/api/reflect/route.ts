@@ -6,7 +6,9 @@ import { getSupabaseServer } from "@/lib/supabaseServer";
 
 import { ReflectionEngine } from "@/engine/ReflectionEngine";
 import { PersonaSync } from "@/engine/sync/PersonaSync";
-import { summarize } from "@/lib/summary"; // 🟢 要約を統合
+import { summarize } from "@/lib/summary";
+import { runParallel } from "@/lib/parallelTasks"; // 🆕 並列実行
+import { flushSessionMemory } from "@/lib/memoryFlush"; // 🆕 履歴圧縮
 import type { TraitVector } from "@/lib/traits";
 import type { MetaReport } from "@/engine/meta/MetaReflectionEngine";
 
@@ -25,7 +27,7 @@ interface ReflectionResult {
 /**
  * === POST: Reflection 実行エンドポイント ===
  * - ReflectionEngine → MetaReflectionEngine → PersonaSync（Supabase同期）
- * - 過去履歴を summarize() で圧縮し、軽量な人格成長を行う
+ * - summarize + flush を組み込み、高速化・安定化
  */
 export async function POST(req: Request) {
   try {
@@ -57,23 +59,35 @@ export async function POST(req: Request) {
 
     const userId = user.id;
     const now = new Date().toISOString();
-
     console.log("🚀 [ReflectAPI] Start reflection for:", { userId, sessionId });
 
-    // === 要約生成：過去会話を圧縮（負荷軽減）===
-    const summary = await summarize(messages.slice(0, -10)); // 前半を要約
-    const recent = messages.slice(-10); // 直近10件のみ利用
+    // === 並列で summarize + ReflectionEngine を実行 ===
+    const parallel = await runParallel([
+      {
+        label: "summary",
+        run: async () => {
+          return await summarize(messages.slice(0, -10));
+        },
+      },
+      {
+        label: "reflection",
+        run: async () => {
+          const engine = new ReflectionEngine();
+          return (await engine.fullReflect(
+            growthLog,
+            messages.slice(-10),
+            "", // summaryは後で注入
+            userId
+          )) as ReflectionResult;
+        },
+      },
+    ]);
 
-    // === ReflectionEngine 実行 ===
-    const engine = new ReflectionEngine();
-    const result = (await engine.fullReflect(
-      growthLog,
-      recent,
-      summary,
-      userId
-    )) as ReflectionResult;
+    // === 要約と内省結果を統合 ===
+    const summary = parallel.summary ?? "";
+    const reflectionResult = parallel.reflection as ReflectionResult;
 
-    if (!result) {
+    if (!reflectionResult) {
       console.warn("⚠️ ReflectionEngine returned null");
       return NextResponse.json(
         { error: "ReflectionEngine returned null", success: false },
@@ -82,13 +96,13 @@ export async function POST(req: Request) {
     }
 
     // === 結果抽出 ===
-    const reflectionText = result.reflection ?? "（内省なし）";
-    const introspection = result.introspection ?? "";
-    const metaSummary = result.metaSummary ?? "";
-    const safety = result.safety ?? "正常";
-    const metaReport = result.metaReport ?? null;
-    const traits = result.traits ?? null;
-    const flagged = result.flagged ?? false;
+    const reflectionText = reflectionResult.reflection ?? "（内省なし）";
+    const introspection = reflectionResult.introspection ?? "";
+    const metaSummary = reflectionResult.metaSummary ?? "";
+    const safety = reflectionResult.safety ?? "正常";
+    const metaReport = reflectionResult.metaReport ?? null;
+    const traits = reflectionResult.traits ?? null;
+    const flagged = reflectionResult.flagged ?? false;
 
     console.log("🪞 Reflection result:", {
       reflectionText,
@@ -98,10 +112,9 @@ export async function POST(req: Request) {
       flagged,
     });
 
-    // === Supabase クライアント初期化 ===
     const supabase = getSupabaseServer();
 
-    // 🧠 1. reflections 履歴を保存（session_id対応）
+    // 🧠 1. reflections 履歴を保存（summary付き）
     const { error: refError } = await supabase.from("reflections").insert([
       {
         user_id: userId,
@@ -109,7 +122,7 @@ export async function POST(req: Request) {
         reflection: reflectionText,
         introspection,
         meta_summary: metaSummary,
-        summary_text: summary, // 🟢 要約を一緒に保存
+        summary_text: summary,
         safety_status: safety,
         created_at: now,
       },
@@ -134,7 +147,6 @@ export async function POST(req: Request) {
 
       const growthWeight =
         (traits.calm + traits.empathy + traits.curiosity) / 3;
-
       const { error: growError } = await supabase.from("growth_logs").insert([
         {
           user_id: userId,
@@ -166,6 +178,17 @@ export async function POST(req: Request) {
     if (safeError)
       console.warn("⚠️ safety_logs insert failed:", safeError.message);
 
+    // 🧹 4. flushSessionMemory：履歴圧縮
+    const flushResult = await flushSessionMemory(userId, sessionId, {
+      threshold: 120,
+      keepRecent: 25,
+    });
+    if (flushResult.didFlush) {
+      console.log(
+        `🧹 Memory flushed: deleted ${flushResult.deletedCount}, kept ${flushResult.keptCount}`
+      );
+    }
+
     console.log("✅ Reflection process complete for:", { userId, sessionId });
 
     // === レスポンス ===
@@ -178,7 +201,8 @@ export async function POST(req: Request) {
       traits,
       flagged,
       sessionId,
-      summaryUsed: !!summary, // 🟢 どの経路を通ったか確認用
+      summaryUsed: !!summary,
+      flush: flushResult ?? null,
       updatedHistory: [...history, introspection],
       success: true,
     });

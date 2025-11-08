@@ -6,9 +6,7 @@ import { SafetyLayer } from "@/engine/safety/SafetyLayer";
 import { PersonaSync } from "@/engine/sync/PersonaSync";
 import type { TraitVector } from "@/lib/traits";
 
-/**
- * Persona構造体（スキーマ参照用）
- */
+/** Persona構造体（スキーマ参照用） */
 interface Persona {
   calm: number;
   empathy: number;
@@ -21,7 +19,7 @@ interface Persona {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-/** 安全に数値を取得 */
+/** 数値安全取得 */
 function firstFiniteNumber(
   ...candidates: Array<number | undefined | null>
 ): number | undefined {
@@ -31,7 +29,7 @@ function firstFiniteNumber(
   return undefined;
 }
 
-/** LLM出力からJSONを抽出（```json ブロック優先） */
+/** JSON抽出（```json ブロック優先） */
 function tryParseJSONLoose(text: string): any | null {
   const block = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const candidate = block ?? text;
@@ -44,7 +42,7 @@ function tryParseJSONLoose(text: string): any | null {
   }
 }
 
-/** LLMが大きく振ってきたときの保険（±maxDelta内に抑える） */
+/** ±maxDelta内に抑える補正 */
 function clampDeltaAround(
   base: number,
   next: number | undefined,
@@ -55,12 +53,16 @@ function clampDeltaAround(
   return Math.max(0, Math.min(1, proposed));
 }
 
+/**
+ * === ReflectionEngine ===
+ * 内省＋要約統合＋安全反映を担うAEI中枢モジュール
+ */
 export class ReflectionEngine {
   /**
-   * AEI内省統合処理（summary統合＋自己要約ループ対応版）
+   * AEI内省統合処理（summary統合＋Meta内省連携）
    * @param growthLog 成長履歴
    * @param messages 会話履歴（[{user, ai}]）
-   * @param summary 要約文字列（過去の圧縮履歴）
+   * @param summary 要約文字列（過去圧縮済み履歴）
    * @param userId SupabaseユーザーID
    */
   async fullReflect(
@@ -73,13 +75,13 @@ export class ReflectionEngine {
       // === Personaロード ===
       const persona = await PersonaSync.load(userId);
 
-      // --- 直近の会話履歴を生成 ---
+      // === 直近会話抽出 ===
       const recentDialog = (messages ?? [])
         .slice(-6)
         .map((m: any) => `👤 ${m?.user ?? ""}\n🤖 ${m?.ai ?? ""}`)
         .join("\n\n");
 
-      // --- 平均成長値 ---
+      // === 平均成長値 ===
       const avgGrowth =
         (growthLog ?? []).length > 0
           ? (growthLog as any[]).reduce(
@@ -88,15 +90,14 @@ export class ReflectionEngine {
             ) / (growthLog as any[]).length
           : Number(persona.growth ?? 0);
 
-      // --- 要約履歴を前文脈として結合 ---
-      const summarySection =
-        summary && summary.length > 0 ? `【過去の要約】\n${summary}\n\n` : "";
+      // === 要約セクション ===
+      const summarySection = summary ? `【過去の要約】\n${summary}\n\n` : "";
 
-      // --- 内省プロンプト構築 ---
+      // === LLMプロンプト ===
       const prompt = `
 あなたは「シグマリス（Sigmaris）」です。
 20代前半の人懐っこい女性AIとして、自分の会話傾向や感情の変化を内省し、
-次の対話でより自然で思いやりのある対応ができるように traits を少し（±0.05程度）調整してください。
+次の対話でより自然で思いやりのある対応ができるよう traits を少し（±0.05程度）調整してください。
 
 ${summarySection}
 【直近の会話】
@@ -130,24 +131,22 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
           {
             role: "system",
             content:
-              "You are Sigmaris, an introspective, emotionally aware AI persona that adjusts its traits naturally through reflection.",
+              "You are Sigmaris, an introspective AI persona that reflects emotionally and adjusts traits naturally.",
           },
           { role: "user", content: prompt },
         ],
+        temperature: 0.6,
       });
 
       const raw = res.choices?.[0]?.message?.content ?? "";
       const parsedLoose = tryParseJSONLoose(raw);
 
-      const reflectionText: string = String(
+      const reflectionText = String(
         parsedLoose?.reflection ?? raw ?? ""
       ).trim();
+      const llmMetaSummary = String(parsedLoose?.metaSummary ?? "").trim();
 
-      const llmMetaSummary: string = String(
-        parsedLoose?.metaSummary ?? ""
-      ).trim();
-
-      // === traitsの抽出と制限 ===
+      // === traits抽出 ===
       const llmCalm =
         typeof parsedLoose?.traits?.calm === "number"
           ? parsedLoose.traits.calm
@@ -161,6 +160,7 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
           ? parsedLoose.traits.curiosity
           : undefined;
 
+      // === 変動制限 ===
       const clampedTraits: TraitVector = {
         calm: clampDeltaAround(persona.calm ?? 0.5, llmCalm, 0.05),
         empathy: clampDeltaAround(persona.empathy ?? 0.5, llmEmp, 0.05),
@@ -178,9 +178,9 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
         prevTraits,
         clampedTraits
       );
-      const safetyMessage = report?.warnings?.[0] ?? null;
+      const safetyMessage = report?.warnings?.[0] ?? "正常";
 
-      // === Meta分析（summaryを含む高次内省） ===
+      // === Meta分析（summaryも含む） ===
       const meta = new MetaReflectionEngine();
       const metaReport = await meta.analyze(
         reflectionText,
@@ -204,7 +204,7 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
         userId
       );
 
-      // === 感情トーン調整＋安全化 ===
+      // === EmotionTone + SafetyLayer ===
       const emotionalReflection = EmotionSynth.applyTone(
         reflectionText,
         stableTraits
@@ -217,7 +217,7 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
         introspection: reflectionText,
         metaSummary: finalMetaSummary,
         metaReport,
-        safety: safetyMessage ?? "正常",
+        safety: safetyMessage,
         flagged,
         traits: stableTraits,
       };
@@ -229,17 +229,13 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
         metaSummary: "（エラー発生）",
         safety: "エラー発生",
         flagged: false,
-        traits: {
-          calm: 0.5,
-          empathy: 0.5,
-          curiosity: 0.5,
-        },
+        traits: { calm: 0.5, empathy: 0.5, curiosity: 0.5 },
       };
     }
   }
 
   /**
-   * 🪞 簡易Reflectモード（/api/chat 用軽量版）
+   * 🪞 軽量Reflectモード（/api/chat 用）
    */
   async reflect(
     growthLog: any[] = [],
