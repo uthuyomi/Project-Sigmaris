@@ -7,8 +7,8 @@ import { getSupabaseServer } from "@/lib/supabaseServer";
 import { SafetyLayer } from "@/engine/safety/SafetyLayer";
 import { MetaReflectionEngine } from "@/engine/meta/MetaReflectionEngine";
 import { PersonaSync } from "@/engine/sync/PersonaSync";
-import { runParallel } from "@/lib/parallelTasks"; // 🆕 並列実行ユーティリティ
-import { flushSessionMemory } from "@/lib/memoryFlush"; // 🆕 履歴圧縮ユーティリティ
+import { runParallel } from "@/lib/parallelTasks";
+import { flushSessionMemory } from "@/lib/memoryFlush";
 import type { TraitVector } from "@/lib/traits";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
@@ -34,7 +34,8 @@ export async function POST(req: Request) {
   try {
     const { text, recent = [], summary = "" } = await req.json();
     const userText = text?.trim() || "こんにちは";
-    const sessionId = req.headers.get("x-session-id") || "default-session";
+    // 🟢 UUID固定でセッション維持
+    const sessionId = req.headers.get("x-session-id") || crypto.randomUUID();
 
     // === 認証 ===
     const supabaseAuth = createRouteHandlerClient({ cookies });
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
       curiosity: persona.curiosity ?? 0.5,
     };
 
-    // === Trait進化（感情反応から変動） ===
+    // === Trait進化 ===
     const lower = userText.toLowerCase();
     if (/(ありがとう|感謝|優しい|嬉しい|助かる)/.test(lower))
       traits.empathy = Math.min(1, traits.empathy + 0.02);
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
       traits.curiosity = Math.min(1, traits.curiosity + 0.03);
     const stableTraits = SafetyLayer.stabilize(traits);
 
-    // === 並列処理（内省生成＋Meta分析） ===
+    // === 並列処理（内省＋Meta分析） ===
     const parallelResults = await runParallel([
       {
         label: "reflection",
@@ -99,7 +100,6 @@ export async function POST(req: Request) {
       {
         label: "meta",
         run: async () => {
-          // MetaReflectionはreflection結果に依存するがPromiseで非同期展開可
           const tmpReflection = "一時的な内省: 処理中";
           const metaEngine = new MetaReflectionEngine();
           return await metaEngine.analyze(tmpReflection, stableTraits);
@@ -107,11 +107,11 @@ export async function POST(req: Request) {
       },
     ]);
 
-    const reflectionText = parallelResults.reflection || "少し整理中かも。";
-    const metaReport = parallelResults.meta || null;
+    const reflectionText = parallelResults.reflection ?? "少し整理中かも。";
+    const metaReport = parallelResults.meta ?? null;
     const metaText = metaReport?.summary?.trim() || reflectionText;
 
-    // === 会話プロンプト構築 ===
+    // === 会話プロンプト構築（fallback付き） ===
     const promptMessages: ChatCompletionMessageParam[] = [
       {
         role: "system",
@@ -128,14 +128,18 @@ calm=${stableTraits.calm.toFixed(2)}, empathy=${stableTraits.empathy.toFixed(
 ${summary ? `これまでの文脈要約: ${summary}` : ""}
         `,
       },
-      ...recent.map((m: any) => ({
-        role: m.user ? "user" : "assistant",
-        content: m.user || m.ai || "",
-      })),
+      ...(recent.length > 0
+        ? recent.map((m: any) => ({
+            role: m.user ? "user" : "assistant",
+            content: m.user || m.ai || "",
+          }))
+        : summary
+        ? [{ role: "assistant", content: summary.slice(-300) }]
+        : []),
       { role: "user", content: userText },
     ];
 
-    // === 応答生成（メイン処理） ===
+    // === 応答生成 ===
     const response = await client.chat.completions.create({
       model: "gpt-5",
       messages: promptMessages,
@@ -185,13 +189,12 @@ ${summary ? `これまでの文脈要約: ${summary}` : ""}
         created_at: now,
       },
     ]);
-
     await PersonaSync.update(stableTraits, metaText, growthWeight, userId);
 
-    // === flush: 長期履歴の圧縮統合（裏処理） ===
+    // === flush処理 ===
     const flushResult = await flushSessionMemory(userId, sessionId, {
-      threshold: 100, // この件数超えたら圧縮
-      keepRecent: 20, // 直近は残す
+      threshold: 100,
+      keepRecent: 20,
     });
     if (flushResult.didFlush)
       console.log(
