@@ -1,13 +1,14 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useSigmarisLang } from "@/lib/sigmarisLangContext"; // ✅ ←ここが重要（useLangではなくuseSigmarisLang）
+import { useSigmarisLang } from "@/lib/sigmarisLangContext";
 
 export default function Header() {
-  // ✅ useLang → useSigmarisLang に修正
   const { lang, setLang } = useSigmarisLang();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const text = {
     home: lang === "ja" ? "ホーム" : "Home",
@@ -22,12 +23,12 @@ export default function Header() {
 
   return (
     <motion.header
-      className="fixed top-0 left-0 w-full z-50 bg-[#0e141b]/70 backdrop-blur-lg border-b border-[#1f2835] flex items-center justify-between px-6 py-3"
+      className="fixed top-0 left-0 w-full z-50 bg-[#0e141b]/70 backdrop-blur-lg border-b border-[#1f2835] px-6 py-3 flex items-center justify-between"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
     >
-      {/* 左ロゴ */}
+      {/* === ロゴ === */}
       <Link
         href="/"
         className="flex items-center gap-2 hover:opacity-90 transition"
@@ -45,8 +46,8 @@ export default function Header() {
         </span>
       </Link>
 
-      {/* 右ナビ */}
-      <nav className="flex items-center gap-6 text-sm">
+      {/* === PC用ナビ === */}
+      <nav className="hidden md:flex items-center gap-6 text-sm">
         <Link
           href="/about"
           className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
@@ -91,6 +92,95 @@ export default function Header() {
           {text.switch}
         </button>
       </nav>
+
+      {/* === モバイル用メニューアイコン === */}
+      <button
+        className="md:hidden flex flex-col justify-center items-center w-8 h-8 focus:outline-none"
+        onClick={() => setMenuOpen(!menuOpen)}
+      >
+        <span
+          className={`block w-6 h-0.5 bg-[#e6eef4] transition-all duration-300 ${
+            menuOpen ? "rotate-45 translate-y-1.5" : ""
+          }`}
+        />
+        <span
+          className={`block w-6 h-0.5 bg-[#e6eef4] my-1 transition-all duration-300 ${
+            menuOpen ? "opacity-0" : ""
+          }`}
+        />
+        <span
+          className={`block w-6 h-0.5 bg-[#e6eef4] transition-all duration-300 ${
+            menuOpen ? "-rotate-45 -translate-y-1.5" : ""
+          }`}
+        />
+      </button>
+
+      {/* === モバイル用ナビ展開 === */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.nav
+            key="mobile-nav"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="absolute top-16 left-0 w-full bg-[#0e141b]/95 backdrop-blur-xl border-t border-[#1f2835] flex flex-col items-center gap-5 py-6 text-sm md:hidden"
+          >
+            <Link
+              href="/about"
+              onClick={() => setMenuOpen(false)}
+              className="hover:text-[#4c7cf7]"
+            >
+              {text.about}
+            </Link>
+            <Link
+              href="/about/sigmaris"
+              onClick={() => setMenuOpen(false)}
+              className="hover:text-[#4c7cf7]"
+            >
+              {text.sigmaris}
+            </Link>
+            <Link
+              href="/docs"
+              onClick={() => setMenuOpen(false)}
+              className="hover:text-[#4c7cf7]"
+            >
+              {text.docs}
+            </Link>
+            <Link
+              href="/plans"
+              onClick={() => setMenuOpen(false)}
+              className="hover:text-[#4c7cf7]"
+            >
+              {text.plans}
+            </Link>
+            <Link
+              href="/funding"
+              onClick={() => setMenuOpen(false)}
+              className="hover:text-[#4c7cf7]"
+            >
+              {text.funding}
+            </Link>
+            <Link
+              href="/tokushoho"
+              onClick={() => setMenuOpen(false)}
+              className="hover:text-[#4c7cf7]"
+            >
+              {text.tokushoho}
+            </Link>
+
+            <button
+              onClick={() => {
+                setLang(lang === "ja" ? "en" : "ja");
+                setMenuOpen(false);
+              }}
+              className="mt-2 px-4 py-1 border border-[#4c7cf7] rounded-full hover:bg-[#4c7cf7]/20 transition"
+            >
+              {text.switch}
+            </button>
+          </motion.nav>
+        )}
+      </AnimatePresence>
     </motion.header>
   );
 }
