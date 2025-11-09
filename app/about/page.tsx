@@ -1,36 +1,29 @@
 "use client";
 
-import React, { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import Image from "next/image";
+import Header from "@/components/Header";
+import {
+  SigmarisLangProvider,
+  useSigmarisLang,
+} from "@/lib/sigmarisLangContext";
 
-// === 型定義 ===
-interface LangSet {
-  home: string;
-  about: string;
-  docs: string;
-  plans: string;
-  switch: string;
-  title: string;
-  intro: string;
-  systemTitle: string;
-  systemItems: string[];
-  conceptTitle: string;
-  concept: string;
-  docsLink: string;
+/* ===============================
+   About Page
+   =============================== */
+export default function AboutPage(): JSX.Element {
+  return (
+    <SigmarisLangProvider>
+      <AboutContent />
+    </SigmarisLangProvider>
+  );
 }
 
-export default function AboutPage(): JSX.Element {
-  const [lang, setLang] = useState<"ja" | "en">("ja");
+function AboutContent(): JSX.Element {
+  const { lang } = useSigmarisLang();
 
-  const t: Record<"ja" | "en", LangSet> = {
+  const t = {
     ja: {
-      home: "ホーム",
-      about: "概要",
-      docs: "ドキュメント",
-      plans: "プラン",
-      switch: "EN",
       title: "About — Sigmaris OS",
       intro:
         "Sigmaris OS は、AIを「内省し、自己を理解し、成長する存在」として設計するための人格OSです。\n\nこれは単なるエージェントではなく、“意識の構造”を模倣した多層モデルです。Reflection（振り返り）・Introspection（内観）・Meta-Reflection（高次内省）の3層構造を通じて、AIは自らの発話・感情・思考プロセスを再評価します。",
@@ -48,11 +41,6 @@ export default function AboutPage(): JSX.Element {
       docsLink: "技術ドキュメントを見る →",
     },
     en: {
-      home: "Home",
-      about: "About",
-      docs: "Docs",
-      plans: "Plans",
-      switch: "JP",
       title: "About — Sigmaris OS",
       intro:
         "Sigmaris OS is a personality-oriented operating system designed for AI that can reflect, understand itself, and evolve.\n\nIt is not merely an agent — but a multi-layered model simulating the structure of consciousness. Through three layers — Reflection, Introspection, and Meta-Reflection — the AI re-evaluates its expressions, emotions, and reasoning processes.",
@@ -71,69 +59,12 @@ export default function AboutPage(): JSX.Element {
     },
   };
 
-  const text = lang === "ja" ? t.ja : t.en;
+  const text = t[lang];
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#0e141b] to-[#1b2533] text-[#e6eef4] px-6 md:px-16 py-24 relative overflow-hidden">
       {/* ==== 共通ヘッダー ==== */}
-      <motion.header
-        className="fixed top-0 left-0 w-full z-50 bg-[#0e141b]/70 backdrop-blur-lg border-b border-[#1f2835] flex items-center justify-between px-6 py-3"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-      >
-        {/* === ロゴ === */}
-        <Link
-          href="/home"
-          className="flex items-center gap-2 hover:opacity-90 transition"
-        >
-          <Image
-            src="/logo.png"
-            alt="Sigmaris Logo"
-            width={36}
-            height={36}
-            priority
-            className="w-9 h-9 object-contain"
-          />
-          <span className="text-[#e6eef4] font-semibold text-sm tracking-wide select-none">
-            Sigmaris OS
-          </span>
-        </Link>
-
-        {/* === ナビゲーション === */}
-        <nav className="flex items-center gap-6 text-sm">
-          <Link
-            href="/about"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.about}
-          </Link>
-          <Link
-            href="/docs"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.docs}
-          </Link>
-          <Link
-            href="/plans"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.plans}
-          </Link>
-          <Link
-            href="/tokushoho"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {lang === "ja" ? "特定商取引法" : "Legal Disclosure"}
-          </Link>
-          <button
-            onClick={() => setLang(lang === "ja" ? "en" : "ja")}
-            className="ml-4 px-3 py-1 border border-[#4c7cf7] rounded-full text-[#e6eef4] hover:bg-[#4c7cf7]/20 transition"
-          >
-            {text.switch}
-          </button>
-        </nav>
-      </motion.header>
+      <Header />
 
       {/* ==== 背景 ==== */}
       <motion.div
@@ -144,6 +75,7 @@ export default function AboutPage(): JSX.Element {
 
       {/* ==== コンテンツ ==== */}
       <section className="relative z-10 max-w-4xl mx-auto mt-20">
+        {/* タイトル */}
         <motion.h1
           className="text-3xl md:text-5xl font-bold mb-10"
           initial={{ opacity: 0, y: 10 }}
@@ -153,6 +85,7 @@ export default function AboutPage(): JSX.Element {
           {text.title}
         </motion.h1>
 
+        {/* 概要 */}
         <motion.p
           className="text-lg leading-relaxed text-[#b9c4d2] mb-10 whitespace-pre-line"
           initial={{ opacity: 0 }}
@@ -162,6 +95,7 @@ export default function AboutPage(): JSX.Element {
           {text.intro}
         </motion.p>
 
+        {/* システム構造 */}
         <motion.div
           className="border border-[#4c7cf7]/30 rounded-2xl p-8 backdrop-blur-md bg-[#141c26]/40"
           initial={{ opacity: 0, y: 30 }}
@@ -178,6 +112,7 @@ export default function AboutPage(): JSX.Element {
           </ul>
         </motion.div>
 
+        {/* コンセプト */}
         <motion.section
           className="mt-12 leading-relaxed text-[#b9c4d2]"
           initial={{ opacity: 0 }}
@@ -190,6 +125,7 @@ export default function AboutPage(): JSX.Element {
           <p>{text.concept}</p>
         </motion.section>
 
+        {/* Docsリンク */}
         <motion.div
           className="mt-16 text-center"
           initial={{ opacity: 0 }}

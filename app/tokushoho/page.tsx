@@ -1,20 +1,28 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
+import Header from "@/components/Header";
+import {
+  SigmarisLangProvider,
+  useSigmarisLang,
+} from "@/lib/sigmarisLangContext";
 
 export default function TokushohoPage(): JSX.Element {
-  const [lang, setLang] = useState<"ja" | "en">("ja");
+  return (
+    <SigmarisLangProvider>
+      <TokushohoContent />
+    </SigmarisLangProvider>
+  );
+}
+
+function TokushohoContent(): JSX.Element {
+  const { lang } = useSigmarisLang();
 
   const t = {
     ja: {
-      home: "ホーム",
-      about: "概要",
-      docs: "ドキュメント",
-      plans: "プラン",
-      switch: "EN",
       title: "特定商取引法に基づく表記",
       subtitle:
         "本ページは、日本国内でのオンライン販売に関する法令に基づき、Sigmaris OSの取引条件を明示するものです。",
@@ -53,13 +61,9 @@ export default function TokushohoPage(): JSX.Element {
           value: "PCまたはスマートフォン（最新ブラウザ推奨）",
         },
       ],
+      back: "← プランページに戻る",
     },
     en: {
-      home: "Home",
-      about: "About",
-      docs: "Docs",
-      plans: "Plans",
-      switch: "JP",
       title: "Legal Notice (Japan: Act on Specified Commercial Transactions)",
       subtitle:
         "This page outlines the legally required information under Japan’s Act on Specified Commercial Transactions for Sigmaris OS.",
@@ -103,6 +107,7 @@ export default function TokushohoPage(): JSX.Element {
           value: "PC or smartphone (latest browser recommended)",
         },
       ],
+      back: "← Back to Plans",
     },
   };
 
@@ -110,63 +115,8 @@ export default function TokushohoPage(): JSX.Element {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#0e141b] to-[#1a2230] text-[#e6eef4] px-6 md:px-16 py-24 relative overflow-hidden">
-      {/* ==== 固定ヘッダー ==== */}
-      <motion.header
-        className="fixed top-0 left-0 w-full z-50 bg-[#0e141b]/70 backdrop-blur-lg border-b border-[#1f2835] flex items-center justify-between px-6 py-3"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-      >
-        <Link
-          href="/home"
-          className="flex items-center gap-2 hover:opacity-90 transition"
-        >
-          <Image
-            src="/logo.png"
-            alt="Sigmaris Logo"
-            width={36}
-            height={36}
-            priority
-            className="w-9 h-9 object-contain"
-          />
-          <span className="text-[#e6eef4] font-semibold text-sm tracking-wide select-none">
-            Sigmaris OS
-          </span>
-        </Link>
-
-        <nav className="flex items-center gap-6 text-sm">
-          <Link
-            href="/about"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.about}
-          </Link>
-          <Link
-            href="/docs"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.docs}
-          </Link>
-          <Link
-            href="/plans"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.plans}
-          </Link>
-          <Link
-            href="/tokushoho"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {lang === "ja" ? "特定商取引法" : "Legal Disclosure"}
-          </Link>
-          <button
-            onClick={() => setLang(lang === "ja" ? "en" : "ja")}
-            className="ml-4 px-3 py-1 border border-[#4c7cf7] rounded-full text-[#e6eef4] hover:bg-[#4c7cf7]/20 transition"
-          >
-            {text.switch}
-          </button>
-        </nav>
-      </motion.header>
+      {/* ==== 共通ヘッダー ==== */}
+      <Header />
 
       {/* ==== 背景アニメーション ==== */}
       <motion.div
@@ -176,7 +126,7 @@ export default function TokushohoPage(): JSX.Element {
       />
 
       {/* ==== コンテンツ ==== */}
-      <section className="relative z-10 max-w-4xl mx-auto mt-20">
+      <section className="relative z-10 max-w-4xl mx-auto mt-24">
         <motion.h1
           className="text-3xl md:text-5xl font-bold mb-6 text-center"
           initial={{ opacity: 0, y: 10 }}
@@ -223,7 +173,7 @@ export default function TokushohoPage(): JSX.Element {
             href="/plans"
             className="px-8 py-3 border border-[#4c7cf7] rounded-full text-[#e6eef4] hover:bg-[#4c7cf7]/10 transition"
           >
-            ← {lang === "ja" ? "プランページに戻る" : "Back to Plans"}
+            {text.back}
           </Link>
         </motion.div>
       </section>

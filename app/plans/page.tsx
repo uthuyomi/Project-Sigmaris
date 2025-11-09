@@ -1,47 +1,37 @@
+// /app/plans/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import Image from "next/image";
+import Header from "@/components/Header";
+import {
+  SigmarisLangProvider,
+  useSigmarisLang,
+} from "@/lib/sigmarisLangContext";
 
-// ---- 型定義 ----
-interface Plan {
+type Plan = {
   name: string;
   price: string;
   desc: string;
   details: string[];
   button: string;
   link: string;
-}
+};
 
-interface LangText {
-  home: string;
-  about: string;
-  docs: string;
-  plans: string;
-  switch: string;
-  title: string;
-  aboutTitle: string;
-  aboutText: string;
-  planTitle: string;
-  plansList: Plan[];
-  noticeTitle: string;
-  notices: string[];
-  back: string;
-}
-
-// ---- コンポーネント ----
 export default function PlansPage(): JSX.Element {
-  const [lang, setLang] = useState<"ja" | "en">("ja");
+  return (
+    <SigmarisLangProvider>
+      <PlansContent />
+    </SigmarisLangProvider>
+  );
+}
 
-  const t: Record<"ja" | "en", LangText> = {
+function PlansContent(): JSX.Element {
+  const { lang } = useSigmarisLang();
+
+  const t = {
     ja: {
-      home: "ホーム",
-      about: "概要",
-      docs: "ドキュメント",
-      plans: "プラン",
-      switch: "EN",
       title: "Sigmaris OS — 利用クレジットとチャージ案内",
       aboutTitle: "🧠 Sigmaris OSとは",
       aboutText:
@@ -86,7 +76,7 @@ export default function PlansPage(): JSX.Element {
           button: "開発連携を相談",
           link: "https://www.linkedin.com/in/kaisei-yasuzaki-20143a388/",
         },
-      ],
+      ] as Plan[],
       noticeTitle: "⚠️ ご利用にあたっての注意",
       notices: [
         "Sigmaris OSは生成AIによる人格シミュレーションであり、医療・法的判断などへの利用はできません。",
@@ -99,11 +89,6 @@ export default function PlansPage(): JSX.Element {
       back: "← Homeへ戻る",
     },
     en: {
-      home: "Home",
-      about: "About",
-      docs: "Docs",
-      plans: "Plans",
-      switch: "JP",
       title: "Sigmaris OS — Usage Credits & Charge Plans",
       aboutTitle: "🧠 What is Sigmaris OS?",
       aboutText:
@@ -115,9 +100,9 @@ export default function PlansPage(): JSX.Element {
           price: "$0",
           desc: "Experience with 10 free sessions",
           details: [
-            "・Access to basic dialogue (/api/aei)",
-            "・Try Reflection Engine",
-            "・Includes 10 free credits",
+            "• Access to basic dialogue (/api/aei)",
+            "• Try Reflection Engine",
+            "• Includes 10 free credits",
           ],
           button: "Login Now",
           link: "/auth/login",
@@ -127,10 +112,10 @@ export default function PlansPage(): JSX.Element {
           price: "¥1,000 /charge",
           desc: "For light development & testing",
           details: [
-            "・Full AEI / Reflection access",
-            "・Approx. 100 credits available",
-            "・Growth & introspection logs saved",
-            "・Response speed: 3–8 sec",
+            "• Full AEI / Reflection access",
+            "• Approx. 100 credits available",
+            "• Growth & introspection logs saved",
+            "• Response speed: 3–8 sec",
           ],
           button: "Charge Now",
           link: "/charge",
@@ -140,15 +125,15 @@ export default function PlansPage(): JSX.Element {
           price: "¥3,000 /charge",
           desc: "For researchers & developers",
           details: [
-            "・All features + high-output model",
-            "・Approx. 400 credits available",
-            "・API integration & stress test ready",
-            "・Response speed: 2–5 sec (priority)",
+            "• All features + high-output model",
+            "• Approx. 400 credits available",
+            "• API integration & stress test ready",
+            "• Response speed: 2–5 sec (priority)",
           ],
           button: "Contact for Collaboration",
           link: "https://www.linkedin.com/in/kaisei-yasuzaki-20143a388/",
         },
-      ],
+      ] as Plan[],
       noticeTitle: "⚠️ Notes & Disclaimers",
       notices: [
         "Sigmaris OS is a generative AI simulation and not suitable for medical or legal decision-making.",
@@ -160,83 +145,25 @@ export default function PlansPage(): JSX.Element {
       ],
       back: "← Back to Home",
     },
-  };
+  } as const;
 
-  const text = lang === "ja" ? t.ja : t.en;
+  const text = t[lang];
 
   return (
     <main className="relative min-h-screen bg-gradient-to-b from-[#0e141b] to-[#1a2230] text-[#e6eef4] px-6 md:px-16 py-24 overflow-hidden">
-      {/* ==== 共通ヘッダー ==== */}
-      <motion.header
-        className="fixed top-0 left-0 w-full z-50 bg-[#0e141b]/70 backdrop-blur-lg border-b border-[#1f2835] flex items-center justify-between px-6 py-3"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-      >
-        {/* === ロゴ === */}
-        <Link
-          href="/home"
-          className="flex items-center gap-2 hover:opacity-90 transition"
-        >
-          <Image
-            src="/logo.png"
-            alt="Sigmaris Logo"
-            width={36}
-            height={36}
-            priority
-            className="w-9 h-9 object-contain"
-          />
-          <span className="text-[#e6eef4] font-semibold text-sm tracking-wide select-none">
-            Sigmaris OS
-          </span>
-        </Link>
+      {/* 共通ヘッダー */}
+      <Header />
 
-        {/* === ナビゲーション === */}
-        <nav className="flex items-center gap-6 text-sm">
-          <Link
-            href="/about"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.about}
-          </Link>
-          <Link
-            href="/docs"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.docs}
-          </Link>
-          <Link
-            href="/plans"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {text.plans}
-          </Link>
-          <Link
-            href="/tokushoho"
-            className="text-[#c9d2df] hover:text-[#4c7cf7] transition"
-          >
-            {lang === "ja" ? "特定商取引法" : "Legal Disclosure"}
-          </Link>
-          <button
-            type="button"
-            onClick={() => setLang(lang === "ja" ? "en" : "ja")}
-            className="ml-4 px-3 py-1 border border-[#4c7cf7] rounded-full text-[#e6eef4] hover:bg-[#4c7cf7]/20 transition"
-          >
-            {text.switch}
-          </button>
-        </nav>
-      </motion.header>
-
-      {/* ==== 背景 ==== */}
+      {/* 背景 */}
       <motion.div
         className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(68,116,255,0.08),transparent_70%)]"
         animate={{ opacity: [0.5, 0.8, 0.5] }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* ==== コンテンツ ==== */}
+      {/* コンテンツ */}
       <section className="relative z-10 max-w-5xl mx-auto mt-20">
-        {/* === タイトル === */}
+        {/* タイトル */}
         <motion.h1
           className="text-4xl md:text-5xl font-bold mb-12 text-center"
           initial={{ opacity: 0, y: 20 }}
@@ -246,94 +173,82 @@ export default function PlansPage(): JSX.Element {
           {text.title}
         </motion.h1>
 
-        {/* === 概要 === */}
-        <motion.div
-          className="mb-16 border border-[#4c7cf7]/30 rounded-2xl p-8 backdrop-blur-md bg-[#141c26]/40"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 1 }}
-        >
-          <h2 className="text-2xl font-semibold mb-4 text-[#4c7cf7]">
-            {text.aboutTitle}
-          </h2>
+        {/* 概要 */}
+        <Card delay={0.2} title={text.aboutTitle}>
           <p className="text-[#c4d0e2] leading-relaxed whitespace-pre-line">
             {text.aboutText}
           </p>
-        </motion.div>
+        </Card>
 
-        {/* === プラン一覧 === */}
-        <motion.div
-          className="mb-16 border border-[#4c7cf7]/30 rounded-2xl p-8 backdrop-blur-md bg-[#141c26]/40"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 1 }}
-        >
-          <h2 className="text-2xl font-semibold mb-8 text-[#4c7cf7] text-center">
-            {text.planTitle}
-          </h2>
-
+        {/* プラン一覧 */}
+        <Card delay={0.4} title={text.planTitle} center>
           <div className="grid md:grid-cols-3 gap-8">
-            {text.plansList.map((p, i) => (
-              <div
-                key={i}
-                className={`border border-[#4c7cf7]/40 rounded-xl p-6 text-center ${
-                  i === 1
-                    ? "bg-[#212b3d]/80 shadow-lg shadow-[#4c7cf7]/10"
-                    : "bg-[#1b2331]/60"
-                }`}
-              >
-                <h3
-                  className={`text-xl font-semibold mb-3 ${
-                    i === 1 ? "text-[#4c7cf7]" : ""
+            {text.plansList.map((p, i) => {
+              const isFeatured = i === 1;
+              const isExternal = p.link.startsWith("http");
+
+              const PlanInner = (
+                <>
+                  <h3
+                    className={`text-xl font-semibold mb-3 ${
+                      isFeatured ? "text-[#4c7cf7]" : ""
+                    }`}
+                  >
+                    {p.name}
+                  </h3>
+                  <p className="text-3xl font-bold mb-2">{p.price}</p>
+                  <p className="text-sm text-[#a8b3c7] mb-4">{p.desc}</p>
+                  <ul className="text-sm text-left space-y-2 text-[#c4d0e2] mb-6">
+                    {p.details.map((d, j) => (
+                      <li key={j}>{d}</li>
+                    ))}
+                  </ul>
+                  <span className="inline-block px-6 py-2 border border-[#4c7cf7] rounded-full hover:bg-[#4c7cf7]/10 transition">
+                    {p.button}
+                  </span>
+                </>
+              );
+
+              return (
+                <div
+                  key={i}
+                  className={`border border-[#4c7cf7]/40 rounded-xl p-6 text-center ${
+                    isFeatured
+                      ? "bg-[#212b3d]/80 shadow-lg shadow-[#4c7cf7]/10"
+                      : "bg-[#1b2331]/60"
                   }`}
                 >
-                  {p.name}
-                </h3>
-                <p className="text-3xl font-bold mb-2">{p.price}</p>
-                <p className="text-sm text-[#a8b3c7] mb-4">{p.desc}</p>
-                <ul className="text-sm text-left space-y-2 text-[#c4d0e2] mb-6">
-                  {p.details.map((d, j) => (
-                    <li key={j}>{d}</li>
-                  ))}
-                </ul>
-                <Link
-                  href={p.link}
-                  target={p.link.startsWith("http") ? "_blank" : "_self"}
-                  className="inline-block px-6 py-2 border border-[#4c7cf7] rounded-full hover:bg-[#4c7cf7]/10 transition"
-                >
-                  {p.button}
-                </Link>
-              </div>
-            ))}
+                  {isExternal ? (
+                    <a href={p.link} target="_blank" rel="noopener noreferrer">
+                      {PlanInner}
+                    </a>
+                  ) : (
+                    <Link href={p.link}>{PlanInner}</Link>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </motion.div>
+        </Card>
 
-        {/* === 注意事項 === */}
-        <motion.div
-          className="border border-[#4c7cf7]/40 rounded-2xl p-8 backdrop-blur-md bg-[#141c26]/40"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 1 }}
-        >
-          <h2 className="text-2xl font-semibold mb-4 text-[#4c7cf7]">
-            {text.noticeTitle}
-          </h2>
+        {/* 注意事項 */}
+        <Card delay={0.6} title={text.noticeTitle}>
           <ul className="list-disc ml-6 space-y-2 text-[#c4d0e2]">
             {text.notices.map((n, i) => (
               <li key={i}>{n}</li>
             ))}
           </ul>
-        </motion.div>
+        </Card>
 
-        {/* === 戻る === */}
+        {/* 戻る */}
         <motion.div
           className="mt-16 text-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1, duration: 1 }}
+          transition={{ delay: 0.8, duration: 1 }}
         >
           <Link
-            href="/"
+            href="/home"
             className="px-8 py-3 border border-[#4c7cf7] rounded-full text-[#e6eef4] hover:bg-[#4c7cf7]/10 transition"
           >
             {text.back}
@@ -341,5 +256,32 @@ export default function PlansPage(): JSX.Element {
         </motion.div>
       </section>
     </main>
+  );
+}
+
+/* 小物：カードラッパー */
+function Card({
+  title,
+  children,
+  delay = 0,
+  center = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  delay?: number;
+  center?: boolean;
+}) {
+  return (
+    <motion.div
+      className={`mb-16 border border-[#4c7cf7]/30 rounded-2xl p-8 backdrop-blur-md bg-[#141c26]/40 ${
+        center ? "text-center" : ""
+      }`}
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.9 }}
+    >
+      <h2 className="text-2xl font-semibold mb-4 text-[#4c7cf7]">{title}</h2>
+      {children}
+    </motion.div>
   );
 }
