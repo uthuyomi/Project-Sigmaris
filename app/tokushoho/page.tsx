@@ -27,7 +27,7 @@ export default function TokushohoPage(): JSX.Element {
             "北海道札幌市（※詳細住所はご請求があった場合に遅延なく開示いたします）",
         },
         { label: "電話番号", value: "（ご請求時に開示いたします）" },
-        { label: "メールアドレス", value: "contact@sigmaris-os.dev" },
+        { label: "メールアドレス", value: "sigumarisdev@gmail.com" },
         { label: "販売URL", value: "https://sigmaris-os.vercel.app/plans" },
         {
           label: "販売価格",
@@ -72,7 +72,7 @@ export default function TokushohoPage(): JSX.Element {
             "Sapporo, Hokkaido (Full address available upon request for legal purposes)",
         },
         { label: "Phone", value: "Provided upon legal request" },
-        { label: "Email", value: "contact@sigmaris-os.dev" },
+        { label: "Email", value: "sigumarisdev@gmail.com" },
         { label: "Website URL", value: "https://sigmaris-os.vercel.app/plans" },
         {
           label: "Price",
