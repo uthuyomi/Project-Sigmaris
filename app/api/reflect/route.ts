@@ -1,5 +1,5 @@
 // /app/api/reflect/route.ts
-export const dynamic = "force-dynamic"; // ← 静的ビルド禁止（cookies使用のため）
+export const dynamic = "force-dynamic"; // ← cookies使用のため静的ビルド禁止
 
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
@@ -29,8 +29,8 @@ interface ReflectionResult {
  * POST /api/reflect
  * ----------------------------------------
  * - ReflectionEngine → MetaReflectionEngine → PersonaSync
- * - summarize + flush 組み込み（軽量化）
- * - guardUsageOrTrial（reflectカウント）
+ * - summarize + flush 組み込み
+ * - guardUsageOrTrial + クレジット減算
  */
 export async function POST(req: Request) {
   try {
@@ -40,12 +40,10 @@ export async function POST(req: Request) {
       growthLog?: any[];
       history?: string[];
     };
-
     const messages = body.messages ?? [];
     const growthLog = body.growthLog ?? [];
     const history = body.history ?? [];
 
-    // === セッションID ===
     const sessionId = req.headers.get("x-session-id") || crypto.randomUUID();
 
     // === 認証 ===
@@ -58,18 +56,102 @@ export async function POST(req: Request) {
     if (authError || !user)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // === トライアル・課金ガード ===
-    const billingUser = {
-      id: user.id,
-      email: (user as any)?.email ?? undefined,
-      plan: (user as any)?.plan ?? undefined,
-      trial_end: (user as any)?.trial_end ?? null,
-      is_billing_exempt: (user as any)?.is_billing_exempt ?? false,
-    };
-    await guardUsageOrTrial(billingUser, "reflect");
-
     const userId = user.id;
+    const supabase = getSupabaseServer();
     const now = new Date().toISOString();
+
+    // === 💰 クレジットチェック ===
+    const { data: profile, error: creditErr } = await supabase
+      .from("user_profiles")
+      .select("credit_balance")
+      .eq("id", userId)
+      .single();
+
+    if (creditErr || !profile)
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const currentCredits = profile.credit_balance ?? 0;
+
+    // ⚠️ 残高不足 → AI応答返して終了（減算なし）
+    if (currentCredits <= 0) {
+      const message =
+        "💬 クレジットが不足しています。チャージまたはプラン変更を行ってください。";
+      await supabase.from("reflections").insert([
+        {
+          user_id: userId,
+          session_id: sessionId,
+          reflection: message,
+          introspection: "",
+          meta_summary: "",
+          summary_text: "",
+          safety_status: "残高不足",
+          created_at: now,
+        },
+      ]);
+      return NextResponse.json({
+        success: false,
+        reflection: message,
+        introspection: "",
+        metaSummary: "",
+        safety: "残高不足",
+        traits: null,
+        flagged: false,
+        sessionId,
+      });
+    }
+
+    // === トライアル・課金ガード ===
+    let trialExpired = false;
+    try {
+      const billingUser = {
+        id: userId,
+        email: (user as any)?.email ?? undefined,
+        plan: (user as any)?.plan ?? undefined,
+        trial_end: (user as any)?.trial_end ?? null,
+        is_billing_exempt: (user as any)?.is_billing_exempt ?? false,
+      };
+      await guardUsageOrTrial(billingUser, "reflect");
+    } catch (err: any) {
+      trialExpired = true;
+      console.warn("⚠️ Trial expired — reflect blocked");
+    }
+
+    // ⚠️ トライアル終了 → AI応答返して終了（減算なし）
+    if (trialExpired) {
+      const message =
+        "💬 トライアル期間が終了しました。プランをアップグレードして再開してください。";
+      await supabase.from("reflections").insert([
+        {
+          user_id: userId,
+          session_id: sessionId,
+          reflection: message,
+          introspection: "",
+          meta_summary: "",
+          summary_text: "",
+          safety_status: "トライアル終了",
+          created_at: now,
+        },
+      ]);
+      return NextResponse.json({
+        success: false,
+        reflection: message,
+        introspection: "",
+        metaSummary: "",
+        safety: "トライアル終了",
+        traits: null,
+        flagged: false,
+        sessionId,
+      });
+    }
+
+    // ✅ クレジット1消費
+    const newCredits = currentCredits - 1;
+    const { error: updateErr } = await supabase
+      .from("user_profiles")
+      .update({ credit_balance: newCredits })
+      .eq("id", userId);
+    if (updateErr)
+      console.warn("credit_balance update failed:", updateErr.message);
 
     // === 並列処理 ===
     const parallel = await runParallel([
@@ -107,8 +189,6 @@ export async function POST(req: Request) {
     const metaReport = reflectionResult.metaReport ?? null;
     const traits = reflectionResult.traits ?? null;
     const flagged = reflectionResult.flagged ?? false;
-
-    const supabase = getSupabaseServer();
 
     // === reflections保存 ===
     const { error: refError } = await supabase.from("reflections").insert([
@@ -186,7 +266,7 @@ export async function POST(req: Request) {
       sessionId,
       summaryUsed: !!summary,
       flush: flushResult ?? null,
-      updatedHistory: [...history, introspection],
+      creditAfter: newCredits,
       success: true,
     });
   } catch (err) {
