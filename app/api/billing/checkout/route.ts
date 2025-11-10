@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   try {
     const { amount } = await req.json();
 
-    // ✅ Supabaseクライアント
+    // ✅ Supabaseクライアント（クッキーからセッションを取得）
     const supabaseAuth = createRouteHandlerClient({ cookies });
 
     // ✅ ユーザー情報取得
@@ -61,26 +61,43 @@ export async function POST(req: Request) {
       });
     }
 
+    // ✅ Supabase（Service Role経由）
     const supabase = getSupabaseServer();
 
-    // ✅ Stripe顧客IDの確認／未登録なら作成
-    let stripeCustomerId = (user as any)?.stripe_customer_id;
+    // ✅ SupabaseからStripe顧客ID取得
+    const { data: profileData, error: fetchErr } = await supabase
+      .from("user_profiles")
+      .select("stripe_customer_id")
+      .eq("id", user.id)
+      .maybeSingle();
 
+    if (fetchErr)
+      console.warn("⚠️ Failed to fetch stripe_customer_id:", fetchErr);
+
+    let stripeCustomerId = profileData?.stripe_customer_id ?? null;
+
+    // ✅ Stripe顧客未登録の場合、新規作成して保存
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
         email: user.email!,
         metadata: { userId: user.id },
       });
 
-      await supabase
-        .from("users")
+      const { error: updateErr } = await supabase
+        .from("user_profiles")
         .update({ stripe_customer_id: customer.id })
         .eq("id", user.id);
+
+      if (updateErr) {
+        console.error("❌ Failed to store stripe_customer_id:", updateErr);
+      } else {
+        console.log("✅ Stripe customer created:", customer.id);
+      }
 
       stripeCustomerId = customer.id;
     }
 
-    // ✅ チャージ金額に応じた Price ID をマッピング
+    // ✅ チャージ金額に応じた Price ID マッピング
     const priceMap: Record<string, string> = {
       "1000": process.env.STRIPE_PRICE_1000_ID ?? "",
       "3000": process.env.STRIPE_PRICE_3000_ID ?? "",
