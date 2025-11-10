@@ -158,27 +158,33 @@ export async function POST(req: Request) {
       });
     }
 
-    // === 利用制限（トライアルチェック）===
+    // === 利用制限（トライアル or フリープランブロック）===
     let trialExpired = false;
-    try {
-      await guardUsageOrTrial(
-        {
-          id: user.id,
-          email: user.email ?? "",
-          plan: (user as any).plan ?? undefined,
-          trial_end: (user as any).trial_end ?? null,
-          is_billing_exempt: (user as any).is_billing_exempt ?? false,
-        },
-        "aei"
-      );
-    } catch (err: any) {
-      trialExpired = true;
-      console.warn("⚠️ Trial expired — blocking AI response");
-      await debugLog("guard-warning", {
-        user_id: user.id,
-        session_id: sessionId,
-        message: err?.message,
-      });
+
+    // 💡 残高があればトライアルチェックをスキップ
+    if (currentCredits > 0) {
+      console.log("🟢 クレジット残高あり → トライアル制限チェックをスキップ");
+    } else {
+      try {
+        await guardUsageOrTrial(
+          {
+            id: user.id,
+            email: user.email ?? "",
+            plan: (user as any).plan ?? undefined,
+            trial_end: (user as any).trial_end ?? null,
+            is_billing_exempt: (user as any).is_billing_exempt ?? false,
+          },
+          "aei"
+        );
+      } catch (err: any) {
+        trialExpired = true;
+        console.warn("⚠️ Trial expired — blocking AI response");
+        await debugLog("guard-warning", {
+          user_id: user.id,
+          session_id: sessionId,
+          message: err?.message,
+        });
+      }
     }
 
     // ⚠️ トライアル終了 → AIメッセージで促す（クレジット減算なし）
