@@ -18,22 +18,20 @@ try {
 
 /**
  * 📦 Stripe Webhook ハンドラー
- * - checkout.session.completed → 支払い完了
- * - customer.subscription.* → サブスク系（将来拡張用）
+ * - checkout.session.completed → 支払い完了イベント
+ * - customer.subscription.* → サブスク関連（将来対応予定）
  */
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
   if (!sig)
     return NextResponse.json({ error: "No signature" }, { status: 400 });
 
+  // ✅ Next.js の req.text() で生データ取得（重要）
   const rawBody = await req.text();
 
   if (!stripe) {
     console.log("💤 Mock Stripe Webhook triggered (審査中モード)");
-    return NextResponse.json({
-      ok: true,
-      message: "mock webhook ok (Stripe審査中)",
-    });
+    return NextResponse.json({ ok: true, mock: true });
   }
 
   let event: any;
@@ -44,17 +42,17 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err: any) {
-    console.error("❌ Webhook signature verification failed:", err?.message);
+    console.error("❌ Invalid Stripe signature:", err?.message);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  // ✅ Supabase（Service Role Keyで接続）
   const supabase = getSupabaseServer();
 
   try {
     switch (event.type) {
       /**
-       * 🧾 支払い完了（プリペイド式チャージ）
-       * Stripe Checkout の単発決済に対応
+       * 💳 単発決済完了イベント
        */
       case "checkout.session.completed": {
         const session = event.data.object;
@@ -64,55 +62,58 @@ export async function POST(req: Request) {
           chargeType === "3000yen" ? 400 : chargeType === "1000yen" ? 100 : 0;
 
         if (!stripeCustomerId) {
-          console.warn("⚠️ Missing stripeCustomerId in session");
+          console.warn("⚠️ Missing stripeCustomerId in session metadata");
           break;
         }
 
-        // 💾 既存のクレジット残高を取得
+        console.log(`📬 Webhook received for ${stripeCustomerId}`, {
+          chargeType,
+          creditsToAdd,
+        });
+
+        // 🔍 対応するユーザーを取得
         const { data: profile, error: fetchErr } = await supabase
-          .from("user_profiles") // ← 修正箇所
-          .select("credit_balance")
+          .from("user_profiles")
+          .select("id, credit_balance")
           .eq("stripe_customer_id", stripeCustomerId)
-          .single();
+          .maybeSingle();
 
         if (fetchErr) {
-          console.error("⚠️ Could not fetch user credit:", fetchErr);
+          console.error("⚠️ DB fetch error:", fetchErr);
+          break;
         }
 
         const currentCredits = profile?.credit_balance ?? 0;
         const newCredits = currentCredits + creditsToAdd;
 
-        // 📅 有効期間 +30日
-        const plus30d = new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
-        ).toISOString();
+        // 📅 +30日後
+        const plus30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-        // 💰 クレジット反映＋プラン更新
+        // 🧾 更新
         const { error: updateErr } = await supabase
-          .from("user_profiles") // ← 修正箇所
+          .from("user_profiles")
           .update({
             plan: "pro",
-            trial_end: plus30d,
+            trial_end: plus30d.toISOString(),
             credit_balance: newCredits,
+            updated_at: new Date().toISOString(),
           })
           .eq("stripe_customer_id", stripeCustomerId);
 
         if (updateErr) {
-          console.error("⚠️ Failed to update user profile:", updateErr);
+          console.error("⚠️ Update failed:", updateErr);
         } else {
-          console.log(`💰 Payment success for ${stripeCustomerId}`, {
-            chargeType,
+          console.log("✅ Credit balance updated:", {
+            stripeCustomerId,
             added: creditsToAdd,
-            total: newCredits,
-            trial_end: plus30d,
+            newCredits,
           });
         }
-
         break;
       }
 
       /**
-       * 🆕 サブスク系イベント（将来対応予定）
+       * 🔄 サブスク（将来対応用）
        */
       case "customer.subscription.created":
       case "customer.subscription.updated":
@@ -121,16 +122,15 @@ export async function POST(req: Request) {
         break;
       }
 
-      default: {
-        console.log(`ℹ️ Unhandled event type: ${event.type}`);
-      }
+      default:
+        console.log(`ℹ️ Unhandled event: ${event.type}`);
     }
 
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error("⚠️ Webhook handling error:", err);
+    console.error("💥 Webhook internal error:", err);
     return NextResponse.json(
-      { error: err?.message ?? "Internal error" },
+      { error: err?.message ?? "Internal server error" },
       { status: 500 }
     );
   }
