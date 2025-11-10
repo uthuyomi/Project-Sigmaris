@@ -6,7 +6,6 @@ import { getSupabaseServer } from "@/lib/supabaseServer";
 
 let stripe: any = null;
 try {
-  // ⚙️ Stripe SDK の動的ロード（ビルド時 undefined を回避）
   const Stripe = require("stripe");
   if (process.env.STRIPE_SECRET_KEY) {
     stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
@@ -23,20 +22,35 @@ try {
  * 💳 プリペイド式チャージ Checkout API
  * - Stripe Payment モードで単発課金
  * - Webhookで支払い成功後にクレジット残高を加算
+ * - 未ログイン状態での決済画面遷移を完全にブロック
  */
 export async function POST(req: Request) {
   try {
     const { amount } = await req.json();
 
-    // ✅ Supabase認証
+    // ✅ Supabaseクライアント
     const supabaseAuth = createRouteHandlerClient({ cookies });
+
+    // ✅ ユーザー情報取得
     const {
       data: { user },
-      error: authError,
+      error: userError,
     } = await supabaseAuth.auth.getUser();
 
-    if (authError || !user)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // ✅ セッション確認（別呼び出し）
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabaseAuth.auth.getSession();
+
+    // ✅ 両方確認
+    if (userError || sessionError || !user || !session) {
+      console.warn("🚫 Checkout blocked: user not authenticated");
+      return NextResponse.json(
+        { error: "Unauthorized. Please log in first." },
+        { status: 401 }
+      );
+    }
 
     // ✅ Stripe未設定時のモックモード
     if (!stripe) {
@@ -78,11 +92,10 @@ export async function POST(req: Request) {
     }
 
     // ✅ Checkout セッション生成（プリペイドモード）
-    const session = await stripe.checkout.sessions.create({
+    const stripeSession = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
-      mode: "payment", // 🔥 単発支払いモード
+      mode: "payment",
       line_items: [{ price: selectedPrice, quantity: 1 }],
-      // ✅ 成功時セッションID付きURLへ遷移
       success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/billing/cancel`,
       metadata: {
@@ -91,14 +104,19 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log(
-      `💳 Checkout session created for ${amount}円チャージ`,
-      session.id
-    );
+    console.log(`💳 Checkout session created`, {
+      userId: user.id,
+      stripeCustomerId,
+      amount,
+      sessionId: stripeSession.id,
+    });
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: stripeSession.url });
   } catch (err: any) {
-    console.error("[/api/billing/checkout] failed:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("❌ [/api/billing/checkout] failed:", err);
+    return NextResponse.json(
+      { error: err.message ?? "Checkout creation failed." },
+      { status: 500 }
+    );
   }
 }
