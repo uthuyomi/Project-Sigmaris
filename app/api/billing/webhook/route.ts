@@ -1,6 +1,6 @@
 // /app/api/billing/webhook/route.ts
 import { NextResponse } from "next/server";
-import { getSupabaseServer } from "@/lib/supabaseServer";
+import { createClient } from "@supabase/supabase-js";
 
 let stripe: any = null;
 try {
@@ -20,6 +20,7 @@ try {
  * 📦 Stripe Webhook ハンドラー
  * - checkout.session.completed → 支払い完了イベント
  * - customer.subscription.* → サブスク関連（将来対応予定）
+ * - userId（metadata）ベースで Supabase 更新
  */
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
@@ -47,7 +48,10 @@ export async function POST(req: Request) {
   }
 
   // ✅ Supabase（Service Role Keyで接続）
-  const supabase = getSupabaseServer();
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
   try {
     switch (event.type) {
@@ -56,17 +60,17 @@ export async function POST(req: Request) {
        */
       case "checkout.session.completed": {
         const session = event.data.object;
-        const stripeCustomerId = session.customer as string | null;
+        const userId = session.metadata?.userId ?? null;
         const chargeType = session.metadata?.charge_type ?? "";
         const creditsToAdd =
           chargeType === "3000yen" ? 400 : chargeType === "1000yen" ? 100 : 0;
 
-        if (!stripeCustomerId) {
-          console.warn("⚠️ Missing stripeCustomerId in session metadata");
+        if (!userId) {
+          console.warn("⚠️ Missing userId in session metadata");
           break;
         }
 
-        console.log(`📬 Webhook received for ${stripeCustomerId}`, {
+        console.log(`📬 Webhook received for userId=${userId}`, {
           chargeType,
           creditsToAdd,
         });
@@ -75,7 +79,7 @@ export async function POST(req: Request) {
         const { data: profile, error: fetchErr } = await supabase
           .from("user_profiles")
           .select("id, credit_balance")
-          .eq("stripe_customer_id", stripeCustomerId)
+          .eq("id", userId)
           .maybeSingle();
 
         if (fetchErr) {
@@ -98,13 +102,13 @@ export async function POST(req: Request) {
             credit_balance: newCredits,
             updated_at: new Date().toISOString(),
           })
-          .eq("stripe_customer_id", stripeCustomerId);
+          .eq("id", userId);
 
         if (updateErr) {
           console.error("⚠️ Update failed:", updateErr);
         } else {
           console.log("✅ Credit balance updated:", {
-            stripeCustomerId,
+            userId,
             added: creditsToAdd,
             newCredits,
           });
