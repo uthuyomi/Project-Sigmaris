@@ -25,6 +25,7 @@ interface ChatSession {
   messageCount?: number;
 }
 
+// 🌐 英訳API（クッキー付き）
 async function translateToEnglish(text: string): Promise<string> {
   if (!text?.trim()) return "";
   try {
@@ -55,7 +56,6 @@ export function useSigmarisChat() {
   const [metaSummary, setMetaSummary] = useState("");
   const [reflectionTextEn, setReflectionTextEn] = useState("");
   const [metaSummaryEn, setMetaSummaryEn] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [reflecting, setReflecting] = useState(false);
   const [modelUsed, setModelUsed] = useState("AEI-Core");
@@ -171,19 +171,21 @@ export function useSigmarisChat() {
         summary = await summarize(messages.slice(0, -10));
       }
 
+      // 🪙 AEI送信（Cookie含める）
       const res = await fetch("/api/aei", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-session-id": currentChatId,
         },
-        credentials: "include",
+        credentials: "include", // ← ここが重要
         body: JSON.stringify({
           text: userMessage,
           recent: recentMessages,
           summary,
         }),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "AEI API error");
 
@@ -232,7 +234,7 @@ export function useSigmarisChat() {
           "Content-Type": "application/json",
           "x-session-id": currentChatId,
         },
-        credentials: "include",
+        credentials: "include", // ← これも必要
         body: JSON.stringify({ messages, growthLog }),
       });
       const data = await res.json();

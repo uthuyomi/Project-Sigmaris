@@ -1,3 +1,4 @@
+// /app/api/sessions/route.ts
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
@@ -5,7 +6,7 @@ import { getSupabaseServer } from "@/lib/supabaseServer";
 
 /**
  * === GET: セッション一覧取得 ===
- * - ユーザーの全 session_id を返す
+ * - ユーザーの全セッションを返す
  * - 各セッションのタイトル・最終発言・更新時刻・件数を含む
  */
 export async function GET() {
@@ -17,24 +18,21 @@ export async function GET() {
     } = await supabaseAuth.auth.getUser();
 
     if (authError || !user) {
-      console.warn("⚠️ Unauthorized access attempt to /api/sessions");
+      console.warn("⚠️ Unauthorized access to /api/sessions");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = user.id;
     const supabase = getSupabaseServer();
 
-    // === 1. messages テーブルから session_id ごとのメッセージ抽出 ===
     const { data, error } = await supabase
       .from("messages")
       .select("session_id, content, role, created_at, session_title")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
     if (!data || data.length === 0) return NextResponse.json({ sessions: [] });
 
-    // === 2. セッションごとにグループ化 ===
     const sessionMap = new Map<
       string,
       { lastMessage: string; updatedAt: string; count: number; title: string }
@@ -48,7 +46,7 @@ export async function GET() {
           lastMessage: content.slice(0, 60),
           updatedAt: msg.created_at,
           count: 1,
-          title: msg.session_title || `セッション ${sid.slice(0, 8)}`, // DBにタイトルがあれば優先
+          title: msg.session_title || `セッション ${sid.slice(0, 8)}`, // DBタイトル優先
         });
       } else {
         const entry = sessionMap.get(sid)!;
@@ -56,7 +54,6 @@ export async function GET() {
       }
     }
 
-    // === 3. 配列化して更新順にソート ===
     const sessions = Array.from(sessionMap.entries())
       .map(([id, info]) => ({
         id,
@@ -70,12 +67,12 @@ export async function GET() {
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       );
 
-    console.log(`📦 ${sessions.length} sessions loaded for user ${userId}`);
+    console.log(`📦 [${user.id}] loaded ${sessions.length} sessions`);
     return NextResponse.json({ sessions });
   } catch (err: any) {
     console.error("[/api/sessions GET] failed:", err);
     return NextResponse.json(
-      { error: err.message ?? String(err) },
+      { error: err.message ?? "Internal server error" },
       { status: 500 }
     );
   }
@@ -95,13 +92,11 @@ export async function PATCH(req: Request) {
     } = await supabaseAuth.auth.getUser();
 
     if (authError || !user) {
-      console.warn("⚠️ Unauthorized access attempt to /api/sessions PATCH");
+      console.warn("⚠️ Unauthorized PATCH /api/sessions");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = user.id;
     const { sessionId, newTitle } = await req.json();
-
     if (!sessionId || !newTitle) {
       return NextResponse.json(
         { error: "Missing sessionId or newTitle" },
@@ -110,21 +105,20 @@ export async function PATCH(req: Request) {
     }
 
     const supabase = getSupabaseServer();
-
     const { error } = await supabase
       .from("messages")
       .update({ session_title: newTitle })
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .eq("session_id", sessionId);
 
     if (error) throw error;
 
-    console.log(`✏️ Session ${sessionId} renamed to "${newTitle}"`);
+    console.log(`✏️ [${user.id}] session ${sessionId} renamed → "${newTitle}"`);
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error("[/api/sessions PATCH] failed:", err);
     return NextResponse.json(
-      { error: err.message ?? String(err) },
+      { error: err.message ?? "Internal server error" },
       { status: 500 }
     );
   }
@@ -144,16 +138,14 @@ export async function DELETE(req: Request) {
     } = await supabaseAuth.auth.getUser();
 
     if (authError || !user) {
-      console.warn("⚠️ Unauthorized access attempt to /api/sessions DELETE");
+      console.warn("⚠️ Unauthorized DELETE /api/sessions");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = user.id;
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("id");
 
     if (!sessionId) {
-      console.warn("⚠️ Missing session_id in DELETE request");
       return NextResponse.json(
         { error: "Missing session id" },
         { status: 400 }
@@ -161,26 +153,26 @@ export async function DELETE(req: Request) {
     }
 
     const supabase = getSupabaseServer();
-
-    // === 削除対象テーブル ===
     const tables = ["messages", "reflections", "growth_logs", "safety_logs"];
 
     for (const table of tables) {
       const { error } = await supabase
         .from(table)
         .delete()
-        .eq("user_id", userId)
+        .eq("user_id", user.id)
         .eq("session_id", sessionId);
 
-      if (error) {
-        console.warn(`⚠️ ${table} delete failed:`, error.message);
-      }
+      if (error)
+        console.warn(`⚠️ [${table}] delete failed:`, error.message ?? error);
     }
 
-    console.log(`🗑️ Session ${sessionId} deleted for user ${userId}`);
+    console.log(`🗑️ [${user.id}] deleted session ${sessionId}`);
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error("[/api/sessions DELETE] failed:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message ?? "Internal server error" },
+      { status: 500 }
+    );
   }
 }
