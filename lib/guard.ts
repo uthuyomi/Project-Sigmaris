@@ -8,8 +8,15 @@ import { getSupabaseServer } from "@/lib/supabaseServer";
 /** 🪶 デバッグログをSupabaseに保存 */
 async function debugLog(phase: string, payload: any) {
   try {
+    const safePayload = JSON.parse(JSON.stringify(payload ?? {})); // undefined除去
     const supabase = getSupabaseServer();
-    await supabase.from("debug_logs").insert([{ phase, payload }]);
+    await supabase.from("debug_logs").insert([
+      {
+        phase,
+        payload: safePayload,
+        created_at: new Date().toISOString(),
+      },
+    ]);
   } catch (err) {
     console.error("⚠️ guard debugLog insert failed:", err);
   }
@@ -45,7 +52,13 @@ export async function guardUsageOrTrial(
 
     // 🔓 開発者・免除ユーザー判定
     if (isBillingExempt(user)) {
-      await debugLog("guard_bypass", { userId: user.id, email: user.email });
+      await debugLog("guard_bypass", {
+        userId: user.id,
+        email: user.email,
+        reason: "billing_exempt",
+      });
+      // return前に確実にflush
+      await new Promise((res) => setTimeout(res, 100));
       return;
     }
 
@@ -72,6 +85,7 @@ export async function guardUsageOrTrial(
         plan,
         trial_end: user.trial_end,
       });
+      await new Promise((res) => setTimeout(res, 100));
       throw new Error("Trial expired — please upgrade your plan.");
     }
 
@@ -91,6 +105,7 @@ export async function guardUsageOrTrial(
         usage,
         limit,
       });
+      await new Promise((res) => setTimeout(res, 100));
       throw new Error("Usage limit reached — please upgrade your plan.");
     }
 
@@ -104,9 +119,11 @@ export async function guardUsageOrTrial(
     });
 
     await debugLog("guard_exit", { userId: user.id, status: "success" });
+    await new Promise((res) => setTimeout(res, 100)); // flush保証
   } catch (err: any) {
     phase.error = err?.message;
     await debugLog("guard_error", { phase, message: err?.message });
+    await new Promise((res) => setTimeout(res, 100)); // 確実flush
     throw err;
   }
 }

@@ -26,11 +26,20 @@ interface ReflectionResult {
   flagged?: boolean;
 }
 
-/** 🪶 デバッグログをSupabaseに保存 */
+/** 🪶 デバッグログをSupabaseに保存（undefined除去＋確実flush） */
 async function debugLog(phase: string, payload: any) {
   try {
+    const safePayload = JSON.parse(JSON.stringify(payload ?? {}));
     const supabase = getSupabaseServer();
-    await supabase.from("debug_logs").insert([{ phase, payload }]);
+    await supabase.from("debug_logs").insert([
+      {
+        phase,
+        payload: safePayload,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    // serverless環境で確実に書き込み完了させる
+    await new Promise((res) => setTimeout(res, 100));
   } catch (err) {
     console.error("⚠️ debugLog insert failed:", err);
   }
@@ -60,8 +69,10 @@ export async function POST(req: Request) {
       error: authError,
     } = await supabaseAuth.auth.getUser();
 
-    if (authError || !user)
+    if (authError || !user) {
+      await debugLog("reflect_unauthorized", { authError });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const userId = user.id;
     const supabase = getSupabaseServer();
@@ -75,8 +86,10 @@ export async function POST(req: Request) {
       .eq("auth_user_id", userId)
       .single();
 
-    if (creditErr || !profile)
+    if (creditErr || !profile) {
+      await debugLog("reflect_no_user_profile", { userId, creditErr });
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
     const currentCredits = profile.credit_balance ?? 0;
     step.credit = currentCredits;
@@ -97,6 +110,7 @@ export async function POST(req: Request) {
           created_at: now,
         },
       ]);
+      await debugLog("reflect_credit_insufficient", { userId, currentCredits });
       return NextResponse.json({
         success: false,
         reflection: message,
@@ -125,8 +139,10 @@ export async function POST(req: Request) {
       );
     } catch (err: any) {
       trialExpired = true;
-      console.warn("⚠️ Trial expired — reflect blocked");
-      await debugLog("reflect_trial_expired", { userId, err: err?.message });
+      await debugLog("reflect_trial_expired", {
+        userId,
+        err: err?.message || String(err),
+      });
     }
 
     if (trialExpired) {
@@ -144,6 +160,7 @@ export async function POST(req: Request) {
           created_at: now,
         },
       ]);
+      await new Promise((res) => setTimeout(res, 100));
       return NextResponse.json({
         success: false,
         reflection: message,
@@ -207,6 +224,7 @@ export async function POST(req: Request) {
 
     if (!reflectionResult) {
       await debugLog("reflect_result_null", { userId, sessionId });
+      await new Promise((res) => setTimeout(res, 100));
       return NextResponse.json(
         { success: false, error: "ReflectionEngine returned null" },
         { status: 500 }
@@ -292,6 +310,7 @@ export async function POST(req: Request) {
       creditAfter: newCredits,
       reflectionPreview: reflectionText.slice(0, 60),
     });
+    await new Promise((res) => setTimeout(res, 100));
 
     return NextResponse.json({
       reflection: reflectionText,
@@ -312,6 +331,7 @@ export async function POST(req: Request) {
     step.error = err?.message || String(err);
     console.error("[ReflectAPI Error]", err);
     await debugLog("reflect_catch", { step, message: step.error });
+    await new Promise((res) => setTimeout(res, 100));
     return NextResponse.json(
       {
         reflection: "……うまく振り返れなかったみたい。",
