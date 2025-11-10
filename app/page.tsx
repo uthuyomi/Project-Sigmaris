@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import ChatList from "@/components/chat/ChatList";
 import { useSigmarisChat } from "@/hooks/useSigmarisChat";
 import StatePanel from "@/components/StatePanel";
@@ -13,6 +14,8 @@ export default function Home() {
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [lang, setLang] = useState<"ja" | "en">("en");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
 
   const toggleLang = () => setLang((prev) => (prev === "ja" ? "en" : "ja"));
   const toggleLeft = () => setLeftOpen((v) => !v);
@@ -27,6 +30,7 @@ export default function Home() {
   };
 
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const supabase = createClientComponentClient();
 
   const {
     chats,
@@ -50,6 +54,30 @@ export default function Home() {
     handleRenameChat,
   } = useSigmarisChat();
 
+  /** 🪙 クレジット再取得関数 */
+  const fetchCredits = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    setUserEmail(user.email ?? "Guest");
+
+    const { data, error } = await supabase
+      .from("user_profiles")
+      .select("credit_balance")
+      .eq("id", user.id)
+      .single();
+
+    if (!error && data) {
+      setCredits(data.credit_balance);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchCredits(); // 初回取得
+  }, [fetchCredits]);
+
   useEffect(() => {
     if (!currentChatId) handleNewChat();
   }, [currentChatId, handleNewChat]);
@@ -58,16 +86,18 @@ export default function Home() {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  /** ✉️ 送信時処理（送信後クレジット更新） */
   const handleSmartSend = useCallback(async () => {
     if (!input?.trim()) return;
     if (!currentChatId) {
       await handleNewChat();
-      setTimeout(() => handleSend(), 0);
+      setTimeout(() => handleSend().then(fetchCredits), 0);
       return;
     }
-    handleSend();
-  }, [currentChatId, handleNewChat, handleSend, input]);
+    handleSend().then(fetchCredits);
+  }, [currentChatId, handleNewChat, handleSend, input, fetchCredits]);
 
+  /** 🧠 安定状態とトーン解析 */
   const safetyFlag: string | false =
     traits.calm < 0.3 && traits.curiosity > 0.7
       ? lang === "ja"
@@ -86,6 +116,7 @@ export default function Home() {
   const toneColor =
     traits.empathy > 0.7 ? "#FFD2A0" : traits.calm > 0.7 ? "#A0E4FF" : "#AAA";
 
+  /** グラフデータ追跡 */
   const [graphData, setGraphData] = useState([
     {
       time: Date.now(),
@@ -150,6 +181,16 @@ export default function Home() {
             {lang === "ja" ? "EN" : "JP"}
           </button>
 
+          {/* 👇 クレジット & ユーザー情報 */}
+          <span className="hidden sm:block text-xs text-yellow-400">
+            {credits !== null
+              ? `残クレジット: ${credits}`
+              : "クレジット取得中..."}
+          </span>
+          <span className="hidden sm:block text-xs text-gray-400">
+            {userEmail ? `User: ${userEmail}` : "Guest"}
+          </span>
+
           <span className="hidden sm:block text-xs text-gray-400">
             Model: <span className="text-blue-400">{modelUsed}</span>
           </span>
@@ -158,7 +199,6 @@ export default function Home() {
 
       {/* メインエリア */}
       <div className="flex-1 w-full flex overflow-hidden">
-        {/* 左ドロワー */}
         <ChatList
           leftOpen={leftOpen}
           currentChatId={currentChatId}
