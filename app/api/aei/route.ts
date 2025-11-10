@@ -163,16 +163,30 @@ export async function POST(req: Request) {
 
     // === 利用制限 ===
     step.phase = "guard-check";
-    await guardUsageOrTrial(
-      {
-        id: user.id,
-        email: user.email ?? "",
-        plan: (user as any).plan ?? undefined,
-        trial_end: (user as any).trial_end ?? null,
-        is_billing_exempt: (user as any).is_billing_exempt ?? false,
-      },
-      "aei"
-    );
+    try {
+      await guardUsageOrTrial(
+        {
+          id: user.id,
+          email: user.email ?? "",
+          plan: (user as any).plan ?? undefined,
+          trial_end: (user as any).trial_end ?? null,
+          is_billing_exempt: (user as any).is_billing_exempt ?? false,
+        },
+        "aei"
+      );
+    } catch (err: any) {
+      if (DEV) {
+        console.warn("⚠️ Trial expired — skipping in DEV mode");
+        await debugLog("guard-warning", {
+          user_id: user.id,
+          session_id: sessionId,
+          message: err?.message,
+        });
+      } else {
+        console.error("⛔ Trial expired — blocking in production");
+        throw err;
+      }
+    }
 
     // === Personaロード ===
     step.phase = "persona-load";
