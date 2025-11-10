@@ -1,6 +1,6 @@
 // /app/api/aei/route.ts
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs"; // EdgeでなくNode実行（ログ完全出力）
+export const runtime = "nodejs"; // Node実行（Edgeではログ抑制されるため）
 
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -135,12 +135,10 @@ export async function POST(req: Request) {
       );
 
     const newCredits = currentCredits - 1;
-    // ✅ updated_at 削除（存在しないため）
+    // ✅ updated_at削除済
     const { error: updateErr } = await supabase
       .from("user_profiles")
-      .update({
-        credit_balance: newCredits,
-      })
+      .update({ credit_balance: newCredits })
       .eq("id", user.id);
     if (updateErr) throw updateErr;
 
@@ -243,11 +241,23 @@ ${summary ? `これまでの文脈要約: ${summary}` : ""}
       { role: "user", content: userText },
     ];
 
+    console.log("🧠 OpenAI Request", {
+      model: "gpt-5",
+      messagesCount: prompt.length,
+      promptPreview: prompt.map((p) => p.content?.slice(0, 40)),
+    });
+
     const aiRes = await client.chat.completions.create({
       model: "gpt-5",
       messages: prompt,
     });
-    const raw = aiRes.choices[0]?.message?.content?.trim() || "……考えてた。";
+
+    console.log("🧠 OpenAI Raw Response", JSON.stringify(aiRes, null, 2));
+
+    const raw =
+      aiRes?.choices?.[0]?.message?.content?.trim() ||
+      aiRes?.choices?.[0]?.finish_reason ||
+      "（応答なし）";
     const { safeText, flagged } = guardianFilter(raw);
     step.output = { len: safeText.length, flagged };
 
@@ -303,6 +313,7 @@ ${summary ? `これまでの文脈要約: ${summary}` : ""}
       user: user.id,
       sessionId,
       traits: stableTraits,
+      output: safeText.slice(0, 60),
     });
 
     return NextResponse.json({
