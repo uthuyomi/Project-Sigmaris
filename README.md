@@ -20,6 +20,10 @@
 <em>Artificial Existential Intelligence — AI that reflects, stabilizes, and grows through self-understanding.</em>
 </p>
 
+<p align="center">
+  <img src="https://github.com/uthuyomi/sigmaris-reflection-report/blob/main/image/sigmaris.png" alt="SIGMARIS Reflection Thumbnail" width="720"/>
+</p>
+
 ---
 
 ## 🔧 System Overview
