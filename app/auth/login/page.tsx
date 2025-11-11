@@ -6,10 +6,25 @@ import Header from "@/components/Header";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import React from "react";
+import {
+  SigmarisLangProvider,
+  useSigmarisLang,
+} from "@/lib/sigmarisLangContext";
 
-export default function LoginPage() {
+/* 🧩 ラッパーでProviderを適用 */
+export default function LoginWrapper() {
+  return (
+    <SigmarisLangProvider>
+      <LoginPage />
+    </SigmarisLangProvider>
+  );
+}
+
+/* 🧠 本体 */
+function LoginPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
+  const { lang } = useSigmarisLang();
 
   // ✅ Googleログイン処理
   async function handleLogin() {
@@ -20,6 +35,24 @@ export default function LoginPage() {
       },
     });
   }
+
+  /* 🌐 言語テキスト */
+  const t = {
+    ja: {
+      title: "ログインしてください",
+      subtitle: "Sigmaris OS にログインしてAI人格の内省を体験",
+      button: "Googleでログイン",
+      back: "← Homeへ戻る",
+    },
+    en: {
+      title: "Sign in to Sigmaris OS",
+      subtitle: "Login to experience AI introspection & reflection",
+      button: "Sign in with Google",
+      back: "← Back to Home",
+    },
+  } as const;
+
+  const text = t[lang];
 
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#0e141b] to-[#1a2230] text-[#e6eef4] px-6 py-16 overflow-hidden">
@@ -39,13 +72,9 @@ export default function LoginPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <h1 className="text-3xl font-bold mb-4 text-[#4c7cf7]">
-          Welcome to Sigmaris OS
-        </h1>
-        <p className="text-[#c4d0e2] mb-8 text-sm leading-relaxed">
-          ログインして、AI人格の内省体験を始めましょう。
-          <br />
-          Sign in to begin your AI reflection journey.
+        <h1 className="text-3xl font-bold mb-4 text-[#4c7cf7]">{text.title}</h1>
+        <p className="text-[#c4d0e2] mb-8 text-sm leading-relaxed whitespace-pre-line">
+          {text.subtitle}
         </p>
 
         {/* Googleログインボタン */}
@@ -53,7 +82,7 @@ export default function LoginPage() {
           onClick={handleLogin}
           className="w-full bg-[#4c7cf7] hover:bg-[#3b6ce3] text-white font-semibold px-6 py-3 rounded-full transition"
         >
-          Googleでログイン / Sign in with Google
+          {text.button}
         </button>
 
         {/* Divider */}
@@ -64,7 +93,7 @@ export default function LoginPage() {
           href="/home"
           className="text-[#a8b3c7] text-sm hover:text-[#4c7cf7] transition"
         >
-          ← ホームに戻る / Back to Home
+          {text.back}
         </Link>
       </motion.div>
     </main>
