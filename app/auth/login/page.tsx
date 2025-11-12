@@ -26,14 +26,46 @@ function LoginPage() {
   const router = useRouter();
   const { lang } = useSigmarisLang();
 
-  // ✅ Googleログイン処理
+  // 🧭 WebViewアクセス検出（Facebook/Instagram/LINEなど）
+  React.useEffect(() => {
+    const ua = navigator.userAgent || "";
+    const isWebView = /(FBAN|FBAV|Instagram|Line|Messenger|WebView|wv)/i.test(
+      ua
+    );
+    if (isWebView) {
+      alert(
+        "このページはアプリ内ブラウザでは正しく動作しません。Chrome または Safari で開いてください。"
+      );
+    }
+  }, []);
+
+  // ✅ Googleログイン処理（Safe Browser対応版）
   async function handleLogin() {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${location.origin}/auth/callback`,
-      },
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            prompt: "select_account", // 外部ブラウザ強制
+            access_type: "offline",
+            response_type: "code",
+          },
+        },
+      });
+
+      if (error) {
+        console.error("Google login error:", error.message);
+        alert(
+          "Googleログインに失敗しました。アプリ内ブラウザではなく、Chrome または Safari でお試しください。"
+        );
+      } else {
+        console.log("Login redirecting:", data);
+      }
+    } catch (e) {
+      console.error("Unexpected login error:", e);
+      alert("予期しないエラーが発生しました。しばらくして再試行してください。");
+    }
   }
 
   /* 🌐 言語テキスト */
