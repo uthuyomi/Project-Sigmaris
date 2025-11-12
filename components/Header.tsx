@@ -226,6 +226,17 @@ export default function Header() {
               </Link>
             ))}
 
+            {/* 言語切替（スマホ用） */}
+            <button
+              onClick={() => {
+                setLang(lang === "ja" ? "en" : "ja");
+                setMenuOpen(false);
+              }}
+              className="mt-2 px-4 py-1 border border-[#4c7cf7] rounded-full text-[#e6eef4] hover:bg-[#4c7cf7]/20 transition"
+            >
+              {text.switch}
+            </button>
+
             {/* 下段：モバイル用アカウント */}
             {user && (
               <div className="mt-4 text-xs text-[#c9d2df] flex flex-col items-center gap-2">

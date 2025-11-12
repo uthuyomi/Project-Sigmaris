@@ -141,7 +141,7 @@ export default function SigmarisChatPage() {
   // =================== UI ===================
   return (
     <main className="h-screen w-full bg-[#0e141b] text-white flex flex-col overflow-hidden">
-      {/* 🔹ヘッダー (Safe Area対応 & 二段構成) */}
+      {/* 🔹ヘッダー */}
       <header className="sticky top-0 z-50 border-b border-[#4c7cf7]/30 bg-[#0e141b]/95 backdrop-blur-md shadow-sm pt-[env(safe-area-inset-top)]">
         {/* 上段：タイトル */}
         <div className="flex items-center justify-between px-4 lg:px-8 py-2">
@@ -164,14 +164,13 @@ export default function SigmarisChatPage() {
           </Link>
         </div>
 
-        {/* 下段：操作群 (スマホで折り返し) */}
+        {/* 下段：操作群 */}
         <div className="flex flex-wrap items-center justify-center gap-3 px-4 lg:px-8 pb-3">
           <motion.button
             onClick={toggleLeft}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.9 }}
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-9 h-9 flex items-center justify-center shadow"
-            title="Chat List"
           >
             💬
           </motion.button>
@@ -181,7 +180,6 @@ export default function SigmarisChatPage() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.9 }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full w-9 h-9 flex items-center justify-center shadow"
-            title="Sigmaris Mind"
           >
             🧠
           </motion.button>
@@ -209,7 +207,7 @@ export default function SigmarisChatPage() {
         </div>
       </header>
 
-      {/* メインエリア */}
+      {/* === メインエリア === */}
       <div className="flex-1 w-full flex overflow-hidden">
         {/* 左ドロワー */}
         <div className="h-full max-h-[calc(100vh-env(safe-area-inset-bottom))] overflow-y-auto">
@@ -288,7 +286,7 @@ export default function SigmarisChatPage() {
           </footer>
         </div>
 
-        {/* 右ドロワー */}
+        {/* 右ドロワー（高さを左に合わせる） */}
         <AnimatePresence>
           {rightOpen && (
             <motion.aside
@@ -296,7 +294,7 @@ export default function SigmarisChatPage() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 320, opacity: 0 }}
               transition={drawerTransition}
-              className="fixed lg:static z-50 right-0 h-full w-[300px] bg-[#1a1a1a] border-l border-gray-800 p-4 overflow-y-auto max-h-[calc(100vh-env(safe-area-inset-bottom))]"
+              className="h-full max-h-[calc(100vh-env(safe-area-inset-bottom))] overflow-y-auto w-[300px] bg-[#1a1a1a] border-l border-gray-800 p-4 flex-shrink-0"
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">Sigmaris Mind</h2>
