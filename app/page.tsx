@@ -212,16 +212,18 @@ export default function SigmarisChatPage() {
       {/* メインエリア */}
       <div className="flex-1 w-full flex overflow-hidden">
         {/* 左ドロワー */}
-        <ChatList
-          leftOpen={leftOpen}
-          currentChatId={currentChatId}
-          chats={chats}
-          onNewChat={handleNewChat}
-          onSelect={handleSelectChat}
-          onRename={handleRenameChat}
-          onDelete={handleDeleteChat}
-          onClose={closeLeft}
-        />
+        <div className="h-full max-h-[calc(100vh-env(safe-area-inset-bottom))] overflow-y-auto">
+          <ChatList
+            leftOpen={leftOpen}
+            currentChatId={currentChatId}
+            chats={chats}
+            onNewChat={handleNewChat}
+            onSelect={handleSelectChat}
+            onRename={handleRenameChat}
+            onDelete={handleDeleteChat}
+            onClose={closeLeft}
+          />
+        </div>
 
         {/* チャット本体 */}
         <div className="flex-1 flex flex-col min-w-0">
@@ -294,7 +296,7 @@ export default function SigmarisChatPage() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 320, opacity: 0 }}
               transition={drawerTransition}
-              className="fixed lg:static z-50 right-0 h-full w-[300px] bg-[#1a1a1a] border-l border-gray-800 p-4 overflow-y-auto"
+              className="fixed lg:static z-50 right-0 h-full w-[300px] bg-[#1a1a1a] border-l border-gray-800 p-4 overflow-y-auto max-h-[calc(100vh-env(safe-area-inset-bottom))]"
             >
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">Sigmaris Mind</h2>
