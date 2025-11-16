@@ -1,6 +1,13 @@
-// engine/IntrospectionEngine.ts
+// /engine/IntrospectionEngine.ts
 import { SemanticMap } from "@/engine/SemanticMap";
+import type { TraitVector } from "@/lib/traits";
 
+/**
+ * IntrospectionEngine
+ *  - Reflect（内省）や traits 情報をもとに、
+ *    「今の会話で自分がどう振る舞っていたか」を自己観察としてまとめる。
+ *  - StateEngine からは run() で呼び出される。
+ */
 export class IntrospectionEngine {
   private semantic = new SemanticMap();
 
@@ -12,7 +19,7 @@ export class IntrospectionEngine {
   analyze(data: {
     message: string;
     reply: string;
-    traits: { calm: number; empathy: number; curiosity: number };
+    traits: TraitVector;
     reflection?: string;
     intent?: string;
     frame?: any;
@@ -93,5 +100,40 @@ export class IntrospectionEngine {
     output += ` 今の状態をそのまま覚えておくね。`;
 
     return output.trim();
+  }
+
+  /**
+   * StateEngine から呼び出される run()
+   * IntrospectState では：
+   *   const ires = await introspector.run(ctx.output, ctx.traits);
+   * の形で使われる前提。
+   */
+  async run(
+    reply: string,
+    traits: TraitVector,
+    options?: {
+      message?: string;
+      reflection?: string;
+      intent?: string;
+      frame?: any;
+      contextSummary?: string;
+    }
+  ): Promise<{ output: string; updatedTraits: TraitVector }> {
+    const output = this.analyze({
+      message: options?.message ?? "",
+      reply,
+      traits,
+      reflection: options?.reflection,
+      intent: options?.intent,
+      frame: options?.frame,
+      contextSummary: options?.contextSummary,
+    });
+
+    // ここでは traits は変化させず、そのまま返す
+    // （将来、introspection に応じて微調整したければここで更新ロジックを追加）
+    return {
+      output,
+      updatedTraits: traits,
+    };
   }
 }

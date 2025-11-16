@@ -24,9 +24,6 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export class MetaReflectionEngine {
   /**
    * メイン解析関数
-   * @param reflectionText 内省テキスト
-   * @param currentTraits 現在のtraitベクトル
-   * @param summary 過去のsummary（任意／前文脈として渡す）
    */
   async analyze(
     reflectionText: string,
@@ -100,7 +97,6 @@ ${contextBlock}
         parsed.nextFocus || this.defineNextFocus(reflectionText);
       const reasoning = parsed.reasoning || "";
 
-      // === Step 4: 出力統合 ===
       return {
         summary: summaryFinal,
         growthAdjustment,
@@ -117,6 +113,23 @@ ${contextBlock}
         traits: currentTraits,
       };
     }
+  }
+
+  /** === run(): StateMachine 整合用（新規追加） === */
+  async run(
+    introspected: { output: string; updatedTraits: TraitVector },
+    traits: TraitVector,
+    summary?: string
+  ): Promise<{
+    output: string;
+    updatedTraits: TraitVector;
+  }> {
+    const report = await this.analyze(introspected.output, traits, summary);
+
+    return {
+      output: report.summary,
+      updatedTraits: report.traits ?? traits,
+    };
   }
 
   /** === 簡易フォールバック要約 === */
