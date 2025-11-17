@@ -3,7 +3,6 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getSupabaseServer } from "@/lib/supabaseServer";
@@ -17,8 +16,6 @@ import type { SafetyReport } from "@/types/safety";
 // ⭐ Sigmaris OS
 import { createInitialContext } from "@/engine/state/StateContext";
 import { StateMachine } from "@/engine/state/StateMachine";
-
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 /** 🧩 危険語フィルタ */
 function guardianFilter(text: string) {
@@ -162,7 +159,7 @@ export async function POST(req: Request) {
 
     const safetyMessage = SafetyLayer.checkOverload(ctx.traits);
 
-    // ⭐ SafetyReport 型に完全準拠させる修正版
+    // ⭐ SafetyReport 型に完全準拠
     ctx.safety = safetyMessage
       ? ({
           flags: {
