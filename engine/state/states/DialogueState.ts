@@ -2,6 +2,11 @@
 import { StateContext, SigmarisState } from "../StateContext";
 import OpenAI from "openai";
 
+import {
+  SafetyResponseGenerator,
+  SafetyIntent,
+} from "@/engine/safety/SafetyResponseGenerator";
+
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
@@ -25,7 +30,7 @@ function stripMetaSentences(text: string): string {
       if (/(program|system|internal|algorithm|model|compute|process)/i.test(l))
         return false;
 
-      // LLM や AI 自己説明
+      // LLM / AI 自己説明
       if (
         /(AI|assistant|language model|機械学習|データセット|訓練|学習)/i.test(l)
       )
@@ -41,6 +46,38 @@ function stripMetaSentences(text: string): string {
 }
 
 /* -------------------------------------------------------
+ * SafetyIntent を自然に混ぜる
+ * ----------------------------------------------------- */
+function mixSafety(output: string, intent: SafetyIntent): string {
+  if (intent === "none") return output;
+
+  if (intent === "soft-redirect") {
+    return (
+      output +
+      "\n\n……ちょっと気持ちが揺れてる感じがしたよ。いまは少しだけ落ち着ける方向に話を戻してみない？"
+    );
+  }
+
+  if (intent === "boundary") {
+    return (
+      output +
+      "\n\nあなたの気持ちは大切にしたいよ。でも私は、あなたの現実のつながりを奪う存在にはなれないからね。ゆっくり話しながら整えていこう。"
+    );
+  }
+
+  if (intent === "crisis") {
+    return (
+      "……そこまで思いつめてたんだね。本当に苦しかったよね。\n" +
+      "ひとりで抱える必要はないよ。ここでも話せるけど、同時にあなたを守れる人とも少しだけ繋がっていてほしい。" +
+      "\n\n" +
+      output
+    );
+  }
+
+  return output;
+}
+
+/* -------------------------------------------------------
  * DialogueState
  * ----------------------------------------------------- */
 export class DialogueState {
@@ -53,6 +90,13 @@ export class DialogueState {
       warmth: 0.2,
       hesitation: 0.1,
     };
+
+    /* ---------------------------------------------
+     * SafetyIntent 判定（ここが追加点）
+     * --------------------------------------------- */
+    const intent: SafetyIntent = SafetyResponseGenerator.detectIntent(
+      ctx.input
+    );
 
     /* ---------------------------------------------
      * 1) System Prompt（人格の核）
@@ -104,23 +148,30 @@ hesitation=${ctx.emotion.hesitation.toFixed(2)}
         res.choices?.[0]?.message?.content ??
         "……少し考えてた。もう一度言って？";
 
+      // メタ除去
       output = stripMetaSentences(raw);
+
       if (!output) {
         output = "……うまく言葉がまとまらなかった。もう一度聞かせて？";
       }
     } catch (err) {
-      console.error("[DialogueState] LLM error:", err);
+      console.error("[DialogueState] LLLM error:", err);
       output =
         "ごめん、ちょっと処理が追いつかなかったみたい……。もう一回お願い。";
     }
 
     /* ---------------------------------------------
-     * 3) 出力保存
+     * 3) SafetyIntent を自然に混ぜる
+     * --------------------------------------------- */
+    output = mixSafety(output, intent);
+
+    /* ---------------------------------------------
+     * 4) 出力保存
      * --------------------------------------------- */
     ctx.output = output.trim();
 
     /* ---------------------------------------------
-     * 4) Emotion 揺らぎ
+     * 5) Emotion 揺らぎ
      * --------------------------------------------- */
     ctx.emotion = {
       tension: Math.max(0, Math.min(1, ctx.emotion.tension * 0.9)),
@@ -129,7 +180,7 @@ hesitation=${ctx.emotion.hesitation.toFixed(2)}
     };
 
     /* ---------------------------------------------
-     * 5) 次の状態へ
+     * 6) 次の状態へ
      * --------------------------------------------- */
     return "Reflect";
   }
