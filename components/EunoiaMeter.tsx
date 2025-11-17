@@ -3,6 +3,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { deriveEunoiaState } from "@/lib/eunoia";
 import type { SafetyReport } from "@/engine/safety/SafetyLayer";
+import Pulse from "@/components/Pulse"; // ★ 追加
 
 interface Props {
   traits: {
@@ -17,13 +18,13 @@ export default function EunoiaMeter({ traits, safety }: Props) {
   // Eunoia Core から感情トーン算出
   const eunoia = deriveEunoiaState(traits);
 
-  // Safety.action に基づく背景色（SafetyReport 仕様）
+  // Safety.action に基づく背景色
   const safetyColor =
     safety?.action === "halt"
-      ? "#ef4444" // 強制停止相当（危険）
+      ? "#ef4444"
       : safety?.action === "rewrite-soft"
-      ? "#f59e0b" // 軽度の修正推奨（注意）
-      : "#10b981"; // allow：安定
+      ? "#f59e0b"
+      : "#10b981";
 
   // トーン色
   const color =
@@ -45,8 +46,9 @@ export default function EunoiaMeter({ traits, safety }: Props) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      <h2 className="text-lg font-semibold text-blue-400 mb-2">
+      <h2 className="text-lg font-semibold text-blue-400 mb-2 flex items-center gap-2">
         💞 Eunoia Meter
+        <Pulse /> {/* ★ 追加 */}
       </h2>
 
       {/* 感情バー */}
@@ -94,7 +96,6 @@ export default function EunoiaMeter({ traits, safety }: Props) {
           <span className="opacity-70 text-xs ml-1">({eunoia.label})</span>
         </div>
 
-        {/* SafetyReport.note が存在すれば警告として表示 */}
         {safety?.note ? (
           <div className="text-red-300 text-xs">⚠️ {safety.note}</div>
         ) : (

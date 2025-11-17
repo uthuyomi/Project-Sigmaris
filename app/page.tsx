@@ -10,6 +10,8 @@ import StatePanel from "@/components/StatePanel";
 import { TraitVisualizer } from "@/ui/TraitVisualizer";
 import { SafetyIndicator } from "@/ui/SafetyIndicator";
 import { EmotionBadge } from "@/ui/EmotionBadge";
+import EunoiaMeter from "@/components/EunoiaMeter";
+import type { SafetyReport } from "@/types/safety"; // ★ 追加
 
 export default function SigmarisChatPage() {
   const [leftOpen, setLeftOpen] = useState(false);
@@ -17,6 +19,9 @@ export default function SigmarisChatPage() {
   const [lang, setLang] = useState<"ja" | "en">("en");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
+
+  // ★ SafetyReport をフロント側でも保持（今はプレースホルダ）
+  const [safety, setSafety] = useState<SafetyReport | null>(null);
 
   const toggleLang = () => setLang((prev) => (prev === "ja" ? "en" : "ja"));
   const toggleLeft = () => setLeftOpen((v) => !v);
@@ -75,9 +80,11 @@ export default function SigmarisChatPage() {
   useEffect(() => {
     fetchCredits();
   }, [fetchCredits]);
+
   useEffect(() => {
     if (!currentChatId) handleNewChat();
   }, [currentChatId, handleNewChat]);
+
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -85,15 +92,17 @@ export default function SigmarisChatPage() {
   /** ✉️ 送信処理 */
   const handleSmartSend = useCallback(async () => {
     if (!input?.trim()) return;
+
     if (!currentChatId) {
       await handleNewChat();
       setTimeout(() => handleSend().then(fetchCredits), 0);
       return;
     }
+
     handleSend().then(fetchCredits);
   }, [currentChatId, handleNewChat, handleSend, input, fetchCredits]);
 
-  /** 🧠 状態解析 */
+  /** 🧠 状態解析（簡易フラグ） */
   const safetyFlag: string | false =
     traits.calm < 0.3 && traits.curiosity > 0.7
       ? lang === "ja"
@@ -112,7 +121,7 @@ export default function SigmarisChatPage() {
   const toneColor =
     traits.empathy > 0.7 ? "#FFD2A0" : traits.calm > 0.7 ? "#A0E4FF" : "#AAA";
 
-  /** グラフ追跡 */
+  /** 📈 グラフ追跡 */
   const [graphData, setGraphData] = useState([
     {
       time: Date.now(),
@@ -121,6 +130,7 @@ export default function SigmarisChatPage() {
       curiosity: traits.curiosity,
     },
   ]);
+
   useEffect(() => {
     setGraphData((prev) => {
       const newPoint = {
@@ -132,6 +142,46 @@ export default function SigmarisChatPage() {
       const updated = [...prev, newPoint];
       return updated.length > 50 ? updated.slice(-50) : updated;
     });
+  }, [traits.calm, traits.empathy, traits.curiosity]);
+
+  // ★ 今はサーバー safety 未連携なので、traits から簡易 SafetyReport を作る（UI 用）
+  useEffect(() => {
+    const total = traits.calm + traits.empathy + traits.curiosity;
+
+    if (total > 2.65) {
+      setSafety({
+        flags: {
+          selfReference: false,
+          abstractionOverload: true,
+          loopSuspect: false,
+        },
+        action: "rewrite-soft",
+        note: "感情活動が過剰になっています。処理を一時的に緩めます。",
+        suggestMode: "calm-down",
+      });
+    } else if (total < 0.75) {
+      setSafety({
+        flags: {
+          selfReference: false,
+          abstractionOverload: false,
+          loopSuspect: false,
+        },
+        action: "rewrite-soft",
+        note: "感情レベルが低下しています。安全に備えて自己調整します。",
+        suggestMode: "calm-down",
+      });
+    } else {
+      setSafety({
+        flags: {
+          selfReference: false,
+          abstractionOverload: false,
+          loopSuspect: false,
+        },
+        action: "allow",
+        note: "",
+        suggestMode: "normal",
+      });
+    }
   }, [traits.calm, traits.empathy, traits.curiosity]);
 
   const reflectionForUI =
@@ -286,7 +336,7 @@ export default function SigmarisChatPage() {
           </footer>
         </div>
 
-        {/* 右ドロワー（高さを左に合わせる） */}
+        {/* 右ドロワー */}
         <AnimatePresence>
           {rightOpen && (
             <motion.aside
@@ -321,7 +371,12 @@ export default function SigmarisChatPage() {
                   }
                   level={safetyFlag ? "notice" : "ok"}
                 />
+
+                {/* ★ EunoiaMeter：traits + safety（簡易計算版） */}
+                <EunoiaMeter traits={traits} safety={safety ?? undefined} />
+
                 <TraitVisualizer data={graphData} />
+
                 <StatePanel
                   traits={traits}
                   reflection={reflectionForUI}
