@@ -53,7 +53,7 @@ export async function GET(req: Request) {
       .from("messages")
       .select("role, content, created_at")
       .eq("user_id", user.id)
-      .eq("session_id", sessionId)
+      .eq("session_id", sessionId) // ← DB側は session_id カラム
       .order("created_at", { ascending: true });
 
     const paired: { user: string; ai: string }[] = [];
@@ -88,6 +88,7 @@ export async function POST(req: Request) {
 
     const userText = text?.trim() || "こんにちは";
     const sessionId = req.headers.get("x-session-id") || crypto.randomUUID();
+    step.sessionId = sessionId;
 
     // 認証
     const supabaseAuth = createRouteHandlerClient({ cookies });
@@ -124,21 +125,21 @@ export async function POST(req: Request) {
       await supabase.from("messages").insert([
         {
           user_id: user.id,
-          sessionId,
+          session_id: sessionId, // ← カラム名を session_id に統一
           role: "user",
           content: userText,
           created_at: now,
         },
         {
           user_id: user.id,
-          sessionId,
+          session_id: sessionId,
           role: "ai",
           content: message,
           created_at: now,
         },
       ]);
 
-      return NextResponse.json({ success: false, output: message });
+      return NextResponse.json({ success: false, output: message, sessionId });
     }
 
     // クレジット減算
@@ -163,8 +164,9 @@ export async function POST(req: Request) {
     const ctx = createInitialContext();
     ctx.input = userText;
     ctx.traits = SafetyLayer.stabilize(traits);
+    ctx.sessionId = sessionId; // ★ StateContext へ紐付け
 
-    // SafetyLayer → SafetyReport（正式仕様に沿う）
+    // SafetyLayer → SafetyReport（正式仕様に沿う初期値）
     const overloadText = SafetyLayer.checkOverload(ctx.traits);
 
     ctx.safety = overloadText
@@ -186,9 +188,9 @@ export async function POST(req: Request) {
           },
           action: "allow",
           note: "",
+          suggestMode: "normal",
         } as SafetyReport);
 
-    // StateMachine
     const machine = new StateMachine(ctx);
     const finalCtx = await machine.run();
 
@@ -214,14 +216,14 @@ export async function POST(req: Request) {
     await supabase.from("messages").insert([
       {
         user_id: user.id,
-        sessionId,
+        session_id: sessionId, // ← ここも session_id
         role: "user",
         content: userText,
         created_at: now,
       },
       {
         user_id: user.id,
-        sessionId,
+        session_id: sessionId,
         role: "ai",
         content: aiOutput,
         created_at: now,
@@ -232,7 +234,7 @@ export async function POST(req: Request) {
       success: true,
       output: aiOutput,
       traits: updatedTraits,
-      safety: ctx.safety,
+      safety: finalCtx.safety ?? ctx.safety, // ★ 最終コンテキストを優先
       sessionId,
       step,
     });

@@ -2,7 +2,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { deriveEunoiaState } from "@/lib/eunoia";
-import { SafetyReport } from "@/engine/safety/SafetyLayer";
+import type { SafetyReport } from "@/engine/safety/SafetyLayer";
 
 interface Props {
   traits: {
@@ -14,26 +14,26 @@ interface Props {
 }
 
 export default function EunoiaMeter({ traits, safety }: Props) {
-  // Eunoia Coreから感情トーンを算出
+  // Eunoia Core から感情トーン算出
   const eunoia = deriveEunoiaState(traits);
 
-  // Safetyレベルに応じた背景カラー
+  // Safety.action に基づく背景色（SafetyReport 仕様）
   const safetyColor =
-    safety?.level === "limit"
-      ? "#ef4444" // 赤：危険
-      : safety?.level === "notice"
-      ? "#f59e0b" // 黄：注意
-      : "#10b981"; // 緑：安定
+    safety?.action === "halt"
+      ? "#ef4444" // 強制停止相当（危険）
+      : safety?.action === "rewrite-soft"
+      ? "#f59e0b" // 軽度の修正推奨（注意）
+      : "#10b981"; // allow：安定
 
-  // 中心の心色
+  // トーン色
   const color =
     traits.empathy > 0.7
-      ? "#ff9bd2" // ピンク：やさしさ
+      ? "#ff9bd2"
       : traits.calm > 0.7
-      ? "#8fd1ff" // 青：落ち着き
+      ? "#8fd1ff"
       : traits.curiosity > 0.7
-      ? "#f5e26b" // 黄：好奇心
-      : "#9b9b9b"; // グレー：中立
+      ? "#f5e26b"
+      : "#9b9b9b";
 
   return (
     <motion.div
@@ -57,6 +57,7 @@ export default function EunoiaMeter({ traits, safety }: Props) {
               <span>{k}</span>
               <span>{(v * 100).toFixed(0)}%</span>
             </div>
+
             <div className="w-full bg-gray-700 rounded h-2 overflow-hidden">
               <motion.div
                 className="h-2 rounded"
@@ -77,7 +78,7 @@ export default function EunoiaMeter({ traits, safety }: Props) {
         ))}
       </div>
 
-      {/* トーン／安全表示 */}
+      {/* SafetyReport 表示 */}
       <div className="mt-4 text-center text-sm text-gray-400 space-y-1">
         <div>
           Current Tone：
@@ -89,16 +90,13 @@ export default function EunoiaMeter({ traits, safety }: Props) {
               : traits.curiosity > 0.7
               ? "わくわく"
               : "中立"}
-          </span>{" "}
+          </span>
           <span className="opacity-70 text-xs ml-1">({eunoia.label})</span>
         </div>
 
-        {safety?.warnings?.length ? (
-          <div className="text-red-300 text-xs">
-            {safety.warnings.map((w, i) => (
-              <p key={i}>⚠️ {w}</p>
-            ))}
-          </div>
+        {/* SafetyReport.note が存在すれば警告として表示 */}
+        {safety?.note ? (
+          <div className="text-red-300 text-xs">⚠️ {safety.note}</div>
         ) : (
           <div className="text-green-300 text-xs">System stable</div>
         )}

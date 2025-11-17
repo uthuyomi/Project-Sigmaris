@@ -1,5 +1,5 @@
 // /engine/state/StateContext.ts
-import { Trait } from "@/types/trait";
+import { TraitVector } from "@/lib/traits";
 import { SafetyReport } from "@/types/safety";
 
 export type SigmarisState =
@@ -10,12 +10,18 @@ export type SigmarisState =
   | "OverloadPrevent"
   | "SafetyMode";
 
+/* ---------------------------------------------
+ * Emotion (短期的感情状態)
+ * --------------------------------------------- */
 export interface EmotionState {
   tension: number;
   warmth: number;
   hesitation: number;
 }
 
+/* ---------------------------------------------
+ * StateContext（全ステート間で共有される中核データ）
+ * --------------------------------------------- */
 export interface StateContext {
   input: string;
   output: string;
@@ -23,21 +29,30 @@ export interface StateContext {
   currentState: SigmarisState;
   previousState: SigmarisState | null;
 
-  traits: Trait;
-  emotion: EmotionState;
+  /** Trait はプロジェクト標準の TraitVector に統一 */
+  traits: TraitVector;
+
+  /** Emotion は optional → State で安全フォールバック */
+  emotion?: EmotionState;
 
   reflectCount: number;
   tokenUsage: number;
 
-  safety: SafetyReport | null;
+  /** SafetyReport は optional */
+  safety?: SafetyReport;
 
   timestamp: number;
 
-  sessionId: string; // ← ← ★ 追加（重要）
+  /** route.ts が付与する session ID */
+  sessionId: string;
 
+  /** 任意のメタ情報（StateMachine 内部で利用） */
   meta: Record<string, any>;
 }
 
+/* ---------------------------------------------
+ * 初期化コンテキスト
+ * --------------------------------------------- */
 export function createInitialContext(): StateContext {
   return {
     input: "",
@@ -61,10 +76,11 @@ export function createInitialContext(): StateContext {
     reflectCount: 0,
     tokenUsage: 0,
 
-    safety: null,
+    safety: undefined,
+
     timestamp: Date.now(),
 
-    sessionId: "", // ← 初期値を用意（あとで上書き）
+    sessionId: "",
 
     meta: {},
   };
