@@ -1,0 +1,122 @@
+[
+  {
+    "episode_id": "test-001",
+    "timestamp": "2025-11-20T15:29:32.500966",
+    "summary": "今日は Identity Core が安定動作した。",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.75,
+      "empathy": 0.78,
+      "curiosity": 0.65
+    },
+    "raw_context": "テストログ"
+  },
+  {
+    "episode_id": "ep-20251120-153628",
+    "timestamp": "2025-11-20T15:36:28.343575",
+    "summary": "テスト用のリフレクションです。Identity Core と Episodic Store のパス確認。",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.8,
+      "empathy": 0.82,
+      "curiosity": 0.72
+    },
+    "raw_context": "今日は Sigmaris Core の Reflection 層を実装し、テスト用のダミー LLM で動作確認を行った。"
+  },
+  {
+    "episode_id": "int-test-1",
+    "timestamp": "2025-11-20T15:48:09.065006",
+    "summary": "テスト用エピソード 1。最近の対話は落ち着いており、Sigmaris Core の実装が進んでいる。",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.7,
+      "empathy": 0.72,
+      "curiosity": 0.7
+    },
+    "raw_context": "ダミーログ"
+  },
+  {
+    "episode_id": "int-test-2",
+    "timestamp": "2025-11-20T15:48:09.065006",
+    "summary": "テスト用エピソード 2。最近の対話は落ち着いており、Sigmaris Core の実装が進んでいる。",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.71,
+      "empathy": 0.72,
+      "curiosity": 0.72
+    },
+    "raw_context": "ダミーログ"
+  },
+  {
+    "episode_id": "int-test-3",
+    "timestamp": "2025-11-20T15:48:09.065006",
+    "summary": "テスト用エピソード 3。最近の対話は落ち着いており、Sigmaris Core の実装が進んでいる。",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.72,
+      "empathy": 0.72,
+      "curiosity": 0.74
+    },
+    "raw_context": "ダミーログ"
+  },
+  {
+    "episode_id": "ep-test",
+    "timestamp": "2025-11-20T19:28:58.731985+00:00",
+    "summary": "test",
+    "emotion_hint": "neutral",
+    "traits_hint": {
+      "calm": 0.5,
+      "empathy": 0.6,
+      "curiosity": 0.7
+    },
+    "raw_context": "raw"
+  },
+  {
+    "episode_id": "ep-20251120-193725",
+    "timestamp": "2025-11-20T19:37:25.075514+00:00",
+    "summary": "Test summary",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.6,
+      "empathy": 0.8,
+      "curiosity": 0.7
+    },
+    "raw_context": "今日はAIと開発した。"
+  },
+  {
+    "episode_id": "ep-20251120-203044",
+    "timestamp": "2025-11-20T20:30:44.480594+00:00",
+    "summary": "dummy summary",
+    "emotion_hint": "neutral",
+    "traits_hint": {
+      "calm": 0.7,
+      "empathy": 0.7,
+      "curiosity": 0.7
+    },
+    "raw_context": "今日は少し集中力が高かった。\n"
+  },
+  {
+    "episode_id": "ep-20251120-205140",
+    "timestamp": "2025-11-20T20:51:40.639546+00:00",
+    "summary": "dummy summary",
+    "emotion_hint": "neutral",
+    "traits_hint": {
+      "calm": 0.7,
+      "empathy": 0.7,
+      "curiosity": 0.7
+    },
+    "raw_context": "今日は少し集中力が高かった。\n"
+  },
+  {
+    "episode_id": "ep-20251120-205142",
+    "timestamp": "2025-11-20T20:51:42.408288+00:00",
+    "summary": "dummy summary",
+    "emotion_hint": "neutral",
+    "traits_hint": {
+      "calm": 0.7,
+      "empathy": 0.7,
+      "curiosity": 0.7
+    },
+    "raw_context": "今日は少し集中力が高かった。\n"
+  }
+]

@@ -1,0 +1,112 @@
+# aei/identity/identity_core.py
+from __future__ import annotations
+
+from typing import Optional, Tuple
+
+from .trait_vector import TraitVector
+from .identity_state import IdentityState
+
+
+class IdentityCore:
+    """
+    Sigmaris OS — Identity Core (人格核)
+    """
+
+    def __init__(self, state: Optional[IdentityState] = None) -> None:
+        self.state: IdentityState = state if state else IdentityState()
+
+        self.max_delta_baseline: float = 0.10
+        self.max_delta_current: float = 0.40
+        self.stability_threshold: float = 0.18
+
+    # ------------------------------------------------------------------ #
+    # 基本アクセス
+    # ------------------------------------------------------------------ #
+
+    @property
+    def baseline(self) -> TraitVector:
+        return self.state.baseline
+
+    @baseline.setter
+    def baseline(self, vec: TraitVector) -> None:
+        self.state.baseline = vec.clamp()
+
+    @property
+    def current(self) -> TraitVector:
+        return self.state.current
+
+    @current.setter
+    def current(self, vec: TraitVector) -> None:
+        self.state.current = vec.clamp()
+
+    # ------------------------------------------------------------------ #
+    # 安定性
+    # ------------------------------------------------------------------ #
+
+    def drift(self) -> float:
+        return self.state.drift()
+
+    def is_stable(self) -> bool:
+        return self.state.is_stable(self.stability_threshold)
+
+    def gently_correct(self, weight: float = 0.25) -> None:
+        self.state.gently_correct(weight)
+
+    # ------------------------------------------------------------------ #
+    # 観察された traits を current へ反映
+    # ------------------------------------------------------------------ #
+
+    def apply_observed_traits(self, observed: TraitVector, weight: float = 0.35) -> None:
+        diff = self.current.distance_to(observed)
+
+        if diff > self.max_delta_current:
+            ratio = self.max_delta_current / diff
+            observed = self.current.blend(observed, ratio)
+
+        self.state.apply_observed(observed, weight)
+
+        if not self.is_stable():
+            self.gently_correct()
+
+    # ------------------------------------------------------------------ #
+    # 長期変動（baseline 成長）
+    # ------------------------------------------------------------------ #
+
+    def apply_baseline_adjustment(
+        self,
+        delta: Tuple[float, float, float],
+    ) -> None:
+
+        dc, de, du = delta
+
+        dc = max(-self.max_delta_baseline, min(self.max_delta_baseline, dc))
+        de = max(-self.max_delta_baseline, min(self.max_delta_baseline, de))
+        du = max(-self.max_delta_baseline, min(self.max_delta_baseline, du))
+
+        self.state.adjust_baseline((dc, de, du))
+
+    # ------------------------------------------------------------------ #
+    # 保存 / 復元
+    # ------------------------------------------------------------------ #
+
+    def export_state(self) -> dict:
+        return self.state.as_dict()
+
+    @staticmethod
+    def load_state(data: dict) -> "IdentityCore":
+        state = IdentityState.from_dict(data)
+        return IdentityCore(state)
+
+    # ------------------------------------------------------------------ #
+    # デバッグ
+    # ------------------------------------------------------------------ #
+
+    def debug_summary(self) -> str:
+        return (
+            "[IdentityCore]\n"
+            f"baseline={self.baseline.as_tuple()}\n"
+            f"current={self.current.as_tuple()}\n"
+            f"drift={self.drift():.4f}\n"
+            f"stable={self.is_stable()}\n"
+            f"last_updated={self.state.last_updated}"
+        )
