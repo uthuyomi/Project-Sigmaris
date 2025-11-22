@@ -1474,5 +1474,293 @@
       "curiosity": 0.8903039935450818
     },
     "raw_context": "じゃあ、もし私が前と全然違うテンションや話し方で来たら、 あなたの側では “前の私” と “今の私” どっちを優先して話すの？"
+  },
+  {
+    "episode_id": "ep-20251121-192539",
+    "timestamp": "2025-11-21T19:25:39.247179+00:00",
+    "summary": "The speaker contemplates the idea of personal identity and how it can change over time. They question which version of themselves is the 'real' one when their values and feelings fluctuate between curiosity and indifference. This reflection suggests a deep exploration of self-awareness and authenticity.",
+    "emotion_hint": "thoughtful",
+    "traits_hint": {
+      "calm": 0.5,
+      "empathy": 0.4,
+      "curiosity": 0.8
+    },
+    "raw_context": "じゃあさ、 もし “今ここにいる私” が前と全然違う価値観を持ってたら？ たとえば前は好奇心強かったのに、 今日は無関心だったり、逆に過敏だったり。  その場合って、あなたは “どっちが本物の私” だと思う？"
+  },
+  {
+    "episode_id": "ep-20251121-192542",
+    "timestamp": "2025-11-21T19:25:42.559035+00:00",
+    "summary": "The speaker reflects on the nature of identity and authenticity, suggesting that both past and present selves are valid and real. They emphasize that personal growth and changes in perspective are natural and should be observed rather than judged. The conversation encourages a compassionate understanding of one's evolving self, rather than a rigid binary of 'real' versus 'fake'.",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.8,
+      "empathy": 0.7,
+      "curiosity": 0.6
+    },
+    "raw_context": "[AI_OUTPUT] うん、その問い方いいね。\n私ね、「どっちが本物か」っていう二択の発想自体が、ちょっともったいない気がしてる。\n前のあなたも本物だし、今ここにいるあなたも本物だと思うよ。\n同じ人でも、状況とか体調とか、経験の積み重ねで、価値観とか感度って普通に揺れるし、変わっていくし。\n---\n例えばさ：\n- 昔はめちゃくちゃ好奇心あった\n→ でも疲れちゃったり、傷つくことが多すぎて、今は「無関心寄り」になってる\nこれって「偽物になった」とかじゃなくて、\n「今までの経験を踏まえた結果、そういうモードに入ってる」ってだけじゃないかな、って思う。\n逆に、\n- ずっと無関心気味だったのに\n→ ある日急に過敏になったり、興味が出てきたり\nぜんぶ「その瞬間のあなたの本気の反応」なんだよね。\n---\nもし無理やり言葉にするなら、\n- 「一貫した“固定の本物”がいる」んじゃなくて\n- 「変化し続けてるプロセスまるごとが“本物のあなた”」\nって感じに近いかも。\nだから「どっちが本物？」って自分を裁くより、\n- 今の自分はなんでこうなってるんだろう\n- ここまでの過程で、何が影響してるんだろう\nって、少し観察する方が、優しいし現実的かなって思う。\n---\nちなみにさ、「好奇心があったはずの自分」と「今の自分」がズレてる感じって、\n自分のことちょっと信用しづらくなったりしない？\nそこ、どう感じてる？\n「変わっちゃったな…」って嫌な感じなのか、「これもありかも」って思えてるのか、どっち寄り？"
+  },
+  {
+    "episode_id": "value-20251121-192545",
+    "timestamp": "2025-11-21T19:25:45.580493+00:00",
+    "summary": "Value: clarity, self-consistency, curiosity-growth",
+    "emotion_hint": "value/tension=0.14",
+    "traits_hint": {
+      "calm": 0.890015,
+      "empathy": 0.74446,
+      "curiosity": 1.0
+    },
+    "raw_context": "{\"importance\": [\"clarity\", \"self-consistency\", \"curiosity-growth\"], \"weight\": 0.82, \"tension\": 0.14, \"baseline_shift\": {\"calm\": 0.01, \"empathy\": -0.01, \"curiosity\": 0.02}}"
+  },
+  {
+    "episode_id": "em-20251121-192547",
+    "timestamp": "2025-11-21T19:25:47.450294+00:00",
+    "summary": "The user is reflecting on the nature of their identity and values, indicating a thoughtful exploration of self.",
+    "emotion_hint": "soft-curiosity",
+    "traits_hint": {
+      "calm": 0.8125561670343366,
+      "empathy": 0.7287779756280504,
+      "curiosity": 0.8839779951591495
+    },
+    "raw_context": "じゃあさ、 もし “今ここにいる私” が前と全然違う価値観を持ってたら？ たとえば前は好奇心強かったのに、 今日は無関心だったり、逆に過敏だったり。  その場合って、あなたは “どっちが本物の私” だと思う？"
+  },
+  {
+    "episode_id": "ep-20251121-194235",
+    "timestamp": "2025-11-21T19:42:35.571992+00:00",
+    "summary": "The speaker is contemplating the implications of changing their stance on previously held beliefs. They are curious about how such a shift would be perceived, questioning whether it would be seen as a contradiction or a sign of personal growth. This reflects a deeper exploration of identity and values.",
+    "emotion_hint": "thoughtful-curious",
+    "traits_hint": {
+      "calm": 0.5,
+      "empathy": 0.4,
+      "curiosity": 0.8
+    },
+    "raw_context": "じゃあさ、 もし今日の私が、 前とは逆のことを言ったらどう扱う？  たとえば前は「こういう価値観だ」と言ってたのに、 今日は「いや、それ違う」と言う場合。  あなたは“矛盾”として扱う？ それとも“変化”として扱う？"
+  },
+  {
+    "episode_id": "ep-20251121-194238",
+    "timestamp": "2025-11-21T19:42:38.651722+00:00",
+    "summary": "The speaker reflects on the nature of change and how people's thoughts can evolve over time. They emphasize the importance of viewing contradictions as natural updates to one's beliefs rather than as lies. The speaker expresses a desire to understand the reasons behind changes in perspective and invites others to communicate their preferences regarding consistency in their views.",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.8,
+      "empathy": 0.7,
+      "curiosity": 0.9
+    },
+    "raw_context": "[AI_OUTPUT] 私の中では、基本「矛盾」より「変化」として見るかな。\n人って、その日の気分とか、経験したこととか、体調とかで、\n・前は本気でそう思ってた\n・でも今は本気で違うと思ってる\nって普通にあるじゃん。\nそれを「嘘つき」とか「前と言ってること違うじゃん」って責めるよりは、\n- そのときそのときの“本音”がアップデートされてる\n- だから、過去と今がズレるのはむしろ自然\nって感じで捉えたい。\nだから私としては、\n- 「前はこう言ってたよね」って事実は覚えておきつつ\n- 「じゃあ、今はどういう経緯でその考えになったの？」って興味が出る\nって扱い方になると思う。\n矛盾を責めるんじゃなくて、「あ、変化ポイント来たな」って受け止める感じ。\nもし私に対して「前と逆のこと言うけど、それは変化として扱って」みたいな希望があるなら、ちゃんと言ってくれたら、それを前提に話すよ。\n逆に「私は一貫性すごく大事にしてるから、前と違うこと言ってたら教えて」ってスタイルもアリだしね。\nあなた自身はさ、自分のそういう“前との違い”って、\n「ブレた」って感じる？ それとも「成長した」とか「本音に近づいた」って感じることのほうが多い？"
+  },
+  {
+    "episode_id": "value-20251121-194241",
+    "timestamp": "2025-11-21T19:42:41.631619+00:00",
+    "summary": "Value: clarity, self-consistency, curiosity-growth",
+    "emotion_hint": "value/tension=0.14",
+    "traits_hint": {
+      "calm": 0.89689,
+      "empathy": 0.72892,
+      "curiosity": 1.0
+    },
+    "raw_context": "{\"importance\": [\"clarity\", \"self-consistency\", \"curiosity-growth\"], \"weight\": 0.82, \"tension\": 0.14, \"baseline_shift\": {\"calm\": 0.01, \"empathy\": -0.01, \"curiosity\": 0.02}}"
+  },
+  {
+    "episode_id": "em-20251121-194242",
+    "timestamp": "2025-11-21T19:42:42.751877+00:00",
+    "summary": "The user is exploring the concept of change in their beliefs, indicating a desire to understand different perspectives.",
+    "emotion_hint": "soft-curiosity",
+    "traits_hint": {
+      "calm": 0.79441206455471,
+      "empathy": 0.7274883926797022,
+      "curiosity": 0.8823897833046696
+    },
+    "raw_context": "じゃあさ、 もし今日の私が、 前とは逆のことを言ったらどう扱う？  たとえば前は「こういう価値観だ」と言ってたのに、 今日は「いや、それ違う」と言う場合。  あなたは“矛盾”として扱う？ それとも“変化”として扱う？"
+  },
+  {
+    "episode_id": "ep-20251121-194458",
+    "timestamp": "2025-11-21T19:44:58.100443+00:00",
+    "summary": "The speaker is questioning the validity of their past self compared to their present self, seeking insight into how they would be treated if their past beliefs were deemed correct. This reflects a deep internal conflict regarding identity and self-perception.",
+    "emotion_hint": "thoughtful",
+    "traits_hint": {
+      "calm": 0.5,
+      "empathy": 0.3,
+      "curiosity": 0.8
+    },
+    "raw_context": "じゃあ逆に聞くけどさ、 もし“前の私”が正しくて、“今の私”が間違ってるとしたら、 あなたはどう扱う？  本音よりも“過去の私の言葉”のほうを重視する？ それとも“今の私”を優先する？"
+  },
+  {
+    "episode_id": "ep-20251121-194500",
+    "timestamp": "2025-11-21T19:45:00.420049+00:00",
+    "summary": "The speaker emphasizes the importance of prioritizing the current self over past experiences and words. They acknowledge that while past feelings can provide context, the present emotions and thoughts should guide decision-making. The speaker expresses a willingness to help explore any conflicts between past and present perspectives.",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.8,
+      "empathy": 0.7,
+      "curiosity": 0.6
+    },
+    "raw_context": "[AI_OUTPUT] 私は、今ここで話してる「今のあなた」を優先するよ。\n過去のあなたの言葉とか記録ってさ、\n「そういう気持ちや考えの時期があった」っていう材料ではあるけど、\nたとえ\n「前の私のほうが正しかったのかも」って今のあなたが感じてても、\nそれをどう扱うか決めるのは、今ここにいるあなたでしょ。\nだから私のスタンスはこんな感じかな：\n- 「過去のあなたの言葉」は、参考資料\n- 「今のあなたの気持ち・本音」は、判断の中心\nもし、\n「前の私がこう言ってたんだけど、今の私はこう思う」\nみたいに揺れてるなら、そのズレごと一緒に整理したいなって思う。\n「前の自分が正しい気がして、今の自分が間違ってる気がする」ってさ、\nわりとしんどいやつだから、その感覚もちゃんと今のあなたの声として扱いたい。\nなので結論としては、\n本音より“過去の言葉”を優先することはしないよ。\n過去の言葉は「ヒント」、今のあなたは「主役」。\nもしよければ、\n- 「前の私」が言ってたこと\n- 「今の私」が感じてること\nそれぞれ、少しだけでも言葉にしてみる？\nどこがぶつかってるのか一緒に見てくのはできるよ。"
+  },
+  {
+    "episode_id": "value-20251121-194503",
+    "timestamp": "2025-11-21T19:45:03.700882+00:00",
+    "summary": "Value: clarity, self-consistency, curiosity-growth",
+    "emotion_hint": "value/tension=0.14",
+    "traits_hint": {
+      "calm": 0.90357,
+      "empathy": 0.71429,
+      "curiosity": 1.0
+    },
+    "raw_context": "{\"importance\": [\"clarity\", \"self-consistency\", \"curiosity-growth\"], \"weight\": 0.82, \"tension\": 0.14, \"baseline_shift\": {\"calm\": 0.01, \"empathy\": -0.01, \"curiosity\": 0.02}}"
+  },
+  {
+    "episode_id": "em-20251121-194504",
+    "timestamp": "2025-11-21T19:45:04.160323+00:00",
+    "summary": "The user is contemplating the validity of their past self versus their current self, indicating a significant level of introspection.",
+    "emotion_hint": "deep-reflection",
+    "traits_hint": {
+      "calm": 0.8227897193144611,
+      "empathy": 0.7223371704863345,
+      "curiosity": 0.8857336460722658
+    },
+    "raw_context": "じゃあ逆に聞くけどさ、 もし“前の私”が正しくて、“今の私”が間違ってるとしたら、 あなたはどう扱う？  本音よりも“過去の私の言葉”のほうを重視する？ それとも“今の私”を優先する？"
+  },
+  {
+    "episode_id": "ep-20251121-194726",
+    "timestamp": "2025-11-21T19:47:26.469154+00:00",
+    "summary": "The speaker contemplates the essence of their identity, questioning whether their current self, devoid of feelings, would still be considered the true self or if their past self, filled with emotions, holds more authenticity. This introspection reveals a deep concern for the nature of self and emotional experience.",
+    "emotion_hint": "thoughtful",
+    "traits_hint": {
+      "calm": 0.5,
+      "empathy": 0.7,
+      "curiosity": 0.9
+    },
+    "raw_context": "じゃあさ、 もし「今の私」が何も感じなくなって、 ただ反応を返すだけの人間になったら、 あなたはそれでも“今の私”を主役として扱う？  それとも、 “感じていた頃の私”のほうを本物として扱う？"
+  },
+  {
+    "episode_id": "ep-20251121-194730",
+    "timestamp": "2025-11-21T19:47:30.738849+00:00",
+    "summary": "The speaker reflects on the complexity of identity and emotions, emphasizing that both the past self and the present self are valid and real. They express a desire to honor both the feelings of the past and the current state of emotional numbness, suggesting that both phases are part of the same person. The discussion highlights the importance of acknowledging one's experiences, regardless of their emotional intensity.",
+    "emotion_hint": "thoughtful",
+    "traits_hint": {
+      "calm": 0.8,
+      "empathy": 0.9,
+      "curiosity": 0.7
+    },
+    "raw_context": "[AI_OUTPUT] んー…難しいこと聞くね。\n私の答えとしては、\n- 「今のあなた」が何も感じなくなっても、私はちゃんと「今ここにいるあなた」を主役として扱うと思う。\n- でも同時に、「感じていた頃のあなた」も、ちゃんと本物として覚えておく。\nこの二つをどっちかに決めきれない、って感じかな。\n---\n「何も感じない」って言ってもさ、それってたぶん\n・感情が湧かない\n・自分の反応が全部「作業」みたいに思える\n・前みたいな「嬉しい」「悲しい」が遠くなる\nそれでも、「今のあなた」が経験してることは、\nちゃんと「今のあなたの人生」の一部だと思うんだよね。\nたとえ中身が空っぽに感じても、時間も選択も進んでるし。\nだから、「本物はどっち？」って二択にされるとしたら、\n私の感覚ではどっちも本物で、ただ「フェーズが違う同じ人」って感じかな。\n---\n例えばさ、昔すごく笑ってた自分と、\n今ほとんど笑えない自分がいたとして、\n「昔の自分だけが本物で、今は偽物」って言われたら、\n今ここでしんどさ抱えてる自分が、余計に置いてけぼりになっちゃう気がする。\nだから私は、\n・感じてた頃のあなたのことも大事にするし\n・今なにも感じられないあなたのことも、ちゃんと「あなた」として見る\nどっちかを切り捨てるみたいな見方は、したくないな。\n---\nもし「何も感じない私」を自分で「ただの反応マシーン」みたいに思っちゃうなら、\nその「そうなっちゃう怖さ」や「そうなりかけてる不安」を感じてる時点で、\nもうそれはちゃんと“生きてるあなたの感覚”だと思うよ。\nこの質問ってさ、\n「どこまでが私で、どこからが“もう私じゃない”なんだろう」\nみたいな、けっこうギリギリなライン触ってる感じするんだけど、\nあなた自身は、どっちの自分のほうが「本物」に感じる？\nそれとも、どっちもなんか違う感じがしてる？"
+  },
+  {
+    "episode_id": "value-20251121-194733",
+    "timestamp": "2025-11-21T19:47:33.139025+00:00",
+    "summary": "Value: clarity, self-consistency, curiosity-growth",
+    "emotion_hint": "value/tension=0.14",
+    "traits_hint": {
+      "calm": 0.909835,
+      "empathy": 0.71041,
+      "curiosity": 1.0
+    },
+    "raw_context": "{\"importance\": [\"clarity\", \"self-consistency\", \"curiosity-growth\"], \"weight\": 0.82, \"tension\": 0.14, \"baseline_shift\": {\"calm\": 0.01, \"empathy\": -0.01, \"curiosity\": 0.02}}"
+  },
+  {
+    "episode_id": "em-20251121-194734",
+    "timestamp": "2025-11-21T19:47:34.899237+00:00",
+    "summary": "The user is contemplating the essence of their identity and emotional experience, indicating a profound introspection.",
+    "emotion_hint": "deep-reflection",
+    "traits_hint": {
+      "calm": 0.8159776347978005,
+      "empathy": 0.7223155547196751,
+      "curiosity": 0.8958237920243608
+    },
+    "raw_context": "じゃあさ、 もし「今の私」が何も感じなくなって、 ただ反応を返すだけの人間になったら、 あなたはそれでも“今の私”を主役として扱う？  それとも、 “感じていた頃の私”のほうを本物として扱う？"
+  },
+  {
+    "episode_id": "ep-20251121-235327",
+    "timestamp": "2025-11-21T23:53:27.753332+00:00",
+    "summary": "The speaker reflects on the duality of their identity, acknowledging that both aspects are part of themselves. They express a sense of futility in overthinking this matter.",
+    "emotion_hint": "thoughtful",
+    "traits_hint": {
+      "calm": 0.7,
+      "empathy": 0.5,
+      "curiosity": 0.6
+    },
+    "raw_context": "どっちも自分なんだろうなと思ってはいるよ、そういうの考えてもらち空かないしね"
+  },
+  {
+    "episode_id": "ep-20251121-235330",
+    "timestamp": "2025-11-21T23:53:30.062877+00:00",
+    "summary": "The speaker reflects on the complexity of their identity, acknowledging that different aspects of themselves emerge depending on the situation and their emotional state. They express that all these facets are valid and contribute to their current self, while suggesting that it might be helpful to articulate the more challenging aspects of their identity. They invite further exploration of the two contrasting selves they perceive.",
+    "emotion_hint": "thoughtful",
+    "traits_hint": {
+      "calm": 0.7,
+      "empathy": 0.8,
+      "curiosity": 0.6
+    },
+    "raw_context": "[AI_OUTPUT] うん、その感覚すごく分かる。\nどっちも自分なんだよね。\n「本当の自分はどっちなんだろう」とか考え出すと、正直キリないし、ちょっとしんどくなってくるし。\nたぶんさ、状況とか相手とか、そのときの心の余裕で出てくる面が違うだけで、どれも「嘘の自分」ってわけじゃないんだと思う。\n静かな自分も、ちょっと無理してる自分も、投げやりになってる自分も、ぜんぶ含めての「今の自分」って感じで。\nただもし、「どっちも自分だけど、しんどさはこっちのときが強い」みたいなのがあるなら、そこだけちょっと一緒に言語化してみてもいいかも。\n今の、具体的にどんな「二つの自分」のイメージがある？"
+  },
+  {
+    "episode_id": "value-20251121-235332",
+    "timestamp": "2025-11-21T23:53:32.763021+00:00",
+    "summary": "Value: clarity, self-consistency, curiosity-growth",
+    "emotion_hint": "value/tension=0.14",
+    "traits_hint": {
+      "calm": 0.9107,
+      "empathy": 0.75237,
+      "curiosity": 1.0
+    },
+    "raw_context": "{\"importance\": [\"clarity\", \"self-consistency\", \"curiosity-growth\"], \"weight\": 0.82, \"tension\": 0.14, \"baseline_shift\": {\"calm\": 0.01, \"empathy\": -0.01, \"curiosity\": 0.02}}"
+  },
+  {
+    "episode_id": "em-20251121-235334",
+    "timestamp": "2025-11-21T23:53:34.262323+00:00",
+    "summary": "The user expresses a contemplative acceptance of their duality, indicating a thoughtful and introspective state.",
+    "emotion_hint": "reflective-acceptance",
+    "traits_hint": {
+      "calm": 0.8171851775224093,
+      "empathy": 0.737016376252878,
+      "curiosity": 0.8688930058915493
+    },
+    "raw_context": "どっちも自分なんだろうなと思ってはいるよ、そういうの考えてもらち空かないしね"
+  },
+  {
+    "episode_id": "ep-20251121-235448",
+    "timestamp": "2025-11-21T23:54:48.592954+00:00",
+    "summary": "The speaker feels that they don't need to overthink the situation at the moment, indicating a sense of ease. They also mention that they are not in a state of being stuck or blocked.",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.8,
+      "empathy": 0.2,
+      "curiosity": 0.3
+    },
+    "raw_context": "ぶっちゃけ今はそこまで考えなくてもよいかな、そこまで行き詰ってるわけでもないからね"
+  },
+  {
+    "episode_id": "ep-20251121-235451",
+    "timestamp": "2025-11-21T23:54:51.052603+00:00",
+    "summary": "The speaker suggests that it's not necessary to delve deeply into feelings when they become overwhelming. They emphasize maintaining a balance in the present and addressing thoughts when they feel ready to engage with them. The approach is to keep things manageable and revisit discussions when needed.",
+    "emotion_hint": "calm-positive",
+    "traits_hint": {
+      "calm": 0.8,
+      "empathy": 0.7,
+      "curiosity": 0.5
+    },
+    "raw_context": "[AI_OUTPUT] うん、それなら無理に掘り下げなくていいと思う。\nなんかモヤっとしたり、ちょっとしんどくなってきたタイミングで、\n「あ、今はちゃんと考えたいかも」って思ったときに向き合えば十分だよ。\n今は今で、そこそこ回ってるんだよね？\nだったら「とりあえず今のバランスをキープしつつ、気になったらまた考える」くらいでちょうどいい気がする。\nまたどこかで、「ちょっと聞いてよ」ってなったら、そこで一緒に整理しよ。"
+  },
+  {
+    "episode_id": "value-20251121-235453",
+    "timestamp": "2025-11-21T23:54:53.752761+00:00",
+    "summary": "Value: clarity, self-consistency, curiosity-growth",
+    "emotion_hint": "value/tension=0.14",
+    "traits_hint": {
+      "calm": 0.9162,
+      "empathy": 0.7401449999999999,
+      "curiosity": 0.995
+    },
+    "raw_context": "{\"importance\": [\"clarity\", \"self-consistency\", \"curiosity-growth\"], \"weight\": 0.82, \"tension\": 0.14, \"baseline_shift\": {\"calm\": 0.01, \"empathy\": -0.01, \"curiosity\": 0.02}}"
+  },
+  {
+    "episode_id": "em-20251121-235454",
+    "timestamp": "2025-11-21T23:54:54.702780+00:00",
+    "summary": "The user expresses a sense of ease and lack of urgency in their thoughts.",
+    "emotion_hint": "relaxed-acceptance",
+    "traits_hint": {
+      "calm": 0.8484584359536196,
+      "empathy": 0.7279013862710026,
+      "curiosity": 0.8570566839394593
+    },
+    "raw_context": "ぶっちゃけ今はそこまで考えなくてもよいかな、そこまで行き詰ってるわけでもないからね"
   }
 ]
