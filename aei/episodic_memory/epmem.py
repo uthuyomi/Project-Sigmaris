@@ -7,7 +7,6 @@ from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 
-
 # =====================================================================
 # Episode Model
 # =====================================================================
@@ -29,14 +28,10 @@ class Episode:
     traits_hint: Dict[str, float]
     raw_context: str
 
-    # ---------------------------- #
-    # Serialization
-    # ---------------------------- #
-
     def as_dict(self) -> Dict[str, Any]:
         """
-        Episode → JSON へ安全に変換。
-        timestamp は timezone-aware で isoformat 化。
+        Episode → JSON（安全形式）
+        timestamp は常に ISO8601 + UTC
         """
         d = asdict(self)
         d["timestamp"] = self.timestamp.astimezone(timezone.utc).isoformat()
@@ -45,23 +40,18 @@ class Episode:
     @staticmethod
     def from_dict(d: Dict[str, Any]) -> "Episode":
         """
-        JSON → Episode へ復元。
-        - timestamp は timezone-aware へ統一する。
-        - 過去の naive datetime データも救済。
+        JSON → Episode（破損救済込み）
         """
-
         ts_raw = d.get("timestamp")
         if not ts_raw:
-            # 異常値救済
             ts = datetime.now(timezone.utc)
         else:
             try:
                 ts = datetime.fromisoformat(ts_raw)
             except Exception:
-                # 壊れた ISO8601 救済
                 ts = datetime.now(timezone.utc)
 
-        # tzinfo が無ければ強制 UTC 付与
+        # naive → UTC
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
 
@@ -74,25 +64,14 @@ class Episode:
             raw_context=d.get("raw_context", ""),
         )
 
-
 # =====================================================================
-# Episode Store
+# EpisodeStore
 # =====================================================================
 
 class EpisodeStore:
     """
     Sigmaris OS — Episodic Memory Store
-
-    - Episode の JSON 管理
-    - 時系列ソート
-    - 直近 N 件の取得
-    - 日付範囲の取得
-    - trait 平均値などの解析
-
-    Psychology（長期心理）・MetaReflection（長期内省）の
-    すべてが依存する最重要レイヤ。
     """
-
     DEFAULT_PATH = "./sigmaris-data/episodes.json"
 
     def __init__(self, path: str = None) -> None:
@@ -101,23 +80,31 @@ class EpisodeStore:
         # ディレクトリ準備
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
 
-        # 初期ファイル作成
+        # episodes.json が無ければ自動生成
         if not os.path.exists(self.path):
             with open(self.path, "w", encoding="utf-8") as f:
                 json.dump([], f, ensure_ascii=False, indent=2)
 
     # ------------------------------------------------------------ #
-    # Low-level I/O
+    # Low-level I/O（破損救済対応）
     # ------------------------------------------------------------ #
 
     def _load_json(self) -> List[Dict[str, Any]]:
+        """
+        episodes.json を読み込む。
+        壊れていれば初期化して空リストに戻す。
+        """
+        if not os.path.exists(self.path):
+            # 自動初期化
+            self._save_json([])
+            return []
+
         try:
             with open(self.path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except json.JSONDecodeError:
-            # 壊れた JSON の救済
-            return []
-        except FileNotFoundError:
+        except Exception:
+            # 壊れてる → 初期化して復旧
+            self._save_json([])
             return []
 
     def _save_json(self, raw_list: List[Dict[str, Any]]) -> None:
@@ -130,21 +117,16 @@ class EpisodeStore:
 
     def add(self, episode: Episode) -> None:
         """
-        Episode を追加し、timestamp でソートして保存。
+        Episode を追加し、時系列順にソートして保存。
         """
         raw = self._load_json()
         raw.append(episode.as_dict())
 
-        # timestamp キーで時系列ソート（ISO8601 は文字列比較で OK）
         raw.sort(key=lambda x: x.get("timestamp", ""))
 
         self._save_json(raw)
 
     def load_all(self) -> List[Episode]:
-        """
-        JSON → Episode の完全復元
-        （timestamp は always timezone-aware）
-        """
         raw = self._load_json()
         return [Episode.from_dict(d) for d in raw]
 
@@ -154,17 +136,13 @@ class EpisodeStore:
 
     def get_range(self, start: datetime, end: datetime) -> List[Episode]:
         eps = self.load_all()
-        return [
-            ep
-            for ep in eps
-            if start <= ep.timestamp <= end
-        ]
+        return [ep for ep in eps if start <= ep.timestamp <= end]
 
     def count(self) -> int:
         return len(self._load_json())
 
     # ------------------------------------------------------------ #
-    # Analytics helpers（Psychology / MetaReflection 用）
+    # Analytics（心理・長期内省）
     # ------------------------------------------------------------ #
 
     def last_summary(self) -> Optional[str]:
@@ -172,12 +150,6 @@ class EpisodeStore:
         return last[0].summary if last else None
 
     def trait_trend(self, n: int = 5) -> Dict[str, float]:
-        """
-        直近 n 件の traits_hint の平均。
-
-        Psychology が心理フェーズ推定に、
-        MetaReflection が drift 要因分析に用いる。
-        """
         eps = self.get_last(n)
         if not eps:
             return {"calm": 0.0, "empathy": 0.0, "curiosity": 0.0}
@@ -193,17 +165,13 @@ class EpisodeStore:
         }
 
     # ------------------------------------------------------------ #
-    # Export for ValueCore / API
+    # Export
     # ------------------------------------------------------------ #
 
     def export_state(self) -> Dict[str, Any]:
-        """
-        ValueCore や API から参照されるためのシリアライズビュー。
-        既存のメソッド構造は一切壊さず、「読み出し専用」の追加。
-        """
-        episodes = self.load_all()
+        eps = self.load_all()
         return {
-            "count": len(episodes),
-            "episodes": [ep.as_dict() for ep in episodes],
+            "count": len(eps),
+            "episodes": [ep.as_dict() for ep in eps],
             "trait_trend": self.trait_trend(n=10),
         }

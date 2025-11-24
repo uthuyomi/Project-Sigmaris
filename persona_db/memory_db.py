@@ -135,6 +135,13 @@ class MemoryDB:
             """
         )
 
+        cur.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_episodes_content
+            ON episodes (content);
+            """
+        )
+
         # --- identity events（トレイト変動） ---
         cur.execute(
             """
@@ -555,6 +562,111 @@ class MemoryDB:
         )
         rows = cur.fetchall()
         return [dict(r) for r in rows]
+
+    # ============================================================
+    # Identity Continuity API（★追加）
+    # ============================================================
+
+    def get_recent_episodes(
+        self,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """
+        最新の会話ログを取得。
+        PersonaOS 側が「最近の文脈」を作るために使用。
+        """
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                id, ts, session_id, role, content,
+                topic_hint, emotion_hint, importance, meta_json
+            FROM episodes
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        )
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------
+
+    def search_episodes_by_keyword(
+        self,
+        keyword: str,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """
+        content / topic_hint / meta_json を横断検索。
+        PersonaOS が「この前の〇〇の件」のような曖昧参照に利用。
+        """
+        kw = f"%{keyword}%"
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                id, ts, session_id, role, content,
+                topic_hint, emotion_hint, importance, meta_json
+            FROM episodes
+            WHERE content LIKE ?
+               OR topic_hint LIKE ?
+               OR meta_json LIKE ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (kw, kw, kw, int(limit)),
+        )
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------
+
+    def get_related_episodes(
+        self,
+        user_input: str,
+        limit: int = 10,
+    ) -> Dict[str, Any]:
+        """
+        Identity Continuity の中心機能。
+        - 入力文を tokenize
+        - keyword ごとに検索
+        - importance / recency でスコア計算して並べ替え
+
+        PersonaOS 側はこれだけ呼べば、関連発話がまとまって受け取れる。
+        """
+        tokens = _simple_tokenize(user_input)
+        if not tokens:
+            return {"related": [], "tokens": []}
+
+        results: List[Dict[str, Any]] = []
+
+        for tok in tokens[:6]:  # keyword は最大6個
+            hits = self.search_episodes_by_keyword(tok, limit=limit)
+            for h in hits:
+                h["_tok"] = tok
+                results.append(h)
+
+        # 重複排除（id ベース）
+        uniq = {}
+        for r in results:
+            eid = r["id"]
+            if eid not in uniq:
+                uniq[eid] = r
+
+        # importance と recency でスコア（簡易）
+        merged = list(uniq.values())
+        for r in merged:
+            importance = float(r.get("importance") or 0.1)
+            # recency boost
+            r["_score"] = importance + (r["id"] / 1000000.0)
+
+        merged.sort(key=lambda x: x["_score"], reverse=True)
+
+        return {
+            "tokens": tokens,
+            "related": merged[:limit],
+        }
 
     # ============================================================
     # Utility

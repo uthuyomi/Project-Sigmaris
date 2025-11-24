@@ -1,5 +1,5 @@
-# sigmaris_persona_core/persona_os.py
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Literal, Optional
 
@@ -42,7 +42,7 @@ class PersonaOS:
     - persona_db は user_id ごとに専用 DB を開く（v0.2）。
     - process() 内で:
         - 矛盾検出 / 主体的沈黙 / 疑似直観 / ValueDrift / Emotion を実行
-        - growth_log を growthLog テーブルへ永続化
+        - growth_log を growth_log テーブルへ永続化
         - episodes を episodes テーブルへ永続化（＋concepts の自動更新）
     """
 
@@ -85,11 +85,15 @@ class PersonaOS:
     # Internal utility — per-user DB
     # ============================================================
 
-    def _db(self, user_id: str) -> MemoryDB:
-        """user_id ごとの DB をキャッシュして返す。"""
-        if user_id not in self.db_cache:
-            self.db_cache[user_id] = MemoryDB(user_id=user_id)
-        return self.db_cache[user_id]
+    def _db(self, user_id: Optional[str]) -> MemoryDB:
+        """
+        user_id ごとの DB をキャッシュして返す。
+        user_id が空 or None の場合は "system" として扱う。
+        """
+        key = user_id or "system"
+        if key not in self.db_cache:
+            self.db_cache[key] = MemoryDB(user_id=key)
+        return self.db_cache[key]
 
     # ============================================================
     # Main Entry
@@ -105,15 +109,36 @@ class PersonaOS:
         abstraction_score: float = 0.0,
         loop_suspect_score: float = 0.0,
     ) -> PersonaDecision:
-
         # ローカル履歴
         self.messages.append(incoming)
 
-        # user-specific DB を（可能なら）取得
+        # --------------------------------------------------------
+        # 0. user-specific DB を取得し、identity_events から traits を再構成
+        # --------------------------------------------------------
+        user_key = context.user_id or "system"
+
         try:
-            user_db: Optional[MemoryDB] = self._db(context.user_id)
+            user_db: Optional[MemoryDB] = self._db(user_key)
         except Exception:
             user_db = None
+
+        if user_db is not None:
+            try:
+                latest = user_db.load_latest_traits(
+                    baseline={
+                        "calm": float(self.traits.calm),
+                        "empathy": float(self.traits.empathy),
+                        "curiosity": float(self.traits.curiosity),
+                    }
+                )
+                self.traits = TraitVector(
+                    calm=float(latest.get("calm", self.traits.calm)),
+                    empathy=float(latest.get("empathy", self.traits.empathy)),
+                    curiosity=float(latest.get("curiosity", self.traits.curiosity)),
+                )
+            except Exception:
+                # DB 側の問題で人格コアを巻き込まない
+                pass
 
         # --------------------------------------------------------
         # 1. ローカルモジュールへの feed
@@ -145,7 +170,10 @@ class PersonaOS:
 
                 # content 長から超ラフに importance を決める（0.1〜1.0）
                 content_len = len(incoming.content or "")
-                importance = content_len / 200.0 if content_len > 0 else 0.1
+                if content_len > 0:
+                    importance = content_len / 200.0
+                else:
+                    importance = 0.1
                 if importance < 0.1:
                     importance = 0.1
                 if importance > 1.0:
@@ -156,7 +184,7 @@ class PersonaOS:
                     role=incoming.role,
                     content=incoming.content,
                     topic_hint=topic_hint,
-                    emotion_hint=None,  # v0.1 では未使用
+                    emotion_hint=None,  # v0.2 では未使用
                     importance=importance,
                     meta={
                         "client": context.client,
@@ -182,7 +210,8 @@ class PersonaOS:
         # --------------------------------------------------------
         # 5. 主体的沈黙 判定
         # --------------------------------------------------------
-        user_insists = ("教えて" in incoming.content) or ("どう思う" in incoming.content)
+        content_str = incoming.content or ""
+        user_insists = ("教えて" in content_str) or ("どう思う" in content_str)
         silence_info = self.silence.decide(
             abstraction_score=abstraction_score,
             loop_suspect_score=loop_suspect_score,
@@ -196,7 +225,9 @@ class PersonaOS:
             user_requested_depth=depth_pref,
             safety_flagged=safety_flagged,
             reflection_candidate=(intuition_info["allow"] and depth_pref == "deep"),
-            introspection_candidate=(not intuition_info["allow"] and depth_pref == "deep"),
+            introspection_candidate=(
+                (not intuition_info["allow"]) and depth_pref == "deep"
+            ),
         )
 
         # --------------------------------------------------------
@@ -261,7 +292,7 @@ class PersonaOS:
             try:
                 user_db.store_growth_log(
                     GrowthLogEntry(
-                        user_id=context.user_id,
+                        user_id=user_key,
                         session_id=context.session_id,
                         last_message=incoming.content,
                         traits_before=prev_traits,
@@ -343,7 +374,11 @@ class PersonaOS:
         except Exception:
             pass
 
-    def feed_emotion(self, emotion_res: Dict[str, Any], user_id: str = "system") -> None:
+    def feed_emotion(
+        self,
+        emotion_res: Dict[str, Any],
+        user_id: str = "system",
+    ) -> None:
         """
         AEI Core の EmotionCore 出力を PersonaOS に渡す。
         trait_shift をそのまま identity_events に delta_* として積む。
@@ -388,4 +423,7 @@ class PersonaOS:
         プロセス終了時などに DB コネクションをすべて閉じるためのフック。
         """
         for db in self.db_cache.values():
-            db.close()
+            try:
+                db.close()
+            except Exception:
+                continue

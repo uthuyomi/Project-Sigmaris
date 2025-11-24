@@ -16,15 +16,19 @@ class ValueDriftConfig:
     """自律的価値変動（Value Drift）の設定。"""
     max_step: float = 0.02
     min_step: float = 0.001
-    decay: float = 0.995  # 長期的に 0.5 付近に戻るイメージ
+    # 長期的に 0.5 付近に戻るイメージ（Value Drift 減衰）
+    decay: float = 0.995
 
 
 @dataclass
 class IntuitionConfig:
     """疑似直観のトリガー条件。"""
+    # どれくらいコンテキストが溜まったら「直観」を有効にするか
     min_context_size: int = 5
+    # 直近どれくらいの時間スパンを見て「流れ」を読むか
     min_time_span_sec: float = 60.0
-    strength: float = 0.4  # 0〜1 で「どれくらい強く結論を押すか」
+    # 0〜1 で「どれくらい強く結論を押すか」
+    strength: float = 0.4
 
 
 @dataclass
@@ -37,10 +41,14 @@ class MemoryConfig:
 
 @dataclass
 class StateMachineConfig:
-    """状態遷移の基本挙動。"""
+    """
+    PersonaOS 内部ステートマシンの挙動。
+    ※ state_machine.py のフィールド名と厳密に合わせてある。
+    """
     overload_limit_per_min: int = 20
-    reflection_cooldown_sec: float = 30.0
-    introspection_cooldown_sec: float = 60.0
+    # state_machine.py 側で reflect_cooldown_sec / introspect_cooldown_sec を参照
+    reflect_cooldown_sec: float = 30.0
+    introspect_cooldown_sec: float = 60.0
 
 
 @dataclass
@@ -50,9 +58,20 @@ class EmotionConfig:
     min_temperature: float = 0.3
     max_temperature: float = 0.9
 
+    def clamp(self, t: float) -> float:
+        """
+        温度を [min_temperature, max_temperature] にクリップするユーティリティ。
+        EmotionCore 側から任意に利用可能。
+        """
+        if t < self.min_temperature:
+            return self.min_temperature
+        if t > self.max_temperature:
+            return self.max_temperature
+        return t
+
 
 # -----------------------------
-# 🔥 Python 3.13 strict 対応版
+# 🔥 PersonaOS 全体設定（Python 3.13 / strict 対応）
 # -----------------------------
 @dataclass
 class PersonaOSConfig:

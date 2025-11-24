@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import json
+from dataclasses import asdict
 from typing import Optional, Dict, Any
 
 from dotenv import load_dotenv
@@ -10,10 +11,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+# -----------------------------------------
 # .env 読み込み
+# -----------------------------------------
 load_dotenv()
 
-# ====== AEI Core ======
+# -----------------------------------------
+# AEI Core
+# -----------------------------------------
 from aei.identity import IdentityCore
 from aei.episodic_memory import EpisodeStore
 from aei.adapter import LLMAdapter
@@ -25,7 +30,9 @@ from aei.reward import RewardCore
 from aei.emotion.emotion_core import EmotionCore
 from aei.value.value_core import ValueCore
 
-# ====== Persona OS ======
+# -----------------------------------------
+# Persona OS (完全版)
+# -----------------------------------------
 from sigmaris_persona_core.persona_os import PersonaOS
 from sigmaris_persona_core.config import PersonaOSConfig
 from sigmaris_persona_core.types import (
@@ -33,7 +40,9 @@ from sigmaris_persona_core.types import (
     Message,
 )
 
-# ====== Persona DB ======
+# -----------------------------------------
+# Persona-DB
+# -----------------------------------------
 from persona_db.memory_db import MemoryDB
 
 
@@ -44,30 +53,31 @@ from persona_db.memory_db import MemoryDB
 identity = IdentityCore()
 episodes = EpisodeStore()
 
-persona_config = PersonaOSConfig()
-persona_os = PersonaOS(persona_config)
+persona_os = PersonaOS(PersonaOSConfig())
 
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 USE_REAL_API = OPENAI_KEY not in (None, "", "0", "false", "False")
 
 
 # ============================================================
-# LLM Adapter（実API or ダミー）
+# LLM Adapter
 # ============================================================
 
 def make_llm_adapter(dummy_json: str) -> LLMAdapter:
+    """実API or ダミー LLMAdapter を返す。"""
     if USE_REAL_API:
         return LLMAdapter(api_key=OPENAI_KEY)
     return LLMAdapter(test_mode=True, dummy_fn=lambda _prompt: dummy_json)
 
 
-# ----- 各モジュール -----
+# Reflection
 llm_reflect = make_llm_adapter("""{
   "summary": "dummy summary",
   "emotion_hint": "neutral",
   "traits_hint": { "calm": 0.7, "empathy": 0.7, "curiosity": 0.7 }
 }""")
 
+# Introspection
 llm_intro = make_llm_adapter("""{
   "mid_term_summary": "dummy mid summary",
   "pattern": "neutral",
@@ -75,6 +85,7 @@ llm_intro = make_llm_adapter("""{
   "risk": { "drift_warning": false, "dependency_warning": false }
 }""")
 
+# Meta Reflection
 llm_meta = make_llm_adapter("""{
   "meta_summary": "dummy meta summary",
   "root_cause": "none",
@@ -86,12 +97,14 @@ llm_meta = make_llm_adapter("""{
   }
 }""")
 
+# Reward
 llm_reward = make_llm_adapter("""{
   "global_reward": 0.25,
   "trait_reward": { "calm": 0.02, "empathy": 0.03, "curiosity": 0.04 },
   "reason": "dummy reward"
 }""")
 
+# Emotion
 llm_emotion = make_llm_adapter("""{
   "emotion": "calm-focus",
   "intensity": 0.4,
@@ -100,6 +113,7 @@ llm_emotion = make_llm_adapter("""{
   "meta": { "energy": 0.3, "stability": 0.8, "valence": 0.1 }
 }""")
 
+# Value Core
 llm_value = make_llm_adapter("""{
   "importance": ["clarity", "self-consistency", "curiosity-growth"],
   "weight": 0.82,
@@ -126,8 +140,14 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+def root():
+    """簡易ヘルスチェック用。ブラウザ直アクセス用。"""
+    return {"status": "ok", "service": "sigmaris-aei-core"}
+
+
 # ============================================================
-# Core modules
+# AEI Core Modules
 # ============================================================
 
 reflection = ReflectionCore(identity, episodes, llm_reflect.as_function())
@@ -146,25 +166,26 @@ last_reward_state: Optional[Dict[str, Any]] = None
 # ============================================================
 
 def bridge_reflection(user_text: str, summary: dict) -> None:
-    msg = Message(role="reflection", content=user_text)
+    """ReflectionCore の結果を PersonaOS へ渡す。"""
+    msg = Message(role="meta", content=user_text)
     ctx = PersonaContext(user_id="system", session_id="reflection")
     persona_os.feed_reflection(msg, summary, ctx)
 
 
-def bridge_reward(reward_res: dict) -> None:
-    persona_os.feed_reward(reward_res)
+def bridge_reward(res: dict) -> None:
+    persona_os.feed_reward(res)
 
 
-def bridge_emotion(emotion_res: dict) -> None:
-    persona_os.feed_emotion(emotion_res)
+def bridge_emotion(res: dict) -> None:
+    persona_os.feed_emotion(res)
 
 
-def bridge_value(value_res: dict) -> None:
-    persona_os.feed_value(value_res)
+def bridge_value(res: dict) -> None:
+    persona_os.feed_value(res)
 
 
 # ============================================================
-# Models
+# Pydantic Models
 # ============================================================
 
 class LogInput(BaseModel):
@@ -173,19 +194,19 @@ class LogInput(BaseModel):
 
 
 class SyncInput(BaseModel):
-    chat: dict
-    context: dict
+    chat: Dict[str, Any]
+    context: Dict[str, Any]
 
 
 class PersonaDecisionInput(BaseModel):
     user: str
-    context: dict
+    context: Dict[str, Any]
     session_id: str
     user_id: str
 
 
 # ============================================================
-# Normal AEI APIs
+# AEI API
 # ============================================================
 
 @app.post("/reflect")
@@ -261,7 +282,7 @@ def api_memory():
 
 
 # ============================================================
-# Identity Sync（Next.js → AEI Core）
+# Identity Sync（Next.js → AEI）
 # ============================================================
 
 @app.post("/sync")
@@ -290,7 +311,7 @@ def api_sync(data: SyncInput):
 
 
 # ============================================================
-# PersonaOS Decision API（完全版）
+# PersonaOS Decision API
 # ============================================================
 
 @app.post("/persona/decision")
@@ -303,19 +324,28 @@ def api_persona_decision(data: PersonaDecisionInput):
         extra=data.context,
     )
 
-    decision = persona_os.process(
-        incoming=msg,
-        context=ctx,
-    )
+    # PersonaOS 側の例外はここで握って 500 を避ける
+    try:
+        decision = persona_os.process(
+            incoming=msg,
+            context=ctx,
+        )
+        decision_dict = asdict(decision)
+    except Exception as e:
+        # デバッグしやすいように最低限の情報だけ返す
+        return {
+            "error": "persona_os_process_failed",
+            "detail": str(e),
+        }
 
     return {
-        "decision": vars(decision),
+        "decision": decision_dict,
         "identity": identity.export_state(),
     }
 
 
 # ============================================================
-# PersonaDB TEST（旧） / UI向けAPI
+# PersonaDB TEST API
 # ============================================================
 
 @app.get("/persona_db/growth_logs")
@@ -345,14 +375,17 @@ def api_db_episodes(user_id: str = "system", limit: int = 50):
     conn = db.conn
     cur = conn.cursor()
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             id, ts, session_id, role, content,
             topic_hint, emotion_hint, importance, meta_json
         FROM episodes
         ORDER BY id DESC
         LIMIT ?
-    """, (int(limit),))
+        """,
+        (int(limit),),
+    )
 
     rows = cur.fetchall()
     episodes_list = []
@@ -363,17 +396,19 @@ def api_db_episodes(user_id: str = "system", limit: int = 50):
         except Exception:
             meta = {"_parse_error": True}
 
-        episodes_list.append({
-            "id": r["id"],
-            "ts": r["ts"],
-            "session_id": r["session_id"],
-            "role": r["role"],
-            "content": r["content"],
-            "topic_hint": r["topic_hint"],
-            "emotion_hint": r["emotion_hint"],
-            "importance": r["importance"],
-            "meta": meta,
-        })
+        episodes_list.append(
+            {
+                "id": r["id"],
+                "ts": r["ts"],
+                "session_id": r["session_id"],
+                "role": r["role"],
+                "content": r["content"],
+                "topic_hint": r["topic_hint"],
+                "emotion_hint": r["emotion_hint"],
+                "importance": r["importance"],
+                "meta": meta,
+            }
+        )
 
     return {"user_id": user_id, "episodes": episodes_list, "count": len(episodes_list)}
 
