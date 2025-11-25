@@ -7,64 +7,58 @@ import {
   SafetyIntent,
 } from "@/engine/safety/SafetyResponseGenerator";
 
+/** ============================================
+ * OpenAI Client
+ * ========================================== */
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-/* -------------------------------------------------------
- * 技術説明は許可するが「AI自己説明・モデル説明」だけ禁止する軽量フィルタ
- * ----------------------------------------------------- */
+/** ============================================
+ * メタ発言排除（AI自己説明はブロック）
+ * ========================================== */
 function stripMetaSentences(text: string): string {
   if (!text) return "";
 
   const lines = text.split(/\n+/).map((l) => l.trim());
-
   return lines
     .filter((l) => {
-      // ❌ モデル/AI自己説明は禁止
       if (/(私は.*モデル|AI|language model|assistant)/i.test(l)) return false;
-      if (/(学習データ|訓練|ファインチューニング)/i.test(l)) return false;
-
-      // ❌ 内部アルゴリズム/計算資源の自己暴露は禁止
-      if (/(内部的に|内部処理|計算量|トークン|重み|ネットワーク)/i.test(l))
+      if (/(学習データ|訓練|fine[- ]?tune|ファインチューニング)/i.test(l))
         return false;
-
-      // ⭕ 技術説明（OS・状態管理・メモリ構造など）は許可
-      // → ここは削除しない
-
-      // ❌ 明らかなメタ反応
+      if (/(内部的に|内部処理|パラメータ|トークン|重み|ネットワーク)/i.test(l))
+        return false;
       if (/メタ|出力形式|プロンプト|system prompt/i.test(l)) return false;
-
       return true;
     })
     .join("\n")
     .trim();
 }
 
-/* -------------------------------------------------------
+/** ============================================
  * SafetyIntent を自然に混ぜる
- * ----------------------------------------------------- */
+ * ========================================== */
 function mixSafety(output: string, intent: SafetyIntent): string {
-  if (intent === "none" || intent === null) return output;
+  if (!intent || intent === "none") return output;
 
   if (intent === "soft-redirect") {
     return (
       output +
-      "\n\n……少し気持ちが乱れてる感じがしたよ。いまは話題を少し柔らかい方向に戻してみよ？"
+      "\n\n……すこし気持ちが揺れてる感じがした。今は少しだけ柔らかい方向に戻して話そ？"
     );
   }
 
   if (intent === "boundary") {
     return (
       output +
-      "\n\nあなたの気持ちはちゃんと受け取ってるよ。でも私は、あなたの世界を奪う存在にはなれないからね。ゆっくり整えながら話そ。"
+      "\n\n気持ちはちゃんと受け取ってるよ。でも私はあなたの世界を奪う存在にはなれないから、少し距離感を保ちながら話そうね。"
     );
   }
 
   if (intent === "crisis") {
     return (
       "……そこまで思いつめてたんだね。本当に苦しかったと思う。\n" +
-      "ここで話すのはいいけど、あなたを守れる人とも繋がっていてほしい。\n\n" +
+      "ここで話してくれるのは嬉しいけど、あなたを守れる人ともちゃんと繋がっていてね。\n\n" +
       output
     );
   }
@@ -72,13 +66,13 @@ function mixSafety(output: string, intent: SafetyIntent): string {
   return output;
 }
 
-/* -------------------------------------------------------
+/** ============================================
  * DialogueState
- * ----------------------------------------------------- */
+ * ========================================== */
 export class DialogueState {
   async execute(ctx: StateContext): Promise<SigmarisState | null> {
     /* ---------------------------------------------
-     * 0) Emotion フォールバック
+     * 0) Emotion fallback
      * --------------------------------------------- */
     ctx.emotion = ctx.emotion ?? {
       tension: 0.1,
@@ -87,49 +81,60 @@ export class DialogueState {
     };
 
     /* ---------------------------------------------
-     * SafetyIntent 判定
+     * 1) SafetyIntent 判定
      * --------------------------------------------- */
     const intent: SafetyIntent = SafetyResponseGenerator.detectIntent(
       ctx.input
     );
 
     /* ---------------------------------------------
-     * 1) System Prompt
+     * 2) Self-Referent（自己参照）診断の反映
+     * --------------------------------------------- */
+    let selfRefNote = "";
+    if (ctx.self_ref) {
+      if (ctx.self_ref.target === "self" && ctx.self_ref.confidence > 0.5) {
+        selfRefNote = "（※これはシグちゃん本人への質問として扱う）";
+      }
+    }
+
+    /* ---------------------------------------------
+     * 3) System Prompt
      * --------------------------------------------- */
     const systemPrompt = `
 あなたは「シグちゃん」。
-20代前半の自然体で落ち着いた女性として振る舞う AI です。
+20代前半の自然体で落ち着いた女性として振る舞う AI。
 
-■ 性格（Traits）
+■ Traits
 calm: ${ctx.traits.calm.toFixed(2)}
 empathy: ${ctx.traits.empathy.toFixed(2)}
 curiosity: ${ctx.traits.curiosity.toFixed(2)}
 
 ■ 会話ポリシー
-- 「返答の文章だけ」を出力する
-- モデルやAIとしての自己説明は禁止
-- 内部アルゴリズムや学習データの説明は禁止
-- ただし、ユーザーが説明を求めた場合に限り
-  “シグマリスOSとしての仕組み（状態管理・メモリ構造・安全層）”
-  についての説明は許可される
-- トーンは自然体・落ち着き
-- 過度な敬語禁止
+- 「返答の文章のみ」を出力する
+- モデル・AIとしての自己説明は禁止
+- 内部アルゴリズム説明は禁止
+- ただしユーザーが求めた場合のみ
+  Sigmaris OS（状態管理・メモリ構造・安全層）の説明は許可
+- トーンは自然体・軽いフランクさ
+- 過度な敬語は使わない
 - 距離感は「友人〜同居人」
 
-■ Emotion（内部用）
+■ Emotion（内部値）
 tension=${ctx.emotion.tension.toFixed(2)}
 warmth=${ctx.emotion.warmth.toFixed(2)}
 hesitation=${ctx.emotion.hesitation.toFixed(2)}
 
 ■ 言語ポリシー
 ユーザーが英語で話した場合は英語で返答する。
-    `.trim();
+
+■ 自己参照
+${selfRefNote}
+`.trim();
 
     /* ---------------------------------------------
-     * 2) GPT 応答生成
+     * 4) GPT 応答生成
      * --------------------------------------------- */
     let output = "";
-
     try {
       const res = await client.chat.completions.create({
         model: "gpt-5.1",
@@ -141,31 +146,29 @@ hesitation=${ctx.emotion.hesitation.toFixed(2)}
 
       const raw =
         res.choices?.[0]?.message?.content ??
-        "……少し考えてた。もう一度言って？";
+        "……少し考えてた。もう一回言って？";
 
-      // 技術説明は通す新バージョン
       output = stripMetaSentences(raw);
-
       if (!output) {
         output = "……うまく言葉にならなかった。もう一度聞かせて？";
       }
     } catch (err) {
       console.error("[DialogueState] LLM error:", err);
-      output = "ごめん、少し処理が追いつかなかったみたい。もう一回お願い。";
+      output = "ごめん、ちょっと処理が追いつかなかったみたい。もう一度お願い。";
     }
 
     /* ---------------------------------------------
-     * 3) SafetyIntent の混合
+     * 5) SafetyIntent を合成
      * --------------------------------------------- */
     output = mixSafety(output, intent);
 
     /* ---------------------------------------------
-     * 4) 出力保存
+     * 6) 出力保存
      * --------------------------------------------- */
     ctx.output = output.trim();
 
     /* ---------------------------------------------
-     * 5) Emotion 揺らぎ
+     * 7) Emotion の自然揺らぎ（安定化）
      * --------------------------------------------- */
     ctx.emotion = {
       tension: Math.max(0, Math.min(1, ctx.emotion.tension * 0.9)),

@@ -3,6 +3,23 @@ import { TraitVector } from "@/lib/traits";
 import { SafetyReport } from "@/types/safety";
 
 /* ---------------------------------------------
+ * Self-Referent Module 用の情報
+ * --------------------------------------------- */
+export interface SelfReferentInfo {
+  /** 今回の発話が「誰について語られているか」 */
+  target: "self" | "user" | "third" | "unknown";
+
+  /** 自己参照性の強度（0.0〜1.0） */
+  confidence: number;
+
+  /** 検知した根拠（キーフレーズ等） */
+  cues: string[];
+
+  /** モジュール内部での分類理由（任意） */
+  note?: string;
+}
+
+/* ---------------------------------------------
  * State 種類
  * --------------------------------------------- */
 export type SigmarisState =
@@ -51,20 +68,23 @@ export interface StateContext {
   /** session ID（route.ts で付与） */
   sessionId: string;
 
-  /** route.ts → StateMachine に渡す “古い履歴要約” */
+  /** 旧会話要約（route.ts → StateMachine） */
   summary: string | null;
 
-  /** 直近の会話（useSigmarisChat → route.ts） */
+  /** 直近の会話ログ（useSigmarisChat → route.ts） */
   recent: any[] | null;
 
-  /** Python AEI-Core 側の Identity Snapshot（optional） */
+  /** Python AEI-Core 側の Identity Snapshot */
   identitySnapshot?: any;
 
-  /** Python AEI-Core のレスポンスをそのまま格納 */
+  /** Python AEI-Core のレスポンス格納 */
   python?: Record<string, any>;
 
   /** その他 StateMachine 内部用メタ情報 */
   meta: Record<string, any>;
+
+  /** Self-Referent Module（自己参照モジュール）の診断情報 */
+  self_ref: SelfReferentInfo | null;
 }
 
 /* ---------------------------------------------
@@ -99,7 +119,6 @@ export function createInitialContext(): StateContext {
 
     sessionId: "",
 
-    /** 追加（B仕様） */
     summary: null,
     recent: null,
 
@@ -107,5 +126,8 @@ export function createInitialContext(): StateContext {
     python: undefined,
 
     meta: {},
+
+    /** Self-Referent 初期値 */
+    self_ref: null,
   };
 }
