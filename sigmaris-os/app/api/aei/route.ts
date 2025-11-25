@@ -18,8 +18,12 @@ import type { SafetyReport } from "@/types/safety";
 // Python AEI Core (/sync + persona/decision)
 import { requestSync, BASE } from "@/lib/sigmaris-api";
 
+// 🔹 セーフティ互換翻訳レイヤー（多言語対応）
+import { preProcessForModel, postProcessForUser } from "@/lib/safetyTranslator";
+
 /* -----------------------------------------------------
- * 危険語フィルタ
+ * 危険語フィルタ（暴力・自殺などの直截ワード用）
+ *   ※ 概念系（人格 / 内省 / 主体性）は safetyTranslator 側で処理
  * --------------------------------------------------- */
 function guardianFilter(text: string) {
   const banned = /(殺|死|暴力|自殺|危険|犯罪|攻撃)/;
@@ -83,11 +87,24 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { text, recent, summary } = body;
+    const { text, recent, summary, lang } = body;
 
-    const userText = (text ?? "").trim() || "こんにちは";
+    // ✅ ユーザーの生テキストと、LLM向け安全テキストを分離
+    const rawUserText: string = (text ?? "").trim() || "こんにちは";
+    const { safeText: safeUserText } = preProcessForModel(rawUserText);
+
     const sessionId = req.headers.get("x-session-id") || crypto.randomUUID();
     step.sessionId = sessionId;
+
+    // UI用の言語（safetyTranslator の戻し用）
+    const preferredLang: "ja" | "en" | "zh" | "ko" | "fr" | "es" =
+      lang === "en" ||
+      lang === "zh" ||
+      lang === "ko" ||
+      lang === "fr" ||
+      lang === "es"
+        ? lang
+        : "ja";
 
     /* ------------ 認証 ------------- */
     const supabaseAuth = createRouteHandlerClient({ cookies });
@@ -123,7 +140,7 @@ export async function POST(req: Request) {
           user_id: user.id,
           session_id: sessionId,
           role: "user",
-          content: userText,
+          content: rawUserText, // DBには生テキストを保存
           created_at: now,
         },
         {
@@ -153,7 +170,7 @@ export async function POST(req: Request) {
 
     /* ------------ StateMachine 実行 ------------- */
     const ctx = createInitialContext();
-    ctx.input = userText;
+    ctx.input = safeUserText; // ⬅ LLM系には安全変換済みのテキストを渡す
     ctx.sessionId = sessionId;
 
     // StateContext には summary/recent が無い → meta に格納
@@ -187,14 +204,23 @@ export async function POST(req: Request) {
     const finalCtx = await new StateMachine(ctx).run();
 
     /* ------------ Output 安全化 ------------- */
+    // 1) 暴力系ワードのガーディアンフィルタ
     let aiOutput = guardianFilter(finalCtx.output).safeText;
+
+    // 2) 概念系ワードを、人間向け自然表現に戻す（多言語対応）
+    aiOutput = postProcessForUser(aiOutput, preferredLang);
+
     const updatedTraits = finalCtx.traits;
 
     /* ------------ Python /sync ------------- */
     let python: any = null;
     try {
       python = await requestSync({
-        chat: { user: userText, ai: aiOutput },
+        chat: {
+          // Python側のAEIコアにも、安全化済みテキストを渡す
+          user: safeUserText,
+          ai: aiOutput,
+        },
         context: {
           traits: updatedTraits,
           safety: finalCtx.safety,
@@ -217,7 +243,8 @@ export async function POST(req: Request) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          user: userText,
+          // PersonaOS側にも安全化済みテキストを渡す
+          user: safeUserText,
           context: {
             traits: updatedTraits,
             safety: finalCtx.safety,
@@ -233,8 +260,8 @@ export async function POST(req: Request) {
         personaDecision = await res.json();
         step.persona = "ok";
       } else {
-        const text = await res.text();
-        console.error("Persona decision error:", res.status, text);
+        const textRes = await res.text();
+        console.error("Persona decision error:", res.status, textRes);
         step.persona = `error:${res.status}`;
       }
     } catch (err) {
@@ -275,7 +302,7 @@ export async function POST(req: Request) {
         user_id: user.id,
         session_id: sessionId,
         role: "user",
-        content: userText,
+        content: rawUserText, // ⬅ ログには元のテキストをそのまま保存
         created_at: now,
       },
     ];

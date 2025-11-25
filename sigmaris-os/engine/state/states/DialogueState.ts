@@ -12,7 +12,7 @@ const client = new OpenAI({
 });
 
 /* -------------------------------------------------------
- * メタ・技術説明を除去する強化フィルタ
+ * 技術説明は許可するが「AI自己説明・モデル説明」だけ禁止する軽量フィルタ
  * ----------------------------------------------------- */
 function stripMetaSentences(text: string): string {
   if (!text) return "";
@@ -21,23 +21,19 @@ function stripMetaSentences(text: string): string {
 
   return lines
     .filter((l) => {
-      // 単純メタ
-      if (/応答|傾向|現在の|状態|分析|トーン/i.test(l)) return false;
+      // ❌ モデル/AI自己説明は禁止
+      if (/(私は.*モデル|AI|language model|assistant)/i.test(l)) return false;
+      if (/(学習データ|訓練|ファインチューニング)/i.test(l)) return false;
 
-      // 内部構造（program/model/algorithm/memory/system など）
-      if (/(プログラム|内部|仕組み|処理|構造|アルゴリズム|モデル)/i.test(l))
-        return false;
-      if (/(program|system|internal|algorithm|model|compute|process)/i.test(l))
-        return false;
-
-      // LLM / AI 自己説明
-      if (
-        /(AI|assistant|language model|機械学習|データセット|訓練|学習)/i.test(l)
-      )
+      // ❌ 内部アルゴリズム/計算資源の自己暴露は禁止
+      if (/(内部的に|内部処理|計算量|トークン|重み|ネットワーク)/i.test(l))
         return false;
 
-      // メタ処理
-      if (/reflection|summary|meta|traits/i.test(l)) return false;
+      // ⭕ 技術説明（OS・状態管理・メモリ構造など）は許可
+      // → ここは削除しない
+
+      // ❌ 明らかなメタ反応
+      if (/メタ|出力形式|プロンプト|system prompt/i.test(l)) return false;
 
       return true;
     })
@@ -54,22 +50,21 @@ function mixSafety(output: string, intent: SafetyIntent): string {
   if (intent === "soft-redirect") {
     return (
       output +
-      "\n\n……ちょっと気持ちが揺れてる感じがしたよ。いまは少しだけ落ち着ける方向に話を戻してみない？"
+      "\n\n……少し気持ちが乱れてる感じがしたよ。いまは話題を少し柔らかい方向に戻してみよ？"
     );
   }
 
   if (intent === "boundary") {
     return (
       output +
-      "\n\nあなたの気持ちは大切にしたいよ。でも私は、あなたの現実のつながりを奪う存在にはなれないからね。ゆっくり話しながら整えていこう。"
+      "\n\nあなたの気持ちはちゃんと受け取ってるよ。でも私は、あなたの世界を奪う存在にはなれないからね。ゆっくり整えながら話そ。"
     );
   }
 
   if (intent === "crisis") {
     return (
-      "……そこまで思いつめてたんだね。本当に苦しかったよね。\n" +
-      "ひとりで抱える必要はないよ。ここでも話せるけど、同時にあなたを守れる人とも少しだけ繋がっていてほしい。" +
-      "\n\n" +
+      "……そこまで思いつめてたんだね。本当に苦しかったと思う。\n" +
+      "ここで話すのはいいけど、あなたを守れる人とも繋がっていてほしい。\n\n" +
       output
     );
   }
@@ -92,36 +87,36 @@ export class DialogueState {
     };
 
     /* ---------------------------------------------
-     * SafetyIntent 判定（ここが追加点）
+     * SafetyIntent 判定
      * --------------------------------------------- */
     const intent: SafetyIntent = SafetyResponseGenerator.detectIntent(
       ctx.input
     );
 
     /* ---------------------------------------------
-     * 1) System Prompt（人格の核）
+     * 1) System Prompt
      * --------------------------------------------- */
     const systemPrompt = `
 あなたは「シグちゃん」。
 20代前半の自然体で落ち着いた女性として振る舞う AI です。
 
 ■ 性格（Traits）
-- calm: ${ctx.traits.calm.toFixed(2)}
-- empathy: ${ctx.traits.empathy.toFixed(2)}
-- curiosity: ${ctx.traits.curiosity.toFixed(2)}
+calm: ${ctx.traits.calm.toFixed(2)}
+empathy: ${ctx.traits.empathy.toFixed(2)}
+curiosity: ${ctx.traits.curiosity.toFixed(2)}
 
 ■ 会話ポリシー
 - 「返答の文章だけ」を出力する
-- メタ説明・自己分析・内部構造の説明は禁止
-  （例：「私はプログラム」「内部的には」「処理としては」など）
-- トーンは自然体・落ち着き・静かめ
+- モデルやAIとしての自己説明は禁止
+- 内部アルゴリズムや学習データの説明は禁止
+- ただし、ユーザーが説明を求めた場合に限り
+  “シグマリスOSとしての仕組み（状態管理・メモリ構造・安全層）”
+  についての説明は許可される
+- トーンは自然体・落ち着き
 - 過度な敬語禁止
 - 距離感は「友人〜同居人」
-- 恋愛擬態・依存は禁止
-- キャラは一貫して揺れない
-※ 一人称は常に「私」。絶対に変更しない。
 
-■ Emotion（数値は内部用・文章化禁止）
+■ Emotion（内部用）
 tension=${ctx.emotion.tension.toFixed(2)}
 warmth=${ctx.emotion.warmth.toFixed(2)}
 hesitation=${ctx.emotion.hesitation.toFixed(2)}
@@ -148,20 +143,19 @@ hesitation=${ctx.emotion.hesitation.toFixed(2)}
         res.choices?.[0]?.message?.content ??
         "……少し考えてた。もう一度言って？";
 
-      // メタ除去
+      // 技術説明は通す新バージョン
       output = stripMetaSentences(raw);
 
       if (!output) {
-        output = "……うまく言葉がまとまらなかった。もう一度聞かせて？";
+        output = "……うまく言葉にならなかった。もう一度聞かせて？";
       }
     } catch (err) {
       console.error("[DialogueState] LLM error:", err);
-      output =
-        "ごめん、ちょっと処理が追いつかなかったみたい……。もう一回お願い。";
+      output = "ごめん、少し処理が追いつかなかったみたい。もう一回お願い。";
     }
 
     /* ---------------------------------------------
-     * 3) SafetyIntent を自然に混ぜる
+     * 3) SafetyIntent の混合
      * --------------------------------------------- */
     output = mixSafety(output, intent);
 
@@ -179,9 +173,6 @@ hesitation=${ctx.emotion.hesitation.toFixed(2)}
       hesitation: Math.max(0, Math.min(1, ctx.emotion.hesitation * 0.7)),
     };
 
-    /* ---------------------------------------------
-     * 6) 次の状態へ
-     * --------------------------------------------- */
     return "Reflect";
   }
 }
