@@ -95,7 +95,7 @@ This is the work of someone who can contribute to **agent research, safety, and 
 ---
 
 ### 📫 Contact  
-**Email:** YOUR_EMAIL_HERE  
+**Email:** kaiseif4e@gmail.com  
 **GitHub:** https://github.com/uthuyomi  
 **Location:** Sapporo, Japan
 
