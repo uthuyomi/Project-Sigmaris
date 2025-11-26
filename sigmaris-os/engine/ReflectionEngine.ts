@@ -100,7 +100,10 @@ export class ReflectionEngine {
       // === 直近会話 ===
       const recentDialog = (messages ?? [])
         .slice(-6)
-        .map((m: any) => `👤 ${m?.user ?? ""}\n🤖 ${m?.ai ?? ""}`.trim())
+        .map(
+          (m: any) =>
+            `👤 ${m?.user ?? ""}\n🤖 ${m?.ai ?? ""}`.trim()
+        )
         .join("\n\n");
 
       // === 成長値平均 ===
@@ -212,7 +215,8 @@ curiosity: ${(persona.curiosity ?? 0.5).toFixed(2)}
         "（更新なし）";
 
       const avgGrowthValue: number =
-        firstFiniteNumber(metaReport?.growthAdjustment, avgGrowth) ?? avgGrowth;
+        firstFiniteNumber(metaReport?.growthAdjustment, avgGrowth) ??
+        avgGrowth;
 
       // === PersonaSync 保存（payload 署名に合わせて） ===
       await PersonaSync.update(
