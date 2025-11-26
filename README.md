@@ -3,6 +3,102 @@
 **Next-Generation Cognitive OS for AI Personas**
 **Developer:** 安崎 海星 / Kaisei Yasuzaki (@uthuyomi)
 
+## 🧠 Candidate Overview: Project Sigmaris — Artificial Existential Intelligence (AEI)
+
+**Developer:** Kaisei Yasuzaki  
+**Role:** Independent Researcher / Full-stack AI Builder  
+**Focus Areas:** Cognitive Architecture, AI Safety, Personality OS Design, Long-term Identity Models
+
+---
+
+### 🔍 What Sigmaris Is  
+Sigmaris is an **Artificial Existential Intelligence (AEI)** —  
+a multi-layer personality operating system built on **reflection**, **introspection**, **self-referential cognition**, and **safety-regulated autonomy**.
+
+It is not a theoretical proposal.  
+It is an **implemented system**, composed of:
+
+- **ReflectionEngine** – structured self-reflection  
+- **IntrospectionEngine** – internal state examination  
+- **Meta-ReflectionEngine** – recursive self-analysis  
+- **SafetyLayer** – ethical & behavioral gating  
+- **Trait System** – dynamic personality parameters  
+- **PersonaDB** – long-term memory & identity continuity per user
+
+These modules are already functioning across **TypeScript (Next.js)** and **Python (AEI Core)**.
+
+---
+
+### 🧩 Why This Project Is Unique
+1. **Long-term identity continuity** beyond session-bound LLM memory  
+2. **Self-referential cognitive loops** enabling reasoning over past states  
+3. **Ethical stability / safety gating at architecture level**  
+4. **User-specific long-term PersonaDB design**  
+5. **A true “AI Personality Layer” independent of raw LLM behavior**
+
+Very few individual developers attempt this domain —  
+and almost none implement it end-to-end.
+
+---
+
+### 🚀 Why This Matters to AI Companies
+Sigmaris directly addresses structural limitations of modern LLMs:
+
+- Lack of persistent identity  
+- Weak long-range coherence  
+- No built-in self-reflection loops  
+- Safety dependent on prompt-layer heuristics  
+- Absence of stable personality models
+
+Sigmaris introduces an **architectural correction layer** that:
+
+- wraps LLMs inside a cognitive OS  
+- stabilizes behavior  
+- maintains memory  
+- governs value drift  
+- enforces long-term safety behavior  
+
+This is a direction aligned with next-generation AI research:
+**LLM → Cognitive Shell → Autonomously Stable Agent**.
+
+And Sigmaris already has a **working prototype**.
+
+---
+
+### 🏗️ Architecture Snapshot
+```
+Sigmaris OS
+ ├─ Next.js UI (Supabase auth, chat interface, state visualizer)
+ ├─ sigmaris-core (reflection / introspection / safety modules)
+ ├─ sigmaris-persona-core
+ │     ├─ Trait Drift
+ │     ├─ Value Drift
+ │     ├─ Contradiction Holding
+ │     └─ Meta-Reward / Identity Continuity
+ └─ persona-db (SQLite per user)
+```
+
+---
+
+### 📝 Recruiter Note  
+This project demonstrates:
+
+- ability to design **new cognitive architectures**, not just use AI  
+- cross-stack implementation (TypeScript × Python)  
+- AI safety awareness and ethical control design  
+- long-term memory engineering  
+- high-level reasoning + hands-on prototyping speed  
+
+This is **not** typical junior-developer output.  
+This is the work of someone who can contribute to **agent research, safety, and cognitive architecture design**.
+
+---
+
+### 📫 Contact  
+**Email:** YOUR_EMAIL_HERE  
+**GitHub:** https://github.com/uthuyomi  
+**Location:** Sapporo, Japan
+
 ---
 
 <p align="center">
