@@ -25,6 +25,8 @@ function LoginPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const { lang } = useSigmarisLang();
+  const [err, setErr] = React.useState<string | null>(null);
+  const [desc, setDesc] = React.useState<string | null>(null);
 
   // 🧭 アプリ内ブラウザ検出（Googleポリシー違反回避）
   React.useEffect(() => {
@@ -36,6 +38,18 @@ function LoginPage() {
       alert(
         "このページはアプリ内ブラウザでは正しく動作しません。\nChrome または Safari で開いてください。"
       );
+    }
+  }, []);
+
+  // callback 側から error を受け取って表示（useSearchParams を避けて静的生成を壊さない）
+  React.useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setErr(sp.get("error"));
+      setDesc(sp.get("desc"));
+    } catch {
+      setErr(null);
+      setDesc(null);
     }
   }, []);
 
@@ -102,6 +116,13 @@ function LoginPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
+        {err && (
+          <div className="mb-6 text-left text-xs border border-red-400/30 bg-red-500/10 rounded-lg p-3 text-red-200">
+            <div className="font-semibold">Login error: {err}</div>
+            {desc && <div className="mt-1 opacity-90">{desc}</div>}
+          </div>
+        )}
+
         <h1 className="text-3xl font-bold mb-4 text-[#4c7cf7]">{text.title}</h1>
         <p className="text-[#c4d0e2] mb-8 text-sm leading-relaxed whitespace-pre-line">
           {text.subtitle}

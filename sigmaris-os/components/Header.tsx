@@ -11,7 +11,6 @@ export default function Header() {
   const { lang, setLang } = useSigmarisLang();
   const [menuOpen, setMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [credits, setCredits] = useState<number | null>(null);
   const supabase = createClientComponentClient();
 
   // ✅ ログイン状態・残高を取得
@@ -20,16 +19,6 @@ export default function Header() {
       const { data: userData } = await supabase.auth.getUser();
       const currentUser = userData?.user ?? null;
       setUser(currentUser);
-
-      if (currentUser) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("credit_balance")
-          .eq("id", currentUser.id)
-          .single();
-
-        if (profile) setCredits(profile.credit_balance);
-      }
     };
     loadUser();
   }, [supabase]);
@@ -45,14 +34,13 @@ export default function Header() {
     sigmaris: "Sigmaris",
     vision: lang === "ja" ? "理念" : "Vision",
     docs: lang === "ja" ? "ドキュメント" : "Docs",
-    plans: lang === "ja" ? "プラン" : "Plans",
+    status: lang === "ja" ? "状態" : "Status",
     funding: lang === "ja" ? "支援" : "Funding",
     tokushoho: lang === "ja" ? "特定商取引法" : "Legal",
     switch: lang === "ja" ? "EN" : "JP",
     login: lang === "ja" ? "ログイン" : "Login",
     signup: lang === "ja" ? "新規登録" : "Sign Up",
     logout: lang === "ja" ? "ログアウト" : "Logout",
-    balance: lang === "ja" ? "残高" : "Balance",
     chat: lang === "ja" ? "チャットへ" : "Chat",
     account: lang === "ja" ? "アカウント" : "Account",
   };
@@ -101,8 +89,8 @@ export default function Header() {
           <Link href="/docs" className="text-[#c9d2df] hover:text-[#4c7cf7]">
             {text.docs}
           </Link>
-          <Link href="/plans" className="text-[#c9d2df] hover:text-[#4c7cf7]">
-            {text.plans}
+          <Link href="/status" className="text-[#c9d2df] hover:text-[#4c7cf7]">
+            {text.status}
           </Link>
           <Link href="/funding" className="text-[#c9d2df] hover:text-[#4c7cf7]">
             {text.funding}
@@ -152,10 +140,6 @@ export default function Header() {
           <>
             <div className="flex items-center gap-4 flex-wrap">
               <span>👤 {user.email?.split("@")[0]}</span>
-              <span>
-                💳 {text.balance}：{credits !== null ? `${credits}` : "…"}{" "}
-                credits
-              </span>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <Link
@@ -212,7 +196,7 @@ export default function Header() {
               { href: "/about/sigmaris", label: text.sigmaris },
               { href: "/vision", label: text.vision },
               { href: "/docs", label: text.docs },
-              { href: "/plans", label: text.plans },
+              { href: "/status", label: text.status },
               { href: "/funding", label: text.funding },
               { href: "/tokushoho", label: text.tokushoho },
             ].map((link, i) => (
@@ -241,10 +225,6 @@ export default function Header() {
             {user && (
               <div className="mt-4 text-xs text-[#c9d2df] flex flex-col items-center gap-2">
                 <span>👤 {user.email?.split("@")[0]}</span>
-                <span>
-                  💳 {text.balance}：{credits !== null ? `${credits}` : "…"}{" "}
-                  credits
-                </span>
                 <Link
                   href="/"
                   onClick={() => setMenuOpen(false)}

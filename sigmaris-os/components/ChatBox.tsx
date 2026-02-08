@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface ChatBoxProps {
   onSend: (msg: string) => Promise<void>;
@@ -9,12 +9,32 @@ interface ChatBoxProps {
 
 export default function ChatBox({ onSend, messages, loading }: ChatBoxProps) {
   const [input, setInput] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // textarea の高さを中身に合わせて自動調整
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+
+    el.style.height = "auto"; // 一度リセット
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
+  const handleSubmit = async () => {
     if (!input.trim()) return;
     await onSend(input);
     setInput("");
+  };
+
+  // Enter / Shift+Enter の制御
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault(); // 改行を防ぐ
+      if (!loading) {
+        handleSubmit();
+      }
+    }
+    // Shift+Enter は何もしない → 通常の改行
   };
 
   return (
@@ -33,22 +53,30 @@ export default function ChatBox({ onSend, messages, loading }: ChatBoxProps) {
         {loading && <p className="text-gray-500 italic">Thinking...</p>}
       </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
+      <div className="flex gap-2 items-end">
+        <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          className="flex-1 px-3 py-2 rounded bg-neutral-800 text-white outline-none focus:ring-2 focus:ring-teal-500"
+          onKeyDown={handleKeyDown}
+          rows={1}
           placeholder="type your message..."
+          className="
+            flex-1 resize-none px-3 py-2 rounded
+            bg-neutral-800 text-white outline-none
+            focus:ring-2 focus:ring-teal-500
+            max-h-40 overflow-y-auto
+          "
         />
+
         <button
-          type="submit"
+          onClick={handleSubmit}
           disabled={loading}
           className="px-4 py-2 bg-teal-600 rounded hover:bg-teal-700 disabled:opacity-50"
         >
           Send
         </button>
-      </form>
+      </div>
     </div>
   );
 }

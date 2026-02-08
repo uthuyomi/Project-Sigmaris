@@ -1,32 +1,37 @@
-// ===== /app/api/summary/route.ts =====
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getOpenAI() {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  return new OpenAI({ apiKey: key });
+}
 
 export async function POST(req: Request) {
   try {
-    const { text } = await req.json();
-    const prompt = `
-次の会話履歴を100〜200文字で簡潔に要約してください。
-内容の本質・トーン・構造を維持すること：
+    const { text } = (await req.json().catch(() => ({}))) as { text?: string };
+    const openai = getOpenAI();
+    if (!openai) return NextResponse.json({ summary: "" });
 
-${text}
-`;
+    const prompt = `次の会話ログを、日本語で短く要約してください（箇条書き可）。\n\n${String(
+      text ?? ""
+    )}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 200,
+      max_completion_tokens: 200,
+      temperature: 0.2,
     });
 
     const summary = completion.choices[0]?.message?.content?.trim() || "";
     return NextResponse.json({ summary });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Summary API failed:", err);
     return NextResponse.json(
-      { error: "Summary generation failed" },
+      { error: "Summary generation failed", detail: err?.message ?? String(err) },
       { status: 500 }
     );
   }
 }
+

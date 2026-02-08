@@ -18,7 +18,6 @@ export default function SigmarisChatPage() {
   const [rightOpen, setRightOpen] = useState(false);
   const [lang, setLang] = useState<"ja" | "en">("en");
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [credits, setCredits] = useState<number | null>(null);
 
   // ★ SafetyReport をフロント側でも保持（今はプレースホルダ）
   const [safety, setSafety] = useState<SafetyReport | null>(null);
@@ -36,6 +35,7 @@ export default function SigmarisChatPage() {
   };
 
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const supabase = createClientComponentClient();
 
   const {
@@ -60,26 +60,18 @@ export default function SigmarisChatPage() {
     handleRenameChat,
   } = useSigmarisChat();
 
-  /** 🪙 クレジット取得 */
-  const fetchCredits = useCallback(async () => {
+  /** ユーザー情報（ログイン表示用） */
+  const fetchUserInfo = useCallback(async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
     setUserEmail(user.email ?? "Guest");
-
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .select("credit_balance")
-      .eq("id", user.id)
-      .single();
-
-    if (!error && data) setCredits(data.credit_balance);
   }, [supabase]);
 
   useEffect(() => {
-    fetchCredits();
-  }, [fetchCredits]);
+    fetchUserInfo();
+  }, [fetchUserInfo]);
 
   useEffect(() => {
     if (!currentChatId) handleNewChat();
@@ -89,18 +81,26 @@ export default function SigmarisChatPage() {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input]);
+
   /** ✉️ 送信処理 */
   const handleSmartSend = useCallback(async () => {
     if (!input?.trim()) return;
 
     if (!currentChatId) {
       await handleNewChat();
-      setTimeout(() => handleSend().then(fetchCredits), 0);
+      setTimeout(() => handleSend(), 0);
       return;
     }
 
-    handleSend().then(fetchCredits);
-  }, [currentChatId, handleNewChat, handleSend, input, fetchCredits]);
+    handleSend();
+  }, [currentChatId, handleNewChat, handleSend, input]);
 
   /** 🧠 状態解析（簡易フラグ） */
   const safetyFlag: string | false =
@@ -241,12 +241,6 @@ export default function SigmarisChatPage() {
             {lang === "ja" ? "EN" : "JP"}
           </button>
 
-          <span className="text-xs text-yellow-400">
-            {credits !== null
-              ? `残クレジット: ${credits}`
-              : "クレジット取得中..."}
-          </span>
-
           <span className="text-xs text-gray-400">
             {userEmail ? `User: ${userEmail}` : "Guest"}
           </span>
@@ -302,17 +296,34 @@ export default function SigmarisChatPage() {
           </div>
 
           {/* 入力欄 */}
-          <footer className="border-t border-gray-800 p-3 flex items-center gap-2 bg-[#0d0d0d]">
-            <input
-              type="text"
+          <footer className="border-t border-gray-800 p-3 flex items-end gap-2 bg-[#0d0d0d]">
+            <textarea
+              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSmartSend()}
+              onKeyDown={(e) => {
+                // IME 変換中は無視
+                if ((e.nativeEvent as any).isComposing) return;
+
+                // Enter = 送信 / Shift+Enter = 改行
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSmartSend();
+                }
+              }}
+              rows={1}
               placeholder={
                 lang === "ja" ? "メッセージを入力..." : "Type your message..."
               }
-              className="flex-grow bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              className="
+      flex-grow resize-none
+      bg-gray-900 border border-gray-700 rounded-lg
+      px-3 py-2 text-sm text-white
+      focus:outline-none focus:border-blue-500
+      max-h-40 overflow-y-auto
+    "
             />
+
             <button
               onClick={handleSmartSend}
               disabled={loading}
@@ -320,6 +331,7 @@ export default function SigmarisChatPage() {
             >
               {loading ? "..." : lang === "ja" ? "送信" : "Send"}
             </button>
+
             <button
               onClick={handleReflect}
               disabled={reflecting || !currentChatId}

@@ -1,5 +1,5 @@
 // ============================================================
-// Sigmaris AEI Core API Client (B-Spec Full Version + PersonaOS)
+// Sigmaris AEI Core API Client (Full Spec: AEI + PersonaOS + Persona Core v2)
 // ============================================================
 
 // ----------------------------------------------
@@ -143,7 +143,6 @@ export interface SyncPayload {
   };
 }
 
-// /sync response
 export interface SyncResponse {
   status?: string;
   identity?: IdentitySnapshot;
@@ -177,7 +176,6 @@ export async function requestSync(payload: SyncPayload): Promise<SyncResponse> {
 // 下層 API 群（補助）
 // ============================================================
 
-// Reflection（短期）
 export async function reflect(text: string) {
   return request("/reflect", {
     method: "POST",
@@ -185,22 +183,18 @@ export async function reflect(text: string) {
   });
 }
 
-// Introspection（中期）
 export async function introspect() {
   return request("/introspect", { method: "POST" });
 }
 
-// LongTerm（長期心理）
 export async function longterm(): Promise<LongTermState> {
   return request("/longterm", { method: "POST" });
 }
 
-// Meta Reflection（深層）
 export async function meta(): Promise<{ meta: MetaState }> {
   return request("/meta", { method: "POST" });
 }
 
-// Reward System（報酬）
 export async function reward(): Promise<{ reward: RewardState }> {
   return request("/reward", { method: "POST" });
 }
@@ -209,7 +203,6 @@ export async function rewardState() {
   return request("/reward/state", { method: "GET" });
 }
 
-// Emotion（感情）
 export async function emotion(
   text: string
 ): Promise<{ emotion: EmotionState }> {
@@ -219,7 +212,6 @@ export async function emotion(
   });
 }
 
-// Value（価値構造）
 export async function value(): Promise<{ value: ValueState }> {
   return request("/value", { method: "POST" });
 }
@@ -228,12 +220,10 @@ export async function valueState() {
   return request("/value/state", { method: "GET" });
 }
 
-// Episodic Memory
 export async function memory(): Promise<MemoryDump> {
   return request("/memory", { method: "GET" });
 }
 
-// Identity Snapshot
 export async function getIdentity(): Promise<IdentitySnapshot> {
   return request("/identity", { method: "GET" });
 }
@@ -242,7 +232,6 @@ export async function getIdentity(): Promise<IdentitySnapshot> {
 // Persona-DB API (v0.2)
 // ============================================================
 
-// Concept Map（概念クラスタ）
 export async function getConceptMap(
   minScore: number = 0.0,
   limit: number = 64
@@ -252,26 +241,21 @@ export async function getConceptMap(
   });
 }
 
-// Episodes（会話ログ）
 export async function getEpisodes(sessionId?: string) {
   const q = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
-  return request(`/db/episodes${q}`, {
-    method: "GET",
-  });
+  return request(`/db/episodes${q}`, { method: "GET" });
 }
 
-// Identity Events（Trait変動ログ）
 export async function getIdentityEvents() {
   return request(`/db/identity`, { method: "GET" });
 }
 
-// Growth Logs（デバッグ用）
 export async function getGrowthLogs(limit: number = 50) {
   return request(`/db/growth?limit=${limit}`, { method: "GET" });
 }
 
 // ============================================================
-// ★ PersonaOS Decision API（/persona/decision）
+// ★ PersonaOS Decision API（旧）
 // ============================================================
 
 export interface PersonaDecision {
@@ -301,14 +285,48 @@ export interface PersonaDecisionRequest {
   user_id: string;
 }
 
-/**
- * PersonaOS の「どう応答するか」を取得するメイン API。
- * - LLM 生成はフロント側で行う前提。
- */
 export async function requestPersonaDecision(
   payload: PersonaDecisionRequest
 ): Promise<PersonaDecisionResponse> {
   return request("/persona/decision", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ============================================================
+// ★ Persona Core v2（完全版） Decision API
+// ============================================================
+
+export interface PersonaV2DecisionRequest {
+  user_id: string;
+  request: { message: string };
+  value_state: {
+    stability: number;
+    openness: number;
+    safety_bias: number;
+    user_alignment: number;
+  };
+  trait_state: {
+    calm: number;
+    empathy: number;
+    curiosity: number;
+  };
+  overload_score?: number | null;
+  safety_flag?: string | null;
+  prev_global_state?: string | null;
+}
+
+export interface PersonaV2DecisionResponse {
+  reply: string;
+  global_state: any;
+  meta: any;
+}
+
+export async function requestPersonaV2Decision(
+  payload: PersonaV2DecisionRequest
+): Promise<PersonaV2DecisionResponse> {
+  return request("/persona/v2/decision", {
     method: "POST",
     body: JSON.stringify(payload),
   });

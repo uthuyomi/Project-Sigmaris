@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import Header from "@/components/Header";
 import { motion } from "framer-motion";
 import {
@@ -31,7 +30,6 @@ function AccountPage() {
   const { lang } = useSigmarisLang();
 
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
   const [reflections, setReflections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,13 +44,7 @@ function AccountPage() {
       setUser(data.user);
 
       // --- user_profiles 取得 ---
-      const { data: profileData } = await supabase
-        .from("user_profiles")
-        .select("plan, credit_balance, trial_end")
-        .eq("auth_user_id", data.user.id)
-        .maybeSingle();
-
-      setProfile(profileData || {});
+      // NOTE: 課金/クレジット概念を廃止したため、user_profiles の課金情報は参照しない
 
       // --- reflections取得 ---
       // reflection列が存在しない場合に備え二重フェッチ
@@ -97,24 +89,16 @@ function AccountPage() {
       title: "アカウント情報",
       userInfo: "ユーザー情報",
       email: "メールアドレス",
-      plan: "プラン",
-      credits: "クレジット残高",
-      trialEnd: "試用期限",
-      reflections: "最近のリフレクト",
-      noReflections: "まだリフレクト履歴がありません。",
-      goPlans: "プラン・チャージページへ",
+      reflections: "最近のリフレクション",
+      noReflections: "まだリフレクション履歴がありません。",
       logout: "ログアウト",
     },
     en: {
       title: "Account Overview",
       userInfo: "User Info",
       email: "Email",
-      plan: "Plan",
-      credits: "Credits",
-      trialEnd: "Trial End",
       reflections: "Recent Reflections",
       noReflections: "No reflections yet.",
-      goPlans: "Go to Plans / Charge",
       logout: "Logout",
     },
   } as const;
@@ -140,18 +124,6 @@ function AccountPage() {
           <h2 className="text-xl font-semibold mb-2">{text.userInfo}</h2>
           <p>
             <span className="text-[#a8b3c7]">{text.email}:</span> {user?.email}
-          </p>
-          <p>
-            <span className="text-[#a8b3c7]">{text.plan}:</span>{" "}
-            {profile?.plan || "free"}
-          </p>
-          <p>
-            <span className="text-[#a8b3c7]">{text.credits}:</span>{" "}
-            {profile?.credit_balance ?? 0}
-          </p>
-          <p>
-            <span className="text-[#a8b3c7]">{text.trialEnd}:</span>{" "}
-            {profile?.trial_end || "—"}
           </p>
         </section>
 
@@ -182,12 +154,6 @@ function AccountPage() {
 
         {/* 操作 */}
         <div className="flex flex-col md:flex-row gap-3 justify-center mt-8">
-          <Link
-            href="/plans"
-            className="px-6 py-2 border border-[#4c7cf7] rounded-full text-center hover:bg-[#4c7cf7]/10 transition"
-          >
-            {text.goPlans}
-          </Link>
           <button
             onClick={async () => {
               await supabase.auth.signOut();

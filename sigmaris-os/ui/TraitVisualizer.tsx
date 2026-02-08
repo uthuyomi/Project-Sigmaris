@@ -92,11 +92,14 @@ export function TraitVisualizer({ data }: { data: TraitData[] }) {
             <XAxis
               dataKey="time"
               type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
               stroke="#aaa"
               tickFormatter={(t) =>
                 new Date(t).toLocaleTimeString("ja-JP", {
                   minute: "2-digit",
                   second: "2-digit",
+                  fractionalSecondDigits: 1,
                 })
               }
               tick={{ fill: "#ddd", fontSize: 11 }}
@@ -158,21 +161,21 @@ export function TraitVisualizer({ data }: { data: TraitData[] }) {
 
             {/* === Main trait lines === */}
             <Line
-              type="monotone"
+              type="linear"
               dataKey="calm"
               stroke="#4FD1C5"
               strokeWidth={2}
               dot={false}
             />
             <Line
-              type="monotone"
+              type="linear"
               dataKey="empathy"
               stroke="#F6AD55"
               strokeWidth={2}
               dot={false}
             />
             <Line
-              type="monotone"
+              type="linear"
               dataKey="curiosity"
               stroke="#63B3ED"
               strokeWidth={2}

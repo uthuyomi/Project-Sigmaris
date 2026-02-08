@@ -1,9 +1,32 @@
-// /app/components/ChatWindow.tsx
+// ============================================================
+// ChatWindow  — Sigmaris Full PersonaOS + AEI 完全版
+// （UI は応答を生成しない。route.ts が最終応答を生成する仕様）
+// ============================================================
 "use client";
 
 import { useState } from "react";
-import { requestPersonaDecision, requestSync } from "@/lib/sigmaris-api"; // ★ PersonaOS / AEI Sync API
+import { requestPersonaV2Decision } from "@/lib/sigmaris-api";
 
+// -----------------------------
+// 型定義
+// -----------------------------
+type ChatMessage = {
+  role: "user" | "ai";
+  content: string;
+};
+
+type GlobalStatePayload = {
+  state: string;
+  prev_state?: string | null;
+  reasons?: string[];
+  meta?: any;
+};
+
+type PersonaMetaPayload = any;
+
+// ============================================================
+// ChatWindow — 「応答は route.ts だけが生成」
+// ============================================================
 export default function ChatWindow({
   sessionId,
   initialMessages = [],
@@ -11,77 +34,92 @@ export default function ChatWindow({
   sessionId: string;
   initialMessages: { role: string; content: string }[];
 }) {
-  const [messages, setMessages] = useState(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    initialMessages.map((m) => ({
+      role: m.role === "user" ? "user" : "ai",
+      content: m.content,
+    }))
+  );
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ------------------------------------------------------------
-  // ★ 送信ロジック（PersonaOS → AEI Sync → GPT）
-  // ------------------------------------------------------------
+  // Persona v2 の状態可視化用
+  const [globalState, setGlobalState] = useState<GlobalStatePayload | null>(
+    null
+  );
+  const [meta, setMeta] = useState<PersonaMetaPayload | null>(null);
+
+  // ============================================================
+  // 送信（※ route.ts が最終応答を生成する）
+  // ============================================================
   const handleSend = async () => {
     if (!input.trim()) return;
 
-    const userMsg = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    const userText = input.trim();
+
+    // --- UI にユーザーメッセージを追加 ---
+    setMessages((prev) => [...prev, { role: "user", content: userText }]);
     setInput("");
     setLoading(true);
 
     try {
       // =====================================================
-      // 1) PersonaOS Decision —「AIはどう応答すべきか？」
+      // 1) Persona Core v2 decision は「状態取得のみ」
       // =====================================================
-      const persona = await requestPersonaDecision({
-        user: input,
-        context: {
-          // UI から管理している状態を渡す（簡易版）
-          traits: { calm: 0.5, empathy: 0.5, curiosity: 0.5 },
-        },
-        session_id: sessionId,
-        user_id: "u-local", // ★ 本番は Supabase user_id に差し替え
-      });
+      let personaDecision = null;
 
-      // persona.decision 内に、AI の推奨スタイル・温度などが入る
-      const personaDecision = persona?.decision ?? {};
+      try {
+        personaDecision = await requestPersonaV2Decision({
+          user_id: "u-local",
+          request: { message: userText },
+          value_state: {
+            stability: 0,
+            openness: 0,
+            safety_bias: 0,
+            user_alignment: 0,
+          },
+          trait_state: {
+            calm: 0.5,
+            empathy: 0.5,
+            curiosity: 0.5,
+          },
+        } as any);
+
+        setGlobalState(personaDecision?.global_state ?? null);
+        setMeta(personaDecision?.meta ?? null);
+      } catch (err) {
+        console.error("Persona v2 decision failed:", err);
+      }
 
       // =====================================================
-      // 2) AEI Sync — Identity へ反映（任意）
-      // =====================================================
-      await requestSync({
-        chat: { user: input, ai: null },
-        context: {
-          traits: { calm: 0.5, empathy: 0.5, curiosity: 0.5 },
-          safety: null,
-          summary: null,
-          recent: null,
-        },
-      });
-
-      // =====================================================
-      // 3) GPT生成 — personaDecision を付与
+      // 2) route.ts に完全委譲して「最終応答（GPT生成）」を取得
       // =====================================================
       const res = await fetch("/api/aei", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-session-id": sessionId,
+        },
         body: JSON.stringify({
-          text: input,
-          session_id: sessionId,
-          persona: personaDecision, // ← ★ GPTに「PersonaOSの決定」を渡す
+          text: userText,
         }),
       });
 
       const data = await res.json();
 
-      if (data?.output) {
-        const aiMsg = { role: "ai", content: data.output };
-        setMessages((prev) => [...prev, aiMsg]);
-      }
-    } catch (e) {
-      console.error("💥 ChatWindow send error:", e);
+      const aiOutput =
+        data?.output ||
+        "（応答生成に失敗しましたが、対話ループは維持されています）";
+
+      setMessages((prev) => [...prev, { role: "ai", content: aiOutput }]);
+    } catch (err) {
+      console.error("ChatWindow send error:", err);
       setMessages((prev) => [
         ...prev,
         {
           role: "ai",
-          content: "⚠️ エラーが発生しました（ログ参照）。",
+          content: "⚠️ エラーが発生しました。（ログを確認してください）",
         },
       ]);
     } finally {
@@ -89,48 +127,152 @@ export default function ChatWindow({
     }
   };
 
-  // ------------------------------------------------------------
-  // UI
-  // ------------------------------------------------------------
-  return (
-    <div className="flex flex-col h-screen max-w-2xl mx-auto">
-      <div className="flex-1 overflow-y-auto space-y-3 p-4 bg-gray-900">
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`p-3 rounded-lg max-w-[80%] ${
-              m.role === "user"
-                ? "bg-blue-600 ml-auto text-white"
-                : "bg-gray-700 text-gray-100"
-            }`}
-          >
-            {m.content}
-          </div>
-        ))}
+  // ============================================================
+  // 状態パネル（Persona v2 可視化）
+  // ============================================================
+  const renderGlobalStatePanel = () => {
+    if (!globalState) {
+      return (
+        <div className="text-sm text-gray-400">
+          まだ Persona Core v2 の状態がありません。
+        </div>
+      );
+    }
 
-        {loading && (
-          <div className="text-gray-400 text-sm animate-pulse">
-            Sigmaris is thinking…
+    // 🔧 修正ポイント（唯一の追加）
+    // undefined の可能性を完全に除去
+    const reasons: string[] = Array.isArray(globalState.reasons)
+      ? globalState.reasons
+      : [];
+
+    return (
+      <div className="space-y-2 text-sm">
+        <div className="text-xs text-gray-400">STATE</div>
+        <div className="text-lg font-semibold">{globalState.state}</div>
+
+        {globalState.prev_state && (
+          <div className="text-xs text-gray-400">
+            prev: {globalState.prev_state}
+          </div>
+        )}
+
+        {reasons.length > 0 && (
+          <ul className="list-disc text-xs space-y-1 pl-4">
+            {reasons.map((r: string, i: number) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  };
+
+  const renderMemoryPanel = () => {
+    const ic = globalState?.meta?.identity_context;
+    const mem = meta?.memory;
+
+    if (!ic && !mem) {
+      return (
+        <div className="text-sm text-gray-400">
+          記憶統合データはまだありません。
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 text-sm">
+        {mem && (
+          <div>
+            <div className="text-gray-400 text-xs mb-1">Memory Pointers</div>
+            <div className="text-xs">
+              count: {mem.pointer_count} / merged:{" "}
+              {mem.has_merged_summary ? "yes" : "no"}
+            </div>
+          </div>
+        )}
+
+        {ic?.topic_label && (
+          <div>
+            <div className="text-gray-400 text-xs">Topic</div>
+            <div className="text-xs">{ic.topic_label}</div>
+          </div>
+        )}
+
+        {ic?.memory_preview && (
+          <div>
+            <div className="text-gray-400 text-xs mb-1">
+              Memory Preview (Identity)
+            </div>
+            <pre className="text-xs bg-gray-900 border border-gray-800 p-2 rounded whitespace-pre-wrap max-h-40 overflow-y-auto">
+              {ic.memory_preview}
+            </pre>
           </div>
         )}
       </div>
+    );
+  };
 
-      <div className="border-t border-gray-700 p-3 flex bg-gray-800">
-        <input
-          className="flex-1 bg-gray-700 text-gray-100 rounded-lg px-3 py-2 focus:outline-none"
-          placeholder="type your message..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          disabled={loading}
-        />
-        <button
-          onClick={handleSend}
-          disabled={loading}
-          className="ml-2 bg-blue-600 px-4 py-2 rounded-lg text-white hover:bg-blue-500 transition"
-        >
-          送信
-        </button>
+  // ============================================================
+  // UI
+  // ============================================================
+  return (
+    <div className="flex flex-col md:flex-row h-screen bg-black text-gray-100">
+      {/* ---------------------------------- */}
+      {/*          チャット本体              */}
+      {/* ---------------------------------- */}
+      <div className="flex-1 flex flex-col border-r border-gray-800">
+        <div className="flex-1 overflow-y-auto space-y-3 p-4">
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              className={`p-3 rounded-lg max-w-[80%] text-sm ${
+                m.role === "user"
+                  ? "bg-blue-600 text-white ml-auto"
+                  : "bg-gray-800"
+              }`}
+            >
+              {m.content}
+            </div>
+          ))}
+
+          {loading && (
+            <div className="text-gray-400 text-sm animate-pulse">
+              Sigmaris is thinking…
+            </div>
+          )}
+        </div>
+
+        <div className="p-3 border-t border-gray-800 flex bg-gray-900">
+          <input
+            className="flex-1 bg-gray-800 px-3 py-2 text-sm rounded"
+            placeholder="type your message…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !loading && handleSend()}
+          />
+          <button
+            onClick={handleSend}
+            disabled={loading}
+            className="ml-2 px-4 py-2 bg-blue-600 rounded text-sm disabled:opacity-50"
+          >
+            送信
+          </button>
+        </div>
+      </div>
+
+      {/* ---------------------------------- */}
+      {/*        Persona 状態パネル           */}
+      {/* ---------------------------------- */}
+      <div className="w-full md:w-96 bg-gray-950 p-4 space-y-6 overflow-y-auto">
+        <div>
+          <h2 className="text-xs text-gray-400 mb-2">PERSONA STATE</h2>
+          {renderGlobalStatePanel()}
+        </div>
+
+        <div>
+          <h2 className="text-xs text-gray-400 mb-2">MEMORY / IDENTITY</h2>
+          {renderMemoryPanel()}
+        </div>
       </div>
     </div>
   );

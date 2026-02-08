@@ -19,7 +19,7 @@ from typing import List
 MAX_LINES_PER_FILE = 10_000
 
 # 収集対象ディレクトリ名（このスクリプトと同じ階層にある前提）
-TARGET_DIR_NAME = "sigmaris-core"
+TARGET_DIR_NAME = "sigmaris_core"
 
 
 def collect_python_files(root: Path) -> List[Path]:

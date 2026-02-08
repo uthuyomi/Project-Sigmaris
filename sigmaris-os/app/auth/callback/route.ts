@@ -1,35 +1,38 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import type { ReadonlyRequestCookies } from "next/dist/server/web/spec-extension/adapters/request-cookies";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const oauthError = url.searchParams.get("error");
+  const oauthErrorDescription = url.searchParams.get("error_description");
 
-  // 🚧 セーフガード：code が無ければ /auth/login へ
-  if (!code) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+  // OAuth 側が error を返した場合は、そのままログイン画面へ（原因を見える化）
+  if (oauthError) {
+    const dest = new URL("/auth/login", url.origin);
+    dest.searchParams.set("error", oauthError);
+    if (oauthErrorDescription) dest.searchParams.set("desc", oauthErrorDescription);
+    return NextResponse.redirect(dest);
   }
 
-  const cookieStore = (await cookies()) as unknown as ReadonlyRequestCookies;
+  // code が無ければ /auth/login へ（= OAuth が完了していない/redirect_toが許可されていない等）
+  if (!code) {
+    const dest = new URL("/auth/login", url.origin);
+    dest.searchParams.set("error", "missing_code");
+    return NextResponse.redirect(dest);
+  }
 
-  const supabase = createRouteHandlerClient({
-    cookies: () => cookieStore,
-  });
-
-  // 🧠 OAuth セッション交換
+  const supabase = createRouteHandlerClient({ cookies });
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-  // ❗ エラーハンドリング
   if (error || !data?.session) {
-    return NextResponse.redirect(
-      new URL("/auth/login?error=exchange_failed", request.url)
-    );
+    const dest = new URL("/auth/login", url.origin);
+    dest.searchParams.set("error", "exchange_failed");
+    if (error?.message) dest.searchParams.set("desc", error.message);
+    return NextResponse.redirect(dest);
   }
 
-  // ✅ 正常認証 → トップへ遷移
-  // Vercel 側のセキュリティチェックを回避するため、絶対URLを明示
-  const redirectUrl = new URL("/", url.origin);
-  return NextResponse.redirect(redirectUrl);
+  return NextResponse.redirect(new URL("/", url.origin));
 }
+

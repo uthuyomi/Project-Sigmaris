@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function getOpenAI() {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  return new OpenAI({ apiKey: key });
+}
 
 export async function POST(req: Request) {
   try {
@@ -23,6 +25,9 @@ Keep the meaning exactly the same, do not summarize or alter the tone.
 Text:
 ${text}
 `;
+
+    const openai = getOpenAI();
+    if (!openai) return NextResponse.json({ translation: text ?? "" });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
