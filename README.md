@@ -202,3 +202,23 @@ If `/status` fails with `PGRST205` (schema cache), you may need to refresh Postg
 - Backend (stream): `POST /persona/chat/stream` -> SSE (`delta` / `done` events)
 - Frontend proxy (stream): `POST /api/aei/stream` -> proxies SSE + stores `common_messages` / `common_state_snapshots`
 - Dashboard APIs: `GET /api/state/latest`, `GET /api/state/timeseries?limit=60`
+
+---
+
+## Benchmark (regression)
+
+Sigmaris includes a small **deterministic benchmark** that runs in CI (no OpenAI/Supabase keys required).
+
+- Test cases: `tools/bench/cases_v1.json`
+- Baseline (golden): `tools/bench/baseline.json`
+- Runner:
+
+```bash
+python tools/bench/run_bench.py
+```
+
+If you intentionally change the control-plane behavior, update the baseline:
+
+```bash
+python tools/bench/run_bench.py --write-baseline
+```

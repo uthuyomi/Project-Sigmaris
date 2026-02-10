@@ -204,3 +204,23 @@ Sigmaris は運用者による上書き（監査ログ付き）を `POST /person
 - Backend（stream）: `POST /persona/chat/stream` -> SSE（`delta` / `done`）
 - Frontend proxy（stream）: `POST /api/aei/stream` -> SSE中継 + `common_messages` / `common_state_snapshots` に保存
 - Dashboard APIs: `GET /api/state/latest`, `GET /api/state/timeseries?limit=60`
+
+---
+
+## Benchmark（回帰検知）
+
+Sigmaris には、CI 上で動く **決定論的ベンチ** を同梱しています（OpenAI / Supabase のキー不要）。
+
+- テストケース: `tools/bench/cases_v1.json`
+- ベースライン（golden）: `tools/bench/baseline.json`
+- 実行:
+
+```bash
+python tools/bench/run_bench.py
+```
+
+Control Plane の挙動を意図的に変更した場合は、ベースラインを更新します:
+
+```bash
+python tools/bench/run_bench.py --write-baseline
+```
