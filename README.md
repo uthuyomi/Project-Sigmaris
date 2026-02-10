@@ -58,6 +58,7 @@ For integration and debugging, the API always includes a compact, non-null summa
 - `meta.telemetry` - `{ C, N, M, S, R }` scores
 - `meta.safety.total_risk` and `meta.safety.override`
 - `meta.decision_candidates` - best-effort decision candidate list (v1)
+- `meta.meta_version`, `meta.engine_version`, `meta.build_sha`, `meta.config_hash` - versioning + reproducibility keys
 
 In short, Sigmaris is not a “smarter chatbot” — it’s infrastructure for operating LLMs **safely, consistently, and audibly over time**.
 

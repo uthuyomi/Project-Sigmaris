@@ -58,6 +58,7 @@ Sigmaris はそこを逆転させ、LLMを“頭脳”として使いつつ、**
 - `meta.telemetry` - `{ C, N, M, S, R }` のスコア
 - `meta.safety.total_risk` と `meta.safety.override`
 - `meta.decision_candidates` - 判断候補リスト（best-effort / v1）
+- `meta.meta_version`, `meta.engine_version`, `meta.build_sha`, `meta.config_hash` - バージョン管理と再現性のためのキー
 
 要するに Sigmaris は、**モデルの賢さを競うプロジェクトではなく、長期稼働AIを“運用できる形”にするための基盤**です。
 

@@ -21,6 +21,8 @@ import os
 import json
 import time
 import uuid
+import hashlib
+import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -58,6 +60,38 @@ load_dotenv(override=False)
 DEFAULT_MODEL = os.getenv("SIGMARIS_PERSONA_MODEL", "gpt-4.1")
 DEFAULT_EMBEDDING_MODEL = os.getenv("SIGMARIS_EMBEDDING_MODEL", "text-embedding-3-small")
 DEFAULT_USER_ID = os.getenv("SIGMARIS_DEFAULT_USER_ID", "default-user")
+
+META_VERSION = 1
+ENGINE_VERSION = os.getenv("SIGMARIS_ENGINE_VERSION", "sigmaris-core")
+BUILD_SHA = (
+    os.getenv("SIGMARIS_BUILD_SHA")
+    or os.getenv("GIT_COMMIT_SHA")
+    or os.getenv("VERCEL_GIT_COMMIT_SHA")
+    or os.getenv("RENDER_GIT_COMMIT")
+    or os.getenv("FLY_APP_NAME")  # better than empty; still non-secret
+    or "UNKNOWN"
+)
+
+
+def _compute_config_hash() -> str:
+    """
+    Best-effort stable hash for "engine configuration" (not per-turn state).
+    """
+    cfg: Dict[str, Any] = {
+        "meta_version": META_VERSION,
+        "engine_version": ENGINE_VERSION,
+        "build_sha": BUILD_SHA,
+        "model": DEFAULT_MODEL,
+        "embedding_model": DEFAULT_EMBEDDING_MODEL,
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "phase03_session_cap": os.getenv("SIGMARIS_PHASE03_SESSION_CAP", "1024"),
+        "contradiction_open_limit": os.getenv("SIGMARIS_CONTRADICTION_OPEN_LIMIT", "6"),
+    }
+    payload = json.dumps(cfg, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+CONFIG_HASH = _compute_config_hash()
 
 # =============================================================
 # FastAPI App
@@ -667,6 +701,10 @@ async def persona_chat(req: ChatRequest) -> ChatResponse:
     decision_candidates = _normalize_decision_candidates(controller_meta=result.meta, v0=v0)
 
     meta: Dict[str, Any] = {
+        "meta_version": META_VERSION,
+        "engine_version": ENGINE_VERSION,
+        "build_sha": str(BUILD_SHA),
+        "config_hash": str(CONFIG_HASH),
         "trace_id": trace_id,
         "intent": v0.get("intent") or {},
         "dialogue_state": v0.get("dialogue_state") or "UNKNOWN",
@@ -884,6 +922,10 @@ async def persona_chat_stream(req: ChatRequest):
                     )
 
                     meta: Dict[str, Any] = {
+                        "meta_version": META_VERSION,
+                        "engine_version": ENGINE_VERSION,
+                        "build_sha": str(BUILD_SHA),
+                        "config_hash": str(CONFIG_HASH),
                         "trace_id": trace_id,
                         "intent": v0.get("intent") or {},
                         "dialogue_state": v0.get("dialogue_state") or "UNKNOWN",
