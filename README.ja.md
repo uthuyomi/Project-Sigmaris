@@ -49,6 +49,15 @@ Sigmaris はそこを逆転させ、LLMを“頭脳”として使いつつ、**
 - **Safety Override**: 危険度が一定以上なら、応答方針を強制的に安全側へ上書きする（決定は決定論的）
 - **Observability**: ルーティング理由・状態・スコア・処理時間を構造化して返す（監査・改善が可能）
 
+### v0 meta（必ず non-null）
+
+統合・デバッグのため、API の `meta` には常に「最小限の要約（v0）」が入り、`common_state_snapshots.meta` にも保存されます。
+
+- `meta.intent` - 現在の意図ベクトル（best-effort）
+- `meta.dialogue_state` - 現在の会話状態
+- `meta.telemetry` - `{ C, N, M, S, R }` のスコア
+- `meta.safety.total_risk` と `meta.safety.override`
+
 要するに Sigmaris は、**モデルの賢さを競うプロジェクトではなく、長期稼働AIを“運用できる形”にするための基盤**です。
 
 ## どんな分野で役立つか（将来像）

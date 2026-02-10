@@ -74,6 +74,45 @@ else:
     _supabase = None
 
 
+def _v0_defaults(trace_id: str) -> Dict[str, Any]:
+    return {
+        "trace_id": str(trace_id or "UNKNOWN"),
+        "intent": {},
+        "dialogue_state": "UNKNOWN",
+        "telemetry": {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0},
+        "safety": {"total_risk": 0.0, "override": False},
+    }
+
+
+def _normalize_v0(*, trace_id: str, controller_meta: Any) -> Dict[str, Any]:
+    base = _v0_defaults(trace_id)
+    if not isinstance(controller_meta, dict):
+        return base
+    v0 = controller_meta.get("v0")
+    if not isinstance(v0, dict):
+        return base
+
+    # shallow merge + type guards
+    out = dict(base)
+    if isinstance(v0.get("intent"), dict):
+        out["intent"] = {k: float(v) for k, v in v0["intent"].items() if isinstance(k, str) and isinstance(v, (int, float))}
+    if isinstance(v0.get("dialogue_state"), str) and v0.get("dialogue_state"):
+        out["dialogue_state"] = v0["dialogue_state"]
+    if isinstance(v0.get("telemetry"), dict):
+        tel = {}
+        for k in ("C", "N", "M", "S", "R"):
+            v = v0["telemetry"].get(k)
+            tel[k] = float(v) if isinstance(v, (int, float)) else 0.0
+        out["telemetry"] = tel
+    if isinstance(v0.get("safety"), dict):
+        s = v0["safety"]
+        out["safety"] = {
+            "total_risk": float(s.get("total_risk")) if isinstance(s.get("total_risk"), (int, float)) else 0.0,
+            "override": bool(s.get("override") or False),
+        }
+    return out
+
+
 def _estimate_overload_score(message: str) -> float:
     """
     overload_score は GlobalStateMachine の入力のひとつです。
@@ -587,12 +626,19 @@ async def persona_chat(req: ChatRequest) -> ChatResponse:
         affect_signal=req.affect_signal,
     )
 
+    v0 = _normalize_v0(trace_id=trace_id, controller_meta=result.meta)
+
     meta: Dict[str, Any] = {
         "trace_id": trace_id,
+        "intent": v0.get("intent") or {},
+        "dialogue_state": v0.get("dialogue_state") or "UNKNOWN",
+        "telemetry": v0.get("telemetry") or {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0},
         "timing_ms": int((time.time() - t0) * 1000),
         "safety": {
             "flag": safety.safety_flag,
             "risk_score": safety.risk_score,
+            "total_risk": float((v0.get("safety") or {}).get("total_risk") or 0.0),
+            "override": bool((v0.get("safety") or {}).get("override") or False),
             "categories": safety.categories,
             "reasons": safety.reasons,
         },
@@ -606,6 +652,7 @@ async def persona_chat(req: ChatRequest) -> ChatResponse:
             "baseline_delta": (result.meta or {}).get("trait_baseline_delta"),
         },
         "global_state": result.global_state.to_dict(),
+        "v0": v0,
         "controller_meta": result.meta,
         "io": {
             "message_preview": preview_text(req.message) if TRACE_INCLUDE_TEXT else "",
@@ -792,12 +839,19 @@ async def persona_chat_stream(req: ChatRequest):
                     result = ev.get("result")
                     reply_text = (getattr(result, "reply_text", None) or "").strip()
 
+                    v0 = _normalize_v0(trace_id=trace_id, controller_meta=getattr(result, "meta", None))
+
                     meta: Dict[str, Any] = {
                         "trace_id": trace_id,
+                        "intent": v0.get("intent") or {},
+                        "dialogue_state": v0.get("dialogue_state") or "UNKNOWN",
+                        "telemetry": v0.get("telemetry") or {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0},
                         "timing_ms": int((time.time() - t0) * 1000),
                         "safety": {
                             "flag": safety.safety_flag,
                             "risk_score": safety.risk_score,
+                            "total_risk": float((v0.get("safety") or {}).get("total_risk") or 0.0),
+                            "override": bool((v0.get("safety") or {}).get("override") or False),
                             "categories": safety.categories,
                             "reasons": safety.reasons,
                         },
@@ -814,6 +868,7 @@ async def persona_chat_stream(req: ChatRequest):
                             "baseline_delta": (result.meta or {}).get("trait_baseline_delta"),
                         },
                         "global_state": result.global_state.to_dict(),
+                        "v0": v0,
                         "controller_meta": result.meta,
                         "io": {
                             "message_preview": preview_text(req.message) if TRACE_INCLUDE_TEXT else "",

@@ -49,6 +49,15 @@ Per turn, Sigmaris returns and (optionally) persists structured **observability 
 - **Safety Override**: deterministic safety-first overrides that can constrain or redirect behavior
 - **Observability-first**: machine-readable routing reasons, state, scores, and timings
 
+### v0 meta (always non-null)
+
+For integration and debugging, the API always includes a compact, non-null summary in `meta` (and it is stored in `common_state_snapshots.meta`):
+
+- `meta.intent` - current intent vector (best-effort)
+- `meta.dialogue_state` - current dialogue state
+- `meta.telemetry` - `{ C, N, M, S, R }` scores
+- `meta.safety.total_risk` and `meta.safety.override`
+
 In short, Sigmaris is not a “smarter chatbot” — it’s infrastructure for operating LLMs **safely, consistently, and audibly over time**.
 
 ## Where it can be useful (future-facing)

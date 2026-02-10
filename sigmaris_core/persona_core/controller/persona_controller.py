@@ -63,6 +63,19 @@ from persona_core.phase03.safety_override import SafetyOverrideLayer
 
 
 # --------------------------------------------------------------
+# v0 meta (compact, non-null)
+# --------------------------------------------------------------
+
+def _as_float(v: Any, default: float = 0.0) -> float:
+    try:
+        if isinstance(v, (int, float)):
+            return float(v)
+    except Exception:
+        pass
+    return float(default)
+
+
+# --------------------------------------------------------------
 # LLM client interface
 # --------------------------------------------------------------
 
@@ -188,6 +201,103 @@ class PersonaController:
     # ==========================================================
     # Main turn
     # ==========================================================
+
+    def _build_v0_meta(self, *, req: PersonaRequest, meta: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        v0 meta logging (best-effort):
+        - Always non-null with fixed top keys
+        - Uses whatever signals are already computed in this controller
+        """
+
+        trace_id = "UNKNOWN"
+        md = getattr(req, "metadata", None)
+        if isinstance(md, dict):
+            try:
+                v = md.get("_trace_id")
+                if isinstance(v, str) and v.strip():
+                    trace_id = v.strip()
+            except Exception:
+                pass
+
+        # intent (Phase03 EMA if available)
+        intent: Dict[str, float] = {}
+        phase03 = meta.get("phase03") if isinstance(meta.get("phase03"), dict) else None
+        try:
+            vec = None
+            if isinstance(phase03, dict):
+                intent_obj = phase03.get("intent") if isinstance(phase03.get("intent"), dict) else None
+                if isinstance(intent_obj, dict):
+                    vector = intent_obj.get("vector") if isinstance(intent_obj.get("vector"), dict) else None
+                    if isinstance(vector, dict):
+                        vec = vector.get("ema") if isinstance(vector.get("ema"), dict) else vector.get("raw")
+            if isinstance(vec, dict):
+                for k, v in vec.items():
+                    if isinstance(k, str) and k and isinstance(v, (int, float)):
+                        intent[k] = float(v)
+        except Exception:
+            intent = {}
+
+        # dialogue_state (Phase03 DSM if available)
+        dialogue_state = "UNKNOWN"
+        try:
+            if isinstance(md, dict):
+                ds = md.get("_phase03_dialogue_state")
+                if isinstance(ds, str) and ds.strip():
+                    dialogue_state = ds.strip()
+            if dialogue_state == "UNKNOWN" and isinstance(phase03, dict):
+                dlg = phase03.get("dialogue") if isinstance(phase03.get("dialogue"), dict) else None
+                if isinstance(dlg, dict):
+                    st = dlg.get("state") if isinstance(dlg.get("state"), dict) else None
+                    if isinstance(st, dict):
+                        cur = st.get("current")
+                        if isinstance(cur, str) and cur.strip():
+                            dialogue_state = cur.strip()
+        except Exception:
+            dialogue_state = "UNKNOWN"
+
+        # telemetry (Phase02 C/N/M/S/R) as a flat dict
+        telemetry_scores: Dict[str, float] = {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0}
+        try:
+            tel = meta.get("telemetry") if isinstance(meta.get("telemetry"), dict) else None
+            scores = None
+            if isinstance(tel, dict):
+                scores = tel.get("scores") if isinstance(tel.get("scores"), dict) else None
+            if isinstance(scores, dict):
+                for key in ("C", "N", "M", "S", "R"):
+                    telemetry_scores[key] = _as_float(scores.get(key), 0.0)
+        except Exception:
+            telemetry_scores = {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0}
+
+        # safety
+        total_risk = 0.0
+        try:
+            if isinstance(md, dict):
+                total_risk = _as_float(md.get("_safety_risk_score"), 0.0)
+        except Exception:
+            total_risk = 0.0
+
+        override = False
+        try:
+            so = None
+            if isinstance(phase03, dict):
+                so = phase03.get("safety") if isinstance(phase03.get("safety"), dict) else None
+            if isinstance(so, dict):
+                ov = so.get("override") if isinstance(so.get("override"), dict) else None
+                if isinstance(ov, dict):
+                    override = bool(ov.get("active") or False)
+                else:
+                    # fallback: level_num > 0
+                    override = int(so.get("level_num") or 0) > 0
+        except Exception:
+            override = False
+
+        return {
+            "trace_id": trace_id,
+            "intent": intent,
+            "dialogue_state": dialogue_state,
+            "telemetry": telemetry_scores,
+            "safety": {"total_risk": float(total_risk), "override": bool(override)},
+        }
 
     def handle_turn(
         self,
@@ -791,6 +901,18 @@ class PersonaController:
                 }
         except Exception:
             pass
+
+        # v0 meta (compact, non-null)
+        try:
+            meta["v0"] = self._build_v0_meta(req=req, meta=meta)
+        except Exception:
+            meta["v0"] = {
+                "trace_id": (getattr(req, "metadata", None) or {}).get("_trace_id") if isinstance(getattr(req, "metadata", None), dict) else "UNKNOWN",
+                "intent": {},
+                "dialogue_state": "UNKNOWN",
+                "telemetry": {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0},
+                "safety": {"total_risk": 0.0, "override": False},
+            }
 
         return PersonaTurnResult(
             reply_text=reply_text,
@@ -1563,6 +1685,18 @@ class PersonaController:
                 }
         except Exception:
             pass
+
+        # v0 meta (compact, non-null)
+        try:
+            meta["v0"] = self._build_v0_meta(req=req, meta=meta)
+        except Exception:
+            meta["v0"] = {
+                "trace_id": (getattr(req, "metadata", None) or {}).get("_trace_id") if isinstance(getattr(req, "metadata", None), dict) else "UNKNOWN",
+                "intent": {},
+                "dialogue_state": "UNKNOWN",
+                "telemetry": {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0},
+                "safety": {"total_risk": 0.0, "override": False},
+            }
 
         yield {
             "type": "done",
