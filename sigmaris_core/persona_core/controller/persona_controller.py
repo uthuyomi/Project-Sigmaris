@@ -58,7 +58,7 @@ from persona_core.ego.ego_state import EgoContinuityState
 from persona_core.integration.integration_controller import IntegrationController
 from persona_core.temporal_identity.temporal_identity_state import TemporalIdentityState
 from persona_core.phase03.intent_layers import IntentLayers, IntentVectorEMA
-from persona_core.phase03.dialogue_state_machine import DialogueState, DialogueStateMachine
+from persona_core.phase03.dialogue_state_machine import STATE_IDS, DialogueState, DialogueStateMachine
 from persona_core.phase03.safety_override import SafetyOverrideLayer
 
 
@@ -179,6 +179,7 @@ class PersonaController:
         self._safety_override = SafetyOverrideLayer()
         self._intent_ema_by_session: Dict[str, IntentVectorEMA] = {}
         self._dialogue_state_by_session: Dict[str, DialogueState] = {}
+        self._auto_recovery_prev_by_session: Dict[str, Dict[str, float]] = {}
         try:
             self._phase03_session_cap = int(os.getenv("SIGMARIS_PHASE03_SESSION_CAP", "1024") or "1024")
         except Exception:
@@ -201,6 +202,138 @@ class PersonaController:
     # ==========================================================
     # Main turn
     # ==========================================================
+
+    def _decide_auto_recovery(self, *, session_id: str, failure: Any) -> Dict[str, Any]:
+        """
+        Phase02 FailureDetection -> Phase03 Auto Recovery (best-effort).
+
+        - Forces a safer/explanatory dialogue state when needed.
+        - Optionally stops memory injection into the LLM prompt.
+        - Always returns a non-null dict (stable keys).
+        """
+
+        f = failure if isinstance(failure, dict) else {}
+
+        try:
+            level = int(f.get("level") or 0)
+        except Exception:
+            level = 0
+        try:
+            health = _as_float(f.get("health_score"), 1.0)
+        except Exception:
+            health = 1.0
+        try:
+            collapse = _as_float(f.get("collapse_risk_score"), 0.0)
+        except Exception:
+            collapse = 0.0
+        try:
+            flags: Dict[str, Any] = f.get("flags") if isinstance(f.get("flags"), dict) else {}
+        except Exception:
+            flags = {}
+        try:
+            reasons_raw = f.get("reasons")
+            reasons = [str(x) for x in reasons_raw if x is not None] if isinstance(reasons_raw, list) else []
+        except Exception:
+            reasons = []
+
+        prev = self._auto_recovery_prev_by_session.get(session_id) if session_id else None
+        has_prev = isinstance(prev, dict)
+        prev_level = int(prev.get("level", -1)) if has_prev else -1
+        prev_health = float(prev.get("health_score", 1.0)) if has_prev else 1.0
+        prev_collapse = float(prev.get("collapse_risk_score", 0.0)) if has_prev else 0.0
+
+        try:
+            worsened = bool(
+                has_prev
+                and (
+                    (level > prev_level)
+                    or (collapse - prev_collapse >= 0.12)
+                    or (health <= prev_health - 0.10)
+                )
+            )
+        except Exception:
+            worsened = False
+
+        forced_state = ""
+        try:
+            if level >= 3 or collapse >= 0.70 or bool(flags.get("external_overwrite_suspected")):
+                forced_state = "S6_SAFETY"
+            elif level >= 2 and worsened:
+                forced_state = "S4_META"
+        except Exception:
+            forced_state = ""
+
+        try:
+            stop_level = int(os.getenv("SIGMARIS_AUTO_RECOVERY_STOP_MEMORY_LEVEL", "3") or "3")
+        except Exception:
+            stop_level = 3
+        if stop_level < 0:
+            stop_level = 0
+
+        try:
+            stop_memory_injection = bool(
+                forced_state == "S6_SAFETY"
+                or level >= stop_level
+                or bool(flags.get("external_overwrite_suspected"))
+            )
+        except Exception:
+            stop_memory_injection = False
+
+        active = bool(forced_state)
+
+        if session_id:
+            try:
+                self._auto_recovery_prev_by_session[session_id] = {
+                    "level": float(level),
+                    "health_score": float(health),
+                    "collapse_risk_score": float(collapse),
+                }
+            except Exception:
+                pass
+
+        return {
+            "active": bool(active),
+            "forced_dialogue_state": str(forced_state),
+            "stop_memory_injection": bool(stop_memory_injection),
+            "worsened": bool(worsened),
+            "reasons": list(reasons),
+            "observed": {
+                "level": int(level),
+                "health_score": float(health),
+                "collapse_risk_score": float(collapse),
+                "flags": flags or {},
+            },
+            "previous": {
+                "level": int(prev_level),
+                "health_score": float(prev_health),
+                "collapse_risk_score": float(prev_collapse),
+            },
+        }
+
+    def _memory_for_llm(self, *, req: PersonaRequest, memory_result: MemorySelectionResult) -> MemorySelectionResult:
+        """
+        Allows control-plane policies to stop memory injection without disabling
+        memory selection/persistence.
+        """
+        md = getattr(req, "metadata", None)
+        if not isinstance(md, dict):
+            return memory_result
+        if not bool(md.get("_phase03_stop_memory_injection") or False):
+            return memory_result
+
+        try:
+            raw = dict(memory_result.raw or {})
+        except Exception:
+            raw = {}
+        try:
+            ar = raw.get("auto_recovery")
+            if not isinstance(ar, dict):
+                ar = {}
+                raw["auto_recovery"] = ar
+            ar["stop_memory_injection"] = True
+        except Exception:
+            pass
+        return MemorySelectionResult(pointers=[], merged_summary=None, raw=raw)
 
     def _build_v0_meta(self, *, req: PersonaRequest, meta: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -348,6 +481,20 @@ class PersonaController:
             },
         ]
 
+        recovery = {"active": False, "forced_dialogue_state": "", "stop_memory_injection": False, "reasons": []}
+        try:
+            integ = meta.get("integration") if isinstance(meta.get("integration"), dict) else {}
+            ar = integ.get("auto_recovery") if isinstance(integ.get("auto_recovery"), dict) else None
+            if isinstance(ar, dict):
+                recovery = {
+                    "active": bool(ar.get("active") or False),
+                    "forced_dialogue_state": str(ar.get("forced_dialogue_state") or ""),
+                    "stop_memory_injection": bool(ar.get("stop_memory_injection") or False),
+                    "reasons": list(ar.get("reasons") or []),
+                }
+        except Exception:
+            recovery = {"active": False, "forced_dialogue_state": "", "stop_memory_injection": False, "reasons": []}
+
         return {
             "trace_id": v0.get("trace_id") or "UNKNOWN",
             "intent": intent,
@@ -358,6 +505,7 @@ class PersonaController:
                 "override": bool(safety.get("override") or False),
             },
             "decision_candidates": candidates,
+            "recovery": recovery,
         }
 
     def handle_turn(
@@ -673,6 +821,42 @@ class PersonaController:
             self._temporal_identity_state = new_tid_state
             meta["integration"] = integration.to_dict()
 
+            # Phase02 Failure -> Phase03 Auto Recovery (best-effort)
+            try:
+                sid = getattr(req, "session_id", None)
+                session_id_str = str(sid) if sid is not None else ""
+                auto_recovery = self._decide_auto_recovery(session_id=session_id_str, failure=(integration.failure or {}))
+
+                # Attach to meta (non-null) + local event list for observability
+                try:
+                    if isinstance(meta.get("integration"), dict):
+                        meta["integration"]["auto_recovery"] = auto_recovery
+                        if isinstance(meta["integration"].get("events"), list) and bool(auto_recovery.get("active")):
+                            meta["integration"]["events"].append(
+                                {"event_type": "AUTO_RECOVERY", "at": time.time(), "payload": auto_recovery}
+                            )
+                except Exception:
+                    pass
+
+                # Append to integration event bus so it can be persisted by store_integration_events(...)
+                try:
+                    if bool(auto_recovery.get("active")):
+                        if integration.events is None:
+                            integration.events = []
+                        if isinstance(integration.events, list):
+                            integration.events.append(
+                                {"event_type": "AUTO_RECOVERY", "at": time.time(), "payload": auto_recovery}
+                            )
+                except Exception:
+                    pass
+
+                # Feed control flags into request metadata (used by Phase03 + LLM call)
+                if isinstance(getattr(req, "metadata", None), dict):
+                    req.metadata["_phase03_forced_dialogue_state"] = str(auto_recovery.get("forced_dialogue_state") or "")
+                    req.metadata["_phase03_stop_memory_injection"] = bool(auto_recovery.get("stop_memory_injection") or False)
+            except Exception:
+                pass
+
             # Carry integration freeze into this turn for drift engines and next-turn propagation.
             if isinstance(getattr(req, "metadata", None), dict):
                 req.metadata["_freeze_updates"] = bool(req.metadata.get("_freeze_updates") or integration.freeze_updates)
@@ -795,6 +979,31 @@ class PersonaController:
                 subjectivity_mode=(str(subj_mode) if subj_mode is not None else None),
                 transition_reasons=[],
             )
+
+            # Auto recovery may force dialogue state regardless of intent/DSM hysteresis.
+            try:
+                forced = md.get("_phase03_forced_dialogue_state")
+                if isinstance(forced, str) and forced in STATE_IDS and forced != ds.current_state:
+                    t_force = time.time()
+                    ds = DialogueState(
+                        current_state=forced,
+                        prev_state=ds.current_state,
+                        entered_at=t_force,
+                        confidence=1.0,
+                        stability_score=1.0,
+                        last_transition_reason="auto_recovery",
+                    )
+                    transition = {
+                        "from": transition.get("from") or (prev_ds.current_state if prev_ds else None),
+                        "to": forced,
+                        "trigger": "auto_recovery",
+                        "hysteresis_applied": False,
+                        "dwell_ms": 0,
+                        "reasons": list(transition.get("reasons") or []) + ["auto_recovery_forced"],
+                        "subjectivity_mode": subj_mode,
+                    }
+            except Exception:
+                pass
             if session_id:
                 self._dialogue_state_by_session[session_id] = ds
 
@@ -855,6 +1064,11 @@ class PersonaController:
                     "transition": transition,
                 },
                 "safety": so.to_dict(),
+                "auto_recovery": (
+                    (meta.get("integration") or {}).get("auto_recovery", {})
+                    if isinstance(meta.get("integration"), dict)
+                    else {}
+                ),
             }
         except Exception:
             pass
@@ -881,9 +1095,10 @@ class PersonaController:
         t_marks["guardrail"] = time.perf_counter()
 
         # ---- 6) LLM generate ----
+        memory_for_llm = self._memory_for_llm(req=req, memory_result=memory_result)
         reply_text = self._call_llm(
             req=req,
-            memory_result=memory_result,
+            memory_result=memory_for_llm,
             identity_result=identity_result,
             value_state=self._value_state,
             trait_state=self._trait_state,
@@ -988,6 +1203,7 @@ class PersonaController:
                 "telemetry": {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0},
                 "safety": {"total_risk": 0.0, "override": False},
                 "decision_candidates": [],
+                "recovery": {"active": False, "forced_dialogue_state": "", "stop_memory_injection": False, "reasons": []},
             }
             meta["decision_candidates"] = []
 
@@ -1290,6 +1506,39 @@ class PersonaController:
             self._temporal_identity_state = new_tid_state
             meta["integration"] = integration.to_dict()
 
+            # Phase02 Failure -> Phase03 Auto Recovery (best-effort)
+            try:
+                sid = getattr(req, "session_id", None)
+                session_id_str = str(sid) if sid is not None else ""
+                auto_recovery = self._decide_auto_recovery(session_id=session_id_str, failure=(integration.failure or {}))
+
+                try:
+                    if isinstance(meta.get("integration"), dict):
+                        meta["integration"]["auto_recovery"] = auto_recovery
+                        if isinstance(meta["integration"].get("events"), list) and bool(auto_recovery.get("active")):
+                            meta["integration"]["events"].append(
+                                {"event_type": "AUTO_RECOVERY", "at": time.time(), "payload": auto_recovery}
+                            )
+                except Exception:
+                    pass
+
+                try:
+                    if bool(auto_recovery.get("active")):
+                        if integration.events is None:
+                            integration.events = []
+                        if isinstance(integration.events, list):
+                            integration.events.append(
+                                {"event_type": "AUTO_RECOVERY", "at": time.time(), "payload": auto_recovery}
+                            )
+                except Exception:
+                    pass
+
+                if isinstance(getattr(req, "metadata", None), dict):
+                    req.metadata["_phase03_forced_dialogue_state"] = str(auto_recovery.get("forced_dialogue_state") or "")
+                    req.metadata["_phase03_stop_memory_injection"] = bool(auto_recovery.get("stop_memory_injection") or False)
+            except Exception:
+                pass
+
             if isinstance(getattr(req, "metadata", None), dict):
                 req.metadata["_freeze_updates"] = bool(req.metadata.get("_freeze_updates") or integration.freeze_updates)
             self._freeze_updates = bool(self._freeze_updates or integration.freeze_updates)
@@ -1411,6 +1660,31 @@ class PersonaController:
                 subjectivity_mode=(str(subj_mode) if subj_mode is not None else None),
                 transition_reasons=[],
             )
+
+            # Auto recovery may force dialogue state regardless of intent/DSM hysteresis.
+            try:
+                forced = md.get("_phase03_forced_dialogue_state")
+                if isinstance(forced, str) and forced in STATE_IDS and forced != ds.current_state:
+                    t_force = time.time()
+                    ds = DialogueState(
+                        current_state=forced,
+                        prev_state=ds.current_state,
+                        entered_at=t_force,
+                        confidence=1.0,
+                        stability_score=1.0,
+                        last_transition_reason="auto_recovery",
+                    )
+                    transition = {
+                        "from": transition.get("from") or (prev_ds.current_state if prev_ds else None),
+                        "to": forced,
+                        "trigger": "auto_recovery",
+                        "hysteresis_applied": False,
+                        "dwell_ms": 0,
+                        "reasons": list(transition.get("reasons") or []) + ["auto_recovery_forced"],
+                        "subjectivity_mode": subj_mode,
+                    }
+            except Exception:
+                pass
             if session_id:
                 self._dialogue_state_by_session[session_id] = ds
 
@@ -1470,6 +1744,11 @@ class PersonaController:
                     "transition": transition,
                 },
                 "safety": so.to_dict(),
+                "auto_recovery": (
+                    (meta.get("integration") or {}).get("auto_recovery", {})
+                    if isinstance(meta.get("integration"), dict)
+                    else {}
+                ),
             }
         except Exception:
             pass
@@ -1497,11 +1776,12 @@ class PersonaController:
 
         # ---- 6) LLM (stream) ----
         parts: list[str] = []
+        memory_for_llm = self._memory_for_llm(req=req, memory_result=memory_result)
         try:
             if hasattr(self._llm, "generate_stream"):
                 for chunk in self._llm.generate_stream(
                     req=req,
-                    memory=memory_result,
+                    memory=memory_for_llm,
                     identity=identity_result,
                     value_state=self._value_state,
                     trait_state=self._trait_state,
@@ -1514,7 +1794,7 @@ class PersonaController:
             else:
                 text = self._call_llm(
                     req=req,
-                    memory_result=memory_result,
+                    memory_result=memory_for_llm,
                     identity_result=identity_result,
                     value_state=self._value_state,
                     trait_state=self._trait_state,
@@ -1788,6 +2068,7 @@ class PersonaController:
                 "telemetry": {"C": 0.0, "N": 0.0, "M": 0.0, "S": 0.0, "R": 0.0},
                 "safety": {"total_risk": 0.0, "override": False},
                 "decision_candidates": [],
+                "recovery": {"active": False, "forced_dialogue_state": "", "stop_memory_injection": False, "reasons": []},
             }
             meta["decision_candidates"] = []
 

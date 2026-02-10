@@ -130,6 +130,28 @@ function getTelemetry(meta: any): Record<"C" | "N" | "M" | "S" | "R", number> {
   };
 }
 
+function getRecovery(meta: any): {
+  active: boolean;
+  forced_dialogue_state: string;
+  stop_memory_injection: boolean;
+  reasons: string[];
+} {
+  const m = getMetaV1(meta);
+  if (!isRecord(m)) {
+    return { active: false, forced_dialogue_state: "", stop_memory_injection: false, reasons: [] };
+  }
+  const r = m.recovery;
+  if (!isRecord(r)) {
+    return { active: false, forced_dialogue_state: "", stop_memory_injection: false, reasons: [] };
+  }
+  return {
+    active: Boolean(r.active ?? false),
+    forced_dialogue_state: String(r.forced_dialogue_state ?? ""),
+    stop_memory_injection: Boolean(r.stop_memory_injection ?? false),
+    reasons: Array.isArray(r.reasons) ? r.reasons.map((x) => String(x)) : [],
+  };
+}
+
 function topIntents(meta: any, limit = 6): { label: string; score: number }[] {
   const m = getMetaV1(meta);
   if (!isRecord(m)) return [];
@@ -555,6 +577,31 @@ function AuditContent() {
                           );
                         })()}
                       </div>
+                      <div className="rounded-lg border border-[#1f2835] bg-[#0b1118] p-3 col-span-2">
+                        <div className="text-xs text-[#8ea0b8]">auto_recovery</div>
+                        {(() => {
+                          const r = getRecovery(activeTurn.meta);
+                          if (!r.active) return <div className="mt-1">inactive</div>;
+                          return (
+                            <div className="mt-1 grid gap-1 text-xs text-[#c9d2df]">
+                              <div>
+                                forced:{" "}
+                                <span className="font-mono">
+                                  {r.forced_dialogue_state || "?"}
+                                </span>
+                              </div>
+                              <div>
+                                stop_memory_injection:{" "}
+                                {r.stop_memory_injection ? "true" : "false"}
+                              </div>
+                              <div className="text-[#8ea0b8]">
+                                reasons:{" "}
+                                {r.reasons.length ? r.reasons.join(", ") : "(none)"}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
 
@@ -647,4 +694,3 @@ function AuditContent() {
     </div>
   );
 }
-
