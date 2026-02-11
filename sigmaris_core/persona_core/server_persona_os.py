@@ -1428,7 +1428,24 @@ async def io_web_fetch(
             user_agent=os.getenv("SIGMARIS_WEB_FETCH_USER_AGENT", "sigmaris-core-web-fetch/1.0"),
         )
     except WebFetchError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        # Map errors to appropriate HTTP statuses for easier debugging:
+        # - allowlist/SSRF guard -> 403
+        # - invalid URL shape -> 422
+        # - origin-side HTTP failure -> 502
+        # - too large -> 413
+        msg = str(e)
+        try:
+            log.warning("[io/web/fetch] blocked url=%s err=%s", str(req.url), msg)
+        except Exception:
+            pass
+
+        if msg.startswith("origin_http:") or msg.startswith("request_failed:"):
+            raise HTTPException(status_code=502, detail=msg)
+        if "response too large" in msg:
+            raise HTTPException(status_code=413, detail=msg)
+        if msg in ("empty url", "only http/https supported", "missing host"):
+            raise HTTPException(status_code=422, detail=msg)
+        raise HTTPException(status_code=403, detail=msg)
 
     text = (fr.text or "").strip()
     max_chars = int(req.max_chars or 12000)

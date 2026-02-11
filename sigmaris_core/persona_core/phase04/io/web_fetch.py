@@ -223,6 +223,7 @@ def fetch_url(
         headers={
             "User-Agent": user_agent,
             "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
+            "Accept-Language": os.getenv("SIGMARIS_WEB_FETCH_ACCEPT_LANGUAGE", "ja,en-US;q=0.8,en;q=0.7"),
         },
     )
 
@@ -232,7 +233,17 @@ def fetch_url(
             ctype = str(resp.headers.get("Content-Type") or "")
             raw = resp.read(int(max_bytes) + 1)
     except urllib.error.HTTPError as e:
-        raise WebFetchError(f"http_error:{getattr(e,'code',0)}") from e
+        code = int(getattr(e, "code", 0) or 0)
+        try:
+            raw = e.read()
+            snippet = raw[:200].decode("utf-8", errors="ignore") if isinstance(raw, (bytes, bytearray)) else ""
+        except Exception:
+            snippet = ""
+        # Mark as origin-side HTTP error (not our allowlist/SSRF guard).
+        msg = f"origin_http:{code}"
+        if snippet:
+            msg += f":{snippet.strip()[:120]}"
+        raise WebFetchError(msg) from e
     except Exception as e:
         raise WebFetchError(f"request_failed:{type(e).__name__}") from e
 
@@ -255,4 +266,3 @@ def fetch_url(
     }
 
     return FetchResult(url=normalized, final_url=final_url, title=title, text=text, meta=meta)
-
