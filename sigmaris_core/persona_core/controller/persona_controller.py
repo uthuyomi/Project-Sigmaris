@@ -63,6 +63,24 @@ from persona_core.phase03.safety_override import SafetyOverrideLayer
 
 
 # --------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------
+
+def _as_float(v: Any, default: float = 0.0) -> float:
+    try:
+        if isinstance(v, (int, float)):
+            return float(v)
+    except Exception:
+        return float(default)
+    try:
+        if isinstance(v, str) and v.strip():
+            return float(v.strip())
+    except Exception:
+        return float(default)
+    return float(default)
+
+
+# --------------------------------------------------------------
 # LLM client interface
 # --------------------------------------------------------------
 
