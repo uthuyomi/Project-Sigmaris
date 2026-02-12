@@ -51,6 +51,84 @@ function parseIncludeList(v: string | null): Set<IncludeKey> {
   return set.size ? set : new Set(all);
 }
 
+function publicConfig() {
+  const enabled = (process.env.SIGMARIS_PORTFOLIO_PUBLIC_ENABLED ?? "")
+    .trim()
+    .toLowerCase();
+  const userId = (process.env.SIGMARIS_PORTFOLIO_PUBLIC_USER_ID ?? "").trim();
+  const ok = ["1", "true", "yes", "on"].includes(enabled) && !!userId;
+  return { ok, userId };
+}
+
+function sanitizeExportForPublic(out: Record<string, any>) {
+  // Hard rule: never export message contents in public mode.
+  if (Array.isArray(out.messages)) {
+    out.messages = out.messages.map((m: any) => ({
+      id: m?.id ?? null,
+      session_id: m?.session_id ?? null,
+      app: m?.app ?? null,
+      role: m?.role ?? null,
+      created_at: m?.created_at ?? null,
+    }));
+  }
+
+  // Meta fields may contain text excerpts (depending on backend trace settings).
+  // Keep snapshots but remove meta-like fields to avoid leaks.
+  if (Array.isArray(out.state)) {
+    out.state = out.state.map((s: any) => ({ ...s, meta: null }));
+  }
+  if (Array.isArray(out.telemetry)) {
+    out.telemetry = out.telemetry.map((t: any) => ({
+      ...t,
+      meta: null,
+      reasons: null,
+    }));
+  }
+
+  // Phase02-style snapshots can contain free-form strings depending on implementation.
+  // For public portfolio export, keep structural IDs + timestamps only.
+  if (Array.isArray(out.temporal_identity)) {
+    out.temporal_identity = out.temporal_identity.map((x: any) => ({
+      id: x?.id ?? null,
+      session_id: x?.session_id ?? null,
+      trace_id: x?.trace_id ?? null,
+      ego_id: x?.ego_id ?? null,
+      telemetry: x?.telemetry ?? null,
+      created_at: x?.created_at ?? null,
+    }));
+  }
+  if (Array.isArray(out.subjectivity)) {
+    // subjectivity is expected to be structured/numeric; keep as-is.
+  }
+  if (Array.isArray(out.failure)) {
+    // failure may include free-form reasons; keep as-is but remove nested strings if present in common shapes.
+    out.failure = out.failure.map((f: any) => {
+      const failure = f?.failure;
+      if (!failure || typeof failure !== "object") return f;
+      const shallow = { ...failure };
+      if ("reasons" in shallow) shallow.reasons = null;
+      if ("notes" in shallow) shallow.notes = null;
+      return { ...f, failure: shallow };
+    });
+  }
+  if (Array.isArray(out.identity)) {
+    out.identity = out.identity.map((x: any) => ({
+      id: x?.id ?? null,
+      session_id: x?.session_id ?? null,
+      trace_id: x?.trace_id ?? null,
+      created_at: x?.created_at ?? null,
+      snapshot: null,
+    }));
+  }
+  if (Array.isArray(out.trace_events)) {
+    // trace_events could contain arbitrary fields; omit for public export.
+    out.trace_events = [];
+  }
+
+  out.public = true;
+  return out;
+}
+
 export async function GET(req: Request) {
   try {
     const supabaseAuth = createRouteHandlerClient({ cookies });
@@ -59,7 +137,10 @@ export async function GET(req: Request) {
       error: authError,
     } = await supabaseAuth.auth.getUser();
 
-    if (authError || !user) {
+    const pub = publicConfig();
+    const isPublic = (authError || !user) && pub.ok;
+    const viewerUserId = (user?.id as string | undefined) || (isPublic ? pub.userId : "");
+    if (!viewerUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -84,7 +165,7 @@ export async function GET(req: Request) {
       let q = supabase
         .from("common_messages")
         .select("id, session_id, app, role, content, speaker_id, meta, created_at")
-        .eq("user_id", user.id)
+        .eq("user_id", viewerUserId)
         .order("created_at", { ascending: false })
         .limit(limit);
       q = whereSession(whereSince(q));
@@ -97,7 +178,7 @@ export async function GET(req: Request) {
         .select(
           "id, session_id, trace_id, global_state, overload_score, reflective_score, memory_pointer_count, safety_flag, safety_risk_score, value_state, trait_state, meta, created_at"
         )
-        .eq("user_id", user.id)
+        .eq("user_id", viewerUserId)
         .order("created_at", { ascending: false })
         .limit(limit);
       q = whereSession(whereSince(q));
@@ -108,7 +189,7 @@ export async function GET(req: Request) {
       let q = supabase
         .from("common_telemetry_snapshots")
         .select("id, session_id, trace_id, scores, ema, flags, reasons, meta, created_at")
-        .eq("user_id", user.id)
+        .eq("user_id", viewerUserId)
         .order("created_at", { ascending: false })
         .limit(limit);
       q = whereSession(whereSince(q));
@@ -120,7 +201,7 @@ export async function GET(req: Request) {
         let q = supabase
           .from("common_temporal_identity_snapshots")
           .select("id, session_id, trace_id, ego_id, state, telemetry, created_at")
-          .eq("user_id", user.id)
+          .eq("user_id", viewerUserId)
           .order("created_at", { ascending: false })
           .limit(limit);
         q = whereSession(whereSince(q));
@@ -131,7 +212,7 @@ export async function GET(req: Request) {
         let q = supabase
           .from("common_subjectivity_snapshots")
           .select("id, session_id, trace_id, subjectivity, created_at")
-          .eq("user_id", user.id)
+          .eq("user_id", viewerUserId)
           .order("created_at", { ascending: false })
           .limit(limit);
         q = whereSession(whereSince(q));
@@ -142,7 +223,7 @@ export async function GET(req: Request) {
         let q = supabase
           .from("common_failure_snapshots")
           .select("id, session_id, trace_id, failure, created_at")
-          .eq("user_id", user.id)
+          .eq("user_id", viewerUserId)
           .order("created_at", { ascending: false })
           .limit(limit);
         q = whereSession(whereSince(q));
@@ -153,7 +234,7 @@ export async function GET(req: Request) {
         let q = supabase
           .from("common_identity_snapshots")
           .select("id, session_id, trace_id, snapshot, created_at")
-          .eq("user_id", user.id)
+          .eq("user_id", viewerUserId)
           .order("created_at", { ascending: false })
           .limit(limit);
         q = whereSession(whereSince(q));
@@ -164,7 +245,7 @@ export async function GET(req: Request) {
         let q = supabase
           .from("common_trace_events")
           .select("id, trace_id, event, fields, created_at")
-          .eq("user_id", user.id)
+          .eq("user_id", viewerUserId)
           .order("created_at", { ascending: false })
           .limit(limit);
         q = whereSince(q);
@@ -179,7 +260,7 @@ export async function GET(req: Request) {
     const out: Record<string, any> = {
       ok: true,
       exported_at: new Date().toISOString(),
-      user_id: user.id,
+      user_id: viewerUserId,
       filters: {
         session_id: sessionId,
         since,
@@ -195,6 +276,10 @@ export async function GET(req: Request) {
       if (error) throw error;
       // Return ascending time for easier reading.
       out[key] = (data ?? []).slice().reverse();
+    }
+
+    if (isPublic) {
+      return NextResponse.json(sanitizeExportForPublic(out));
     }
 
     return NextResponse.json(out);
