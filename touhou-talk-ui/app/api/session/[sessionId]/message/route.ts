@@ -82,12 +82,44 @@ function containsAny(text: string, needles: string[]) {
   return needles.some((n) => n && t.includes(n));
 }
 
-function detectAutoBrowse(text: string): { enabled: boolean; query: string; recency_days: number } {
+function extractTheme(text: string): string | null {
+  const t = String(text ?? "");
+  const m =
+    t.match(/(?:テーマは|テーマ[:：]|topic[:：]?)\s*([^\n。]+)\s*/i) ??
+    t.match(/(?:テーマ|topic)\s*=\s*([^\n。]+)\s*/i);
+  const v = m && typeof m[1] === "string" ? m[1].trim() : "";
+  return v ? v.slice(0, 120) : null;
+}
+
+function defaultNewsDomains(): string[] {
+  const env = String(process.env.SIGMARIS_AUTO_BROWSE_NEWS_DOMAINS ?? "").trim();
+  if (env) return env.split(",").map((x) => x.trim()).filter(Boolean);
+  // conservative defaults (can be overridden by env)
+  return [
+    "nhk.or.jp",
+    "nikkei.com",
+    "asahi.com",
+    "yomiuri.co.jp",
+    "mainichi.jp",
+    "jiji.com",
+    "kyodonews.jp",
+    "itmedia.co.jp",
+    "impress.co.jp",
+    "reuters.com",
+  ];
+}
+
+function detectAutoBrowse(text: string): {
+  enabled: boolean;
+  query: string;
+  recency_days: number;
+  domains: string[] | null;
+} {
   const t = String(text ?? "").trim();
-  if (!t) return { enabled: false, query: "", recency_days: 7 };
+  if (!t) return { enabled: false, query: "", recency_days: 7, domains: null };
 
   if ((process.env.SIGMARIS_AUTO_BROWSE_ENABLED ?? "").toLowerCase() === "0") {
-    return { enabled: false, query: "", recency_days: 7 };
+    return { enabled: false, query: "", recency_days: 7, domains: null };
   }
 
   const optOut = [
@@ -100,18 +132,31 @@ function detectAutoBrowse(text: string): { enabled: boolean; query: string; rece
     "参照不要",
     "ソース不要",
   ];
-  if (containsAny(t, optOut)) return { enabled: false, query: "", recency_days: 7 };
+  if (containsAny(t, optOut)) return { enabled: false, query: "", recency_days: 7, domains: null };
 
   const triggers = ["調べて", "検索", "探して", "ニュース", "速報", "ヘッドライン", "最新", "ソース", "出典", "根拠", "参照", "リンク"];
-  if (!containsAny(t, triggers)) return { enabled: false, query: "", recency_days: 7 };
+  if (!containsAny(t, triggers)) return { enabled: false, query: "", recency_days: 7, domains: null };
 
-  const isNews = containsAny(t, ["ニュース", "速報", "ヘッドライン"]);
+  const isNews = containsAny(t, ["ニュース", "速報", "ヘッドライン", "記事"]);
   const isRecent = containsAny(t, ["今日", "本日", "最新", "いま", "今"]);
   const recency_days = isNews || isRecent ? 1 : 30;
 
+  const theme = extractTheme(t);
+  const wantsAI = containsAny(t, ["AI", "生成AI", "LLM", "ChatGPT", "エージェント"]) || (theme ? containsAny(theme, ["AI", "生成AI", "LLM", "ChatGPT"]) : false);
+  const wantsJapan = containsAny(t, ["日本", "国内", "jp", "JAPAN"]) || (theme ? containsAny(theme, ["日本", "国内"]) : false);
+
+  const tokens: string[] = [];
+  if (isRecent) tokens.push("今日");
+  if (wantsJapan) tokens.push("日本");
+  if (wantsAI) tokens.push("AI");
+  if (theme && theme.length > 0) tokens.push(theme);
+  if (isNews) tokens.push("ニュース");
+
   // Use the user text as query; Serper supports natural queries.
-  const q = clampText(t.replace(/\s+/g, " ").trim(), 240);
-  return { enabled: true, query: q, recency_days };
+  const baseQ = tokens.length > 0 ? tokens.join(" ") : t;
+  const q = clampText(baseQ.replace(/\s+/g, " ").trim(), 240);
+  const domains = isNews ? defaultNewsDomains() : null;
+  return { enabled: true, query: q, recency_days, domains };
 }
 
 function githubRepoQueryFromUrl(urlStr: string): string | null {
@@ -333,7 +378,7 @@ async function autoBrowseFromText(params: {
       max_results: maxResults,
       recency_days: intent.recency_days,
       safe_search: "active",
-      domains: null,
+      domains: intent.domains,
     },
   });
 
