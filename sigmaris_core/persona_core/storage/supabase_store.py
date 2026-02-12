@@ -280,6 +280,66 @@ class SupabasePersonaDB:
             {"user_id": str(user_id), "snapshot_id": str(snapshot_id), "trace_id": trace_id, "reason": reason},
         )
 
+    def insert_io_event(
+        self,
+        *,
+        user_id: str,
+        session_id: Optional[str],
+        trace_id: Optional[str],
+        event_type: str,
+        cache_key: Optional[str],
+        ok: bool,
+        error: Optional[str],
+        request: Dict[str, Any],
+        response: Dict[str, Any],
+        source_urls: List[str],
+        content_sha256: Optional[str],
+        meta: Dict[str, Any],
+    ) -> None:
+        self._c.insert(
+            "common_io_events",
+            {
+                "user_id": str(user_id),
+                "session_id": session_id,
+                "trace_id": trace_id,
+                "event_type": str(event_type),
+                "cache_key": (str(cache_key) if cache_key else None),
+                "ok": bool(ok),
+                "error": (str(error) if error else None),
+                "request": request or {},
+                "response": response or {},
+                "source_urls": list(source_urls or []),
+                "content_sha256": (str(content_sha256) if content_sha256 else None),
+                "meta": meta or {},
+            },
+        )
+
+    def load_cached_io_event(
+        self,
+        *,
+        user_id: str,
+        event_type: str,
+        cache_key: str,
+        not_before_iso: str,
+    ) -> Optional[Dict[str, Any]]:
+        rows = self._c.select(
+            "common_io_events",
+            columns="id,created_at,event_type,cache_key,ok,error,response,source_urls,content_sha256,trace_id",
+            filters=[
+                f"user_id=eq.{user_id}",
+                f"event_type=eq.{event_type}",
+                f"cache_key=eq.{cache_key}",
+                "ok=eq.true",
+                f"created_at=gte.{not_before_iso}",
+            ],
+            order="created_at.desc",
+            limit=1,
+        )
+        if not rows:
+            return None
+        row = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+        return row if isinstance(row, dict) else None
+
     def insert_attachment(
         self,
         *,

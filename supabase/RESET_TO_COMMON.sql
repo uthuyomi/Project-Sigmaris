@@ -44,6 +44,7 @@ drop table if exists public.sigmaris_safety_assessments cascade;
 
 -- Phase04 additions (attachments + kernel)
 drop table if exists public.common_attachments cascade;
+drop table if exists public.common_io_events cascade;
 drop table if exists public.common_kernel_state cascade;
 drop table if exists public.common_kernel_snapshots cascade;
 drop table if exists public.common_kernel_delta_logs cascade;
@@ -419,6 +420,40 @@ create index if not exists idx_common_attachments_user_attachment_id
   on public.common_attachments (user_id, attachment_id);
 
 -- ============================================================
+-- Phase04: External I/O audit log (replay-friendly)
+-- ============================================================
+create table if not exists public.common_io_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  session_id text,
+  trace_id text,
+
+  -- e.g. "web_search" | "web_fetch" | "github_repo_search" | "github_code_search" | "upload" | "parse"
+  event_type text not null,
+  cache_key text,
+
+  ok boolean not null default true,
+  error text,
+
+  request jsonb not null default '{}'::jsonb,
+  response jsonb not null default '{}'::jsonb,
+  source_urls jsonb not null default '[]'::jsonb,
+  content_sha256 text,
+  meta jsonb not null default '{}'::jsonb,
+
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_common_io_events_user_created
+  on public.common_io_events (user_id, created_at desc);
+
+create index if not exists idx_common_io_events_user_session_created
+  on public.common_io_events (user_id, session_id, created_at desc);
+
+create index if not exists idx_common_io_events_cache
+  on public.common_io_events (user_id, event_type, cache_key, created_at desc);
+
+-- ============================================================
 -- Phase04: Kernel state + snapshots (MVP)
 -- ============================================================
 create table if not exists public.common_kernel_state (
@@ -514,6 +549,7 @@ alter table public.common_safety_assessments enable row level security;
 alter table public.common_trace_events enable row level security;
 alter table public.common_persona enable row level security;
 alter table public.common_attachments enable row level security;
+alter table public.common_io_events enable row level security;
 alter table public.common_kernel_state enable row level security;
 alter table public.common_kernel_snapshots enable row level security;
 alter table public.common_kernel_delta_logs enable row level security;
@@ -700,6 +736,19 @@ create policy common_attachments_delete_own
   on public.common_attachments for delete
   to authenticated
   using (user_id = auth.uid());
+
+-- External I/O events
+drop policy if exists common_io_events_select_own on public.common_io_events;
+create policy common_io_events_select_own
+  on public.common_io_events for select
+  to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists common_io_events_insert_own on public.common_io_events;
+create policy common_io_events_insert_own
+  on public.common_io_events for insert
+  to authenticated
+  with check (user_id = auth.uid());
 
 -- Kernel state (owner read/write)
 drop policy if exists common_kernel_state_select_own on public.common_kernel_state;

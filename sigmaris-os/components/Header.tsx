@@ -36,6 +36,7 @@ export default function Header() {
     docs: lang === "ja" ? "ドキュメント" : "Docs",
     status: lang === "ja" ? "状態" : "Status",
     audit: lang === "ja" ? "監査" : "Audit",
+    codeSize: lang === "ja" ? "規模" : "Code Size",
     memory: lang === "ja" ? "メモリ" : "Memory",
     funding: lang === "ja" ? "支援" : "Funding",
     tokushoho: lang === "ja" ? "特定商取引法" : "Legal",
@@ -96,6 +97,12 @@ export default function Header() {
           </Link>
           <Link href="/audit" className="text-[#c9d2df] hover:text-[#4c7cf7]">
             {text.audit}
+          </Link>
+          <Link
+            href="/audit/code-size"
+            className="text-[#c9d2df] hover:text-[#4c7cf7]"
+          >
+            {text.codeSize}
           </Link>
           <Link href="/memory" className="text-[#c9d2df] hover:text-[#4c7cf7]">
             {text.memory}
@@ -206,6 +213,7 @@ export default function Header() {
               { href: "/docs", label: text.docs },
               { href: "/status", label: text.status },
               { href: "/audit", label: text.audit },
+              { href: "/audit/code-size", label: text.codeSize },
               { href: "/memory", label: text.memory },
               { href: "/funding", label: text.funding },
               { href: "/tokushoho", label: text.tokushoho },

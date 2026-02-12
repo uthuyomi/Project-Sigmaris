@@ -94,15 +94,25 @@ class Phase04Runtime:
 
         # Kernel apply (optional)
         kernel_enabled = os.getenv("SIGMARIS_PHASE04_KERNEL_APPLY", "").strip().lower() in ("1", "true", "yes", "on")
-        kernel_apply = {"enabled": bool(kernel_enabled), "snapshot_id": None, "applied": 0, "rollback": False, "errors": []}
+        kernel_apply = {
+            "enabled": bool(kernel_enabled),
+            "snapshot_before_id": None,
+            "snapshot_after_id": None,
+            "state_hash_before": None,
+            "state_hash_after": None,
+            "applied": 0,
+            "rollback": False,
+            "errors": [],
+        }
 
         if kernel_enabled:
-            snap_id = None
+            snap_before_id = None
             try:
-                snap_id = self.kernel.snapshot(user_id=user_id)
-                kernel_apply["snapshot_id"] = snap_id
+                kernel_apply["state_hash_before"] = self.kernel.state_sha256(user_id=user_id)
+                snap_before_id = self.kernel.snapshot(user_id=user_id)
+                kernel_apply["snapshot_before_id"] = snap_before_id
             except Exception:
-                snap_id = None
+                snap_before_id = None
 
             applied = 0
             had_error = False
@@ -121,12 +131,39 @@ class Phase04Runtime:
                     kernel_apply["errors"].append({"delta": d.to_dict(), "error": res.get("error")})
             kernel_apply["applied"] = int(applied)
 
-            if had_error and snap_id:
+            if had_error and snap_before_id:
                 try:
-                    ok = self.kernel.rollback(user_id=user_id, snapshot_id=str(snap_id))
+                    ok = self.kernel.rollback(user_id=user_id, snapshot_id=str(snap_before_id))
                     kernel_apply["rollback"] = bool(ok)
                 except Exception:
                     kernel_apply["rollback"] = True
+
+            # Snapshot after apply (or after rollback) for replay/verification
+            snap_after_id = None
+            try:
+                kernel_apply["state_hash_after"] = self.kernel.state_sha256(user_id=user_id)
+                if os.getenv("SIGMARIS_KERNEL_SNAPSHOT_AFTER", "1").strip().lower() in ("1", "true", "yes", "on"):
+                    snap_after_id = self.kernel.snapshot(user_id=user_id)
+                    kernel_apply["snapshot_after_id"] = snap_after_id
+            except Exception:
+                snap_after_id = None
+
+            # Attach replay-friendly identifiers to the decision payload (governance stays semantic-free)
+            try:
+                gd.snapshot_id = str(snap_before_id) if snap_before_id else None
+                gd.notes = dict(gd.notes or {})
+                gd.notes.update(
+                    {
+                        "kernel_snapshot_before_id": str(snap_before_id) if snap_before_id else None,
+                        "kernel_snapshot_after_id": str(snap_after_id) if snap_after_id else None,
+                        "kernel_state_hash_before": str(kernel_apply.get("state_hash_before") or ""),
+                        "kernel_state_hash_after": str(kernel_apply.get("state_hash_after") or ""),
+                        "kernel_applied": int(applied),
+                        "kernel_rolled_back": bool(kernel_apply.get("rollback")),
+                    }
+                )
+            except Exception:
+                pass
 
             # Persist (best-effort) if provided (e.g., SupabasePersonaDB)
             if persist is not None:
@@ -134,10 +171,24 @@ class Phase04Runtime:
                     persist.upsert_kernel_state(user_id=user_id, state=self.kernel.get_state(user_id=user_id).to_dict())
                 except Exception:
                     pass
-                if snap_id:
+                if snap_before_id:
                     try:
-                        snap = self.kernel.get_snapshot(user_id=user_id, snapshot_id=str(snap_id))
-                        persist.insert_kernel_snapshot(user_id=user_id, snapshot_id=str(snap_id), state=(snap.state.to_dict() if snap else {}))
+                        snap = self.kernel.get_snapshot(user_id=user_id, snapshot_id=str(snap_before_id))
+                        persist.insert_kernel_snapshot(
+                            user_id=user_id,
+                            snapshot_id=str(snap_before_id),
+                            state=(snap.state.to_dict() if snap else {}),
+                        )
+                    except Exception:
+                        pass
+                if snap_after_id:
+                    try:
+                        snap = self.kernel.get_snapshot(user_id=user_id, snapshot_id=str(snap_after_id))
+                        persist.insert_kernel_snapshot(
+                            user_id=user_id,
+                            snapshot_id=str(snap_after_id),
+                            state=(snap.state.to_dict() if snap else {}),
+                        )
                     except Exception:
                         pass
                 try:
@@ -150,11 +201,11 @@ class Phase04Runtime:
                     )
                 except Exception:
                     pass
-                if kernel_apply.get("rollback") and snap_id:
+                if kernel_apply.get("rollback") and snap_before_id:
                     try:
                         persist.insert_kernel_rollback(
                             user_id=user_id,
-                            snapshot_id=str(snap_id),
+                            snapshot_id=str(snap_before_id),
                             trace_id=trace_id,
                             reason="kernel_apply_failed_rolled_back",
                         )
