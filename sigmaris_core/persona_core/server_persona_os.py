@@ -23,7 +23,7 @@ import time
 import uuid
 import hashlib
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -97,6 +97,50 @@ def _compute_config_hash() -> str:
 
 
 CONFIG_HASH = _compute_config_hash()
+
+
+def _is_uuid(v: Optional[str]) -> bool:
+    try:
+        uuid.UUID(str(v))
+        return True
+    except Exception:
+        return False
+
+
+def _now_iso_utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _sha256_json(obj: Any) -> str:
+    payload = json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _io_cache_enabled() -> bool:
+    return os.getenv("SIGMARIS_IO_CACHE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _io_cache_ttl_sec() -> int:
+    try:
+        return int(os.getenv("SIGMARIS_IO_CACHE_TTL_SEC", "3600") or "3600")
+    except Exception:
+        return 3600
+
+
+def _io_audit_excerpt_chars() -> int:
+    try:
+        n = int(os.getenv("SIGMARIS_IO_AUDIT_STORE_EXCERPT_CHARS", "2000") or "2000")
+    except Exception:
+        n = 2000
+    return max(0, min(20000, n))
+
+
+def _cache_key(*, event_type: str, request_payload: Dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps({"event_type": event_type, "request": request_payload}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
 
 # =============================================================
 # FastAPI App
@@ -1207,6 +1251,8 @@ async def persona_chat_stream(req: ChatRequest, auth: Optional[AuthContext] = De
 async def io_upload(
     file: UploadFile = File(...),
     auth: Optional[AuthContext] = Depends(get_auth_context),
+    x_sigmaris_trace_id: Optional[str] = Header(default=None, alias="x-sigmaris-trace-id"),
+    x_sigmaris_session_id: Optional[str] = Header(default=None, alias="x-sigmaris-session-id"),
 ):
     """
     Phase04 MVP: upload raw bytes separately from chat.
@@ -1216,6 +1262,9 @@ async def io_upload(
     """
     if auth is None and _auth_required:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+    trace_id = str((x_sigmaris_trace_id or "").strip() or new_trace_id())
+    session_id = str((x_sigmaris_session_id or "").strip() or "") or None
 
     max_bytes = int(os.getenv("SIGMARIS_UPLOAD_MAX_BYTES", "5242880") or "5242880")  # 5MB
     data = await file.read()
@@ -1255,7 +1304,43 @@ async def io_upload(
                 sha256=sha256_hex,
                 meta={},
             )
+            try:
+                if _is_uuid(str(auth.user_id)):
+                    persona_db.insert_io_event(
+                        user_id=str(auth.user_id),
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        event_type="upload",
+                        cache_key=None,
+                        ok=True,
+                        error=None,
+                        request={"file_name": file_name, "mime_type": mime_type, "size_bytes": int(len(data)), "sha256": sha256_hex},
+                        response={"attachment_id": attachment_id, "bucket_id": _storage_bucket, "object_path": object_path},
+                        source_urls=[],
+                        content_sha256=sha256_hex,
+                        meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "storage": "supabase"},
+                    )
+            except Exception:
+                pass
         except (SupabaseStorageError, Exception) as e:
+            try:
+                if _is_uuid(str(auth.user_id)):
+                    persona_db.insert_io_event(
+                        user_id=str(auth.user_id),
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        event_type="upload",
+                        cache_key=None,
+                        ok=False,
+                        error=str(e),
+                        request={"file_name": file_name, "mime_type": mime_type, "size_bytes": int(len(data)), "sha256": sha256_hex},
+                        response={},
+                        source_urls=[],
+                        content_sha256=sha256_hex,
+                        meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "storage": "supabase"},
+                    )
+            except Exception:
+                pass
             raise HTTPException(status_code=502, detail=f"storage upload failed: {e}")
 
         return UploadResponse(
@@ -1299,12 +1384,17 @@ async def io_upload(
 async def io_parse(
     req: ParseRequest,
     auth: Optional[AuthContext] = Depends(get_auth_context),
+    x_sigmaris_trace_id: Optional[str] = Header(default=None, alias="x-sigmaris-trace-id"),
+    x_sigmaris_session_id: Optional[str] = Header(default=None, alias="x-sigmaris-session-id"),
 ):
     """
     Phase04 MVP: parse uploaded content into bounded structured representations.
     """
     if auth is None and _auth_required:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+    trace_id = str((x_sigmaris_trace_id or "").strip() or new_trace_id())
+    session_id = str((x_sigmaris_session_id or "").strip() or "") or None
 
     from persona_core.phase04.parsing.file_parser import parse_file_bytes  # local import to keep startup light
 
@@ -1334,10 +1424,75 @@ async def io_parse(
                 mime_type=str(row.get("mime_type") or ""),
                 kind=req.kind,
             )
+            try:
+                if _is_uuid(str(auth.user_id)):
+                    parsed_excerpt = ""
+                    if isinstance(parsed, dict):
+                        for k in ("raw_excerpt", "text", "summary"):
+                            v = parsed.get(k)
+                            if isinstance(v, str) and v.strip():
+                                parsed_excerpt = v.strip()
+                                break
+                    if parsed_excerpt and _io_audit_excerpt_chars() > 0:
+                        parsed_excerpt = parsed_excerpt[: _io_audit_excerpt_chars()]
+                    else:
+                        parsed_excerpt = ""
+                    persona_db.insert_io_event(
+                        user_id=str(auth.user_id),
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        event_type="parse",
+                        cache_key=None,
+                        ok=True,
+                        error=None,
+                        request={"attachment_id": str(req.attachment_id), "kind": req.kind},
+                        response={"kind": parsed_kind, "excerpt": parsed_excerpt, "sha256": _sha256_json(parsed) if isinstance(parsed, dict) else None},
+                        source_urls=[],
+                        content_sha256=_sha256_json(parsed) if isinstance(parsed, dict) else None,
+                        meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "storage": "supabase"},
+                    )
+            except Exception:
+                pass
             return ParseResponse(ok=True, kind=parsed_kind, parsed=parsed)
         except SupabaseStorageError as e:
+            try:
+                if _is_uuid(str(auth.user_id)):
+                    persona_db.insert_io_event(
+                        user_id=str(auth.user_id),
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        event_type="parse",
+                        cache_key=None,
+                        ok=False,
+                        error=str(e),
+                        request={"attachment_id": str(req.attachment_id), "kind": req.kind},
+                        response={},
+                        source_urls=[],
+                        content_sha256=None,
+                        meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "storage": "supabase"},
+                    )
+            except Exception:
+                pass
             raise HTTPException(status_code=502, detail=str(e))
         except Exception as e:
+            try:
+                if _is_uuid(str(auth.user_id)):
+                    persona_db.insert_io_event(
+                        user_id=str(auth.user_id),
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        event_type="parse",
+                        cache_key=None,
+                        ok=False,
+                        error=str(e),
+                        request={"attachment_id": str(req.attachment_id), "kind": req.kind},
+                        response={},
+                        source_urls=[],
+                        content_sha256=None,
+                        meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "storage": "supabase"},
+                    )
+            except Exception:
+                pass
             raise HTTPException(status_code=500, detail=f"parse failed: {e}")
 
     # Demo fallback: local disk
@@ -1380,6 +1535,8 @@ async def io_parse(
 async def io_web_search(
     req: WebSearchRequest,
     auth: Optional[AuthContext] = Depends(get_auth_context),
+    x_sigmaris_trace_id: Optional[str] = Header(default=None, alias="x-sigmaris-trace-id"),
+    x_sigmaris_session_id: Optional[str] = Header(default=None, alias="x-sigmaris-session-id"),
 ):
     """
     Phase04 MVP: web search via an explicit provider (no scraping).
@@ -1393,6 +1550,56 @@ async def io_web_search(
     if provider is None:
         raise HTTPException(status_code=501, detail="web search provider not configured")
 
+    trace_id = str((x_sigmaris_trace_id or "").strip() or new_trace_id())
+    session_id = str((x_sigmaris_session_id or "").strip() or "") or None
+    user_id = str(auth.user_id) if auth is not None else None
+
+    request_payload = {
+        "query": req.query,
+        "max_results": int(req.max_results),
+        "recency_days": int(req.recency_days) if req.recency_days is not None else None,
+        "safe_search": str(req.safe_search or "active"),
+        "domains": list(req.domains or []),
+    }
+    ck = _cache_key(event_type="web_search", request_payload=request_payload)
+
+    persona_db = SupabasePersonaDB(_supabase) if (_supabase is not None and user_id and _is_uuid(user_id)) else None
+    if persona_db is not None and _io_cache_enabled():
+        ttl = _io_cache_ttl_sec()
+        if ttl > 0:
+            not_before = (datetime.now(timezone.utc) - timedelta(seconds=int(ttl))).isoformat()
+            try:
+                cached = persona_db.load_cached_io_event(
+                    user_id=user_id,
+                    event_type="web_search",
+                    cache_key=ck,
+                    not_before_iso=not_before,
+                )
+            except Exception:
+                cached = None
+            if isinstance(cached, dict):
+                resp = cached.get("response") if isinstance(cached.get("response"), dict) else {}
+                results = resp.get("results") if isinstance(resp.get("results"), list) else None
+                if isinstance(results, list):
+                    try:
+                        persona_db.insert_io_event(
+                            user_id=user_id,
+                            session_id=session_id,
+                            trace_id=trace_id,
+                            event_type="web_search",
+                            cache_key=ck,
+                            ok=True,
+                            error=None,
+                            request=request_payload,
+                            response={"results": results, "cache_hit": True},
+                            source_urls=[str(r.get("url") or "") for r in results if isinstance(r, dict) and r.get("url")],
+                            content_sha256=_sha256_json({"results": results}),
+                            meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "cache_hit": True},
+                        )
+                    except Exception:
+                        pass
+                    return WebSearchResponse(ok=True, results=results)
+
     try:
         results = provider.search(
             query=req.query,
@@ -1401,8 +1608,45 @@ async def io_web_search(
             safe_search=req.safe_search,
             domains=req.domains,
         )
-        return WebSearchResponse(ok=True, results=[r.to_dict() for r in results])
+        out = [r.to_dict() for r in results]
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="web_search",
+                    cache_key=ck,
+                    ok=True,
+                    error=None,
+                    request=request_payload,
+                    response={"results": out},
+                    source_urls=[str(r.get("url") or "") for r in out if isinstance(r, dict) and r.get("url")],
+                    content_sha256=_sha256_json({"results": out}),
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "provider": "serper"},
+                )
+            except Exception:
+                pass
+        return WebSearchResponse(ok=True, results=out)
     except WebSearchError as e:
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="web_search",
+                    cache_key=ck,
+                    ok=False,
+                    error=str(e),
+                    request=request_payload,
+                    response={},
+                    source_urls=[],
+                    content_sha256=None,
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "provider": "serper"},
+                )
+            except Exception:
+                pass
         raise HTTPException(status_code=502, detail=str(e))
 
 
@@ -1410,6 +1654,8 @@ async def io_web_search(
 async def io_web_fetch(
     req: WebFetchRequest,
     auth: Optional[AuthContext] = Depends(get_auth_context),
+    x_sigmaris_trace_id: Optional[str] = Header(default=None, alias="x-sigmaris-trace-id"),
+    x_sigmaris_session_id: Optional[str] = Header(default=None, alias="x-sigmaris-session-id"),
 ):
     """
     Phase04: fetch a web page (allowlist required) and optionally summarize.
@@ -1419,6 +1665,64 @@ async def io_web_fetch(
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     from persona_core.phase04.io.web_fetch import fetch_url, WebFetchError
+
+    trace_id = str((x_sigmaris_trace_id or "").strip() or new_trace_id())
+    session_id = str((x_sigmaris_session_id or "").strip() or "") or None
+    user_id = str(auth.user_id) if auth is not None else None
+
+    request_payload = {
+        "url": str(req.url or ""),
+        "summarize": bool(req.summarize),
+        "max_chars": int(req.max_chars or 12000),
+    }
+    ck = _cache_key(event_type="web_fetch", request_payload=request_payload)
+    persona_db = SupabasePersonaDB(_supabase) if (_supabase is not None and user_id and _is_uuid(user_id)) else None
+
+    if persona_db is not None and _io_cache_enabled():
+        ttl = _io_cache_ttl_sec()
+        if ttl > 0:
+            not_before = (datetime.now(timezone.utc) - timedelta(seconds=int(ttl))).isoformat()
+            try:
+                cached = persona_db.load_cached_io_event(
+                    user_id=user_id,
+                    event_type="web_fetch",
+                    cache_key=ck,
+                    not_before_iso=not_before,
+                )
+            except Exception:
+                cached = None
+            if isinstance(cached, dict):
+                resp = cached.get("response") if isinstance(cached.get("response"), dict) else {}
+                if resp.get("url") and resp.get("text_excerpt") is not None:
+                    try:
+                        persona_db.insert_io_event(
+                            user_id=user_id,
+                            session_id=session_id,
+                            trace_id=trace_id,
+                            event_type="web_fetch",
+                            cache_key=ck,
+                            ok=True,
+                            error=None,
+                            request=request_payload,
+                            response={**resp, "cache_hit": True},
+                            source_urls=list(cached.get("source_urls") or []),
+                            content_sha256=str(cached.get("content_sha256") or "") or None,
+                            meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "cache_hit": True},
+                        )
+                    except Exception:
+                        pass
+                    return WebFetchResponse(
+                        ok=True,
+                        url=str(resp.get("url") or ""),
+                        final_url=str(resp.get("final_url") or ""),
+                        title=str(resp.get("title") or ""),
+                        summary=(str(resp.get("summary")) if resp.get("summary") is not None else None),
+                        key_points=(resp.get("key_points") if isinstance(resp.get("key_points"), list) else None),
+                        entities=(resp.get("entities") if isinstance(resp.get("entities"), list) else None),
+                        confidence=(float(resp.get("confidence")) if isinstance(resp.get("confidence"), (int, float)) else None),
+                        text_excerpt=(str(resp.get("text_excerpt")) if resp.get("text_excerpt") is not None else None),
+                        sources=(resp.get("sources") if isinstance(resp.get("sources"), list) else []),
+                    )
 
     try:
         fr = fetch_url(
@@ -1440,11 +1744,83 @@ async def io_web_fetch(
             pass
 
         if msg.startswith("origin_http:") or msg.startswith("request_failed:"):
+            if persona_db is not None:
+                try:
+                    persona_db.insert_io_event(
+                        user_id=user_id,
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        event_type="web_fetch",
+                        cache_key=ck,
+                        ok=False,
+                        error=msg,
+                        request=request_payload,
+                        response={},
+                        source_urls=[],
+                        content_sha256=None,
+                        meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                    )
+                except Exception:
+                    pass
             raise HTTPException(status_code=502, detail=msg)
         if "response too large" in msg:
+            if persona_db is not None:
+                try:
+                    persona_db.insert_io_event(
+                        user_id=user_id,
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        event_type="web_fetch",
+                        cache_key=ck,
+                        ok=False,
+                        error=msg,
+                        request=request_payload,
+                        response={},
+                        source_urls=[],
+                        content_sha256=None,
+                        meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                    )
+                except Exception:
+                    pass
             raise HTTPException(status_code=413, detail=msg)
         if msg in ("empty url", "only http/https supported", "missing host"):
+            if persona_db is not None:
+                try:
+                    persona_db.insert_io_event(
+                        user_id=user_id,
+                        session_id=session_id,
+                        trace_id=trace_id,
+                        event_type="web_fetch",
+                        cache_key=ck,
+                        ok=False,
+                        error=msg,
+                        request=request_payload,
+                        response={},
+                        source_urls=[],
+                        content_sha256=None,
+                        meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                    )
+                except Exception:
+                    pass
             raise HTTPException(status_code=422, detail=msg)
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="web_fetch",
+                    cache_key=ck,
+                    ok=False,
+                    error=msg,
+                    request=request_payload,
+                    response={},
+                    source_urls=[],
+                    content_sha256=None,
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                )
+            except Exception:
+                pass
         raise HTTPException(status_code=403, detail=msg)
 
     text = (fr.text or "").strip()
@@ -1483,6 +1859,38 @@ async def io_web_fetch(
         }
     ]
 
+    if persona_db is not None:
+        try:
+            audit_chars = _io_audit_excerpt_chars()
+            audit_excerpt = excerpt[:audit_chars] if (audit_chars > 0 and excerpt) else ""
+            resp_payload: Dict[str, Any] = {
+                "url": fr.url,
+                "final_url": fr.final_url,
+                "title": fr.title,
+                "summary": summary,
+                "key_points": key_points if isinstance(key_points, list) else None,
+                "entities": entities if isinstance(entities, list) else None,
+                "confidence": float(confidence) if isinstance(confidence, (int, float)) else None,
+                "text_excerpt": audit_excerpt,
+                "sources": sources,
+            }
+            persona_db.insert_io_event(
+                user_id=user_id,
+                session_id=session_id,
+                trace_id=trace_id,
+                event_type="web_fetch",
+                cache_key=ck,
+                ok=True,
+                error=None,
+                request=request_payload,
+                response=resp_payload,
+                source_urls=[str(fr.final_url or fr.url)],
+                content_sha256=_sha256_json(resp_payload),
+                meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "audit_excerpt_chars": audit_chars},
+            )
+        except Exception:
+            pass
+
     return WebFetchResponse(
         ok=True,
         url=fr.url,
@@ -1501,17 +1909,63 @@ async def io_web_fetch(
 async def io_github_repo_search(
     req: GitHubRepoSearchRequest,
     auth: Optional[AuthContext] = Depends(get_auth_context),
+    x_sigmaris_trace_id: Optional[str] = Header(default=None, alias="x-sigmaris-trace-id"),
+    x_sigmaris_session_id: Optional[str] = Header(default=None, alias="x-sigmaris-session-id"),
 ):
     if auth is None and _auth_required:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     from persona_core.phase04.io.github_search import get_github_provider, GitHubSearchError
 
+    trace_id = str((x_sigmaris_trace_id or "").strip() or new_trace_id())
+    session_id = str((x_sigmaris_session_id or "").strip() or "") or None
+    user_id = str(auth.user_id) if auth is not None else None
+    persona_db = SupabasePersonaDB(_supabase) if (_supabase is not None and user_id and _is_uuid(user_id)) else None
+    request_payload = {"query": req.query, "max_results": int(req.max_results)}
+    ck = _cache_key(event_type="github_repo_search", request_payload=request_payload)
+
     try:
         gh = get_github_provider()
         results = gh.search_repositories(query=req.query, max_results=req.max_results)
-        return GitHubSearchResponse(ok=True, results=[r.to_dict() for r in results])
+        out = [r.to_dict() for r in results]
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="github_repo_search",
+                    cache_key=ck,
+                    ok=True,
+                    error=None,
+                    request=request_payload,
+                    response={"results": out},
+                    source_urls=[str(r.get("repository_url") or "") for r in out if isinstance(r, dict) and r.get("repository_url")],
+                    content_sha256=_sha256_json({"results": out}),
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                )
+            except Exception:
+                pass
+        return GitHubSearchResponse(ok=True, results=out)
     except GitHubSearchError as e:
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="github_repo_search",
+                    cache_key=ck,
+                    ok=False,
+                    error=str(e),
+                    request=request_payload,
+                    response={},
+                    source_urls=[],
+                    content_sha256=None,
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                )
+            except Exception:
+                pass
         raise HTTPException(status_code=502, detail=str(e))
 
 
@@ -1519,15 +1973,61 @@ async def io_github_repo_search(
 async def io_github_code_search(
     req: GitHubCodeSearchRequest,
     auth: Optional[AuthContext] = Depends(get_auth_context),
+    x_sigmaris_trace_id: Optional[str] = Header(default=None, alias="x-sigmaris-trace-id"),
+    x_sigmaris_session_id: Optional[str] = Header(default=None, alias="x-sigmaris-session-id"),
 ):
     if auth is None and _auth_required:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     from persona_core.phase04.io.github_search import get_github_provider, GitHubSearchError
 
+    trace_id = str((x_sigmaris_trace_id or "").strip() or new_trace_id())
+    session_id = str((x_sigmaris_session_id or "").strip() or "") or None
+    user_id = str(auth.user_id) if auth is not None else None
+    persona_db = SupabasePersonaDB(_supabase) if (_supabase is not None and user_id and _is_uuid(user_id)) else None
+    request_payload = {"query": req.query, "max_results": int(req.max_results)}
+    ck = _cache_key(event_type="github_code_search", request_payload=request_payload)
+
     try:
         gh = get_github_provider()
         results = gh.search_code(query=req.query, max_results=req.max_results)
-        return GitHubSearchResponse(ok=True, results=[r.to_dict() for r in results])
+        out = [r.to_dict() for r in results]
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="github_code_search",
+                    cache_key=ck,
+                    ok=True,
+                    error=None,
+                    request=request_payload,
+                    response={"results": out},
+                    source_urls=[str(r.get("repository_url") or "") for r in out if isinstance(r, dict) and r.get("repository_url")],
+                    content_sha256=_sha256_json({"results": out}),
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                )
+            except Exception:
+                pass
+        return GitHubSearchResponse(ok=True, results=out)
     except GitHubSearchError as e:
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="github_code_search",
+                    cache_key=ck,
+                    ok=False,
+                    error=str(e),
+                    request=request_payload,
+                    response={},
+                    source_urls=[],
+                    content_sha256=None,
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                )
+            except Exception:
+                pass
         raise HTTPException(status_code=502, detail=str(e))

@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+import hashlib
 
 
 def _now_utc() -> datetime:
@@ -70,6 +71,23 @@ class Kernel:
             st = KernelState()
             self._state_by_user[uid] = st
         return st
+
+    def set_state(self, *, user_id: str, state: Dict[str, Any]) -> None:
+        """
+        Replace the current user state with a provided state dict (deep-copied).
+        Intended for replay/restore (deterministic).
+        """
+        uid = str(user_id)
+        raw = json.loads(json.dumps(state or {}, ensure_ascii=False))
+        self._state_by_user[uid] = KernelState(**raw)  # type: ignore[arg-type]
+
+    def state_sha256(self, *, user_id: str) -> str:
+        """
+        Stable hash for audit/replay comparisons (sorted keys, compact json).
+        """
+        st = self.get_state(user_id=str(user_id)).to_dict()
+        payload = json.dumps(st, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
 
     def snapshot(self, *, user_id: str) -> str:
         uid = str(user_id)
