@@ -72,7 +72,6 @@ class SerperWebSearchProvider(WebSearchProvider):
 
         payload: Dict[str, Any] = {"q": q, "num": int(max(1, min(10, max_results)))}
         if domains:
-            payload["gl"] = "us"
             payload["siteSearch"] = domains
         if recency_days is not None:
             payload["tbs"] = f"qdr:d{int(max(1, recency_days))}"
@@ -126,4 +125,3 @@ def get_web_search_provider() -> Optional[WebSearchProvider]:
     if key and key.strip():
         return SerperWebSearchProvider(api_key=key.strip())
     return None
-
