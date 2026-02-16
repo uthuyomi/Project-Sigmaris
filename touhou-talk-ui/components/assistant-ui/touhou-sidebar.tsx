@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Map as MapIcon, X } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Link from "next/link";
 import {
   Sidebar,
   SidebarContent,
@@ -28,12 +29,19 @@ type Props = React.ComponentProps<typeof Sidebar> & {
   visibleCharacters: Character[];
   activeCharacterId: string | null;
   onSelectCharacter: (id: string) => void;
+
+  activeSessionId: string | null;
+  activeChatMode: "partner" | "roleplay" | "coach";
+  onChangeChatMode: (mode: "partner" | "roleplay" | "coach") => void;
 };
 
 export function TouhouSidebar({
   visibleCharacters,
   activeCharacterId,
   onSelectCharacter,
+  activeSessionId,
+  activeChatMode,
+  onChangeChatMode,
   className,
   ...props
 }: Props) {
@@ -51,7 +59,7 @@ export function TouhouSidebar({
           <Link
             href="/map/session/gensokyo"
             onClick={handleClose}
-            className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition"
+            className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-sidebar-foreground/80 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <MapIcon className="size-4" />
             マップに戻る
@@ -61,7 +69,7 @@ export function TouhouSidebar({
             <button
               type="button"
               onClick={handleClose}
-              className="flex size-8 items-center justify-center rounded-md hover:bg-sidebar-accent transition"
+              className="flex size-8 items-center justify-center rounded-md transition hover:bg-sidebar-accent"
               aria-label="Close"
             >
               <X className="size-4" />
@@ -74,11 +82,10 @@ export function TouhouSidebar({
             Touhou Talk
           </h1>
           <p className="mt-1 text-xs text-sidebar-foreground/60">
-            キャラ選択と会話
+            キャラ選択と会話セッション
           </p>
         </div>
 
-        {/* Character picker */}
         <div className="mt-4 px-1">
           <div className="mb-2 text-xs text-sidebar-foreground/60">キャラ選択</div>
           <div className="flex max-h-40 flex-col gap-2 overflow-auto pr-1">
@@ -87,6 +94,7 @@ export function TouhouSidebar({
                 マップで場所を選ぶとキャラが表示されます
               </div>
             )}
+
             {visibleCharacters.map((ch) => {
               const active = ch.id === activeCharacterId;
               return (
@@ -121,6 +129,30 @@ export function TouhouSidebar({
             })}
           </div>
         </div>
+
+        <div className="mt-4 px-1">
+          <div className="mb-2 text-xs text-sidebar-foreground/60">会話モード</div>
+          <select
+            className="w-full rounded-lg border border-sidebar-border bg-background/60 px-3 py-2 text-sm text-sidebar-foreground outline-none transition focus:border-sidebar-ring disabled:opacity-60"
+            value={activeChatMode}
+            onChange={(e) => {
+              const v = e.target.value;
+              onChangeChatMode(
+                v === "roleplay" ? "roleplay" : v === "coach" ? "coach" : "partner",
+              );
+            }}
+            disabled={!activeSessionId}
+          >
+            <option value="partner">相棒（バランス）</option>
+            <option value="roleplay">ロールプレイ（再現優先）</option>
+            <option value="coach">コーチ（実用優先）</option>
+          </select>
+          {!activeSessionId ? (
+            <div className="mt-2 text-xs text-sidebar-foreground/50">
+              セッションを選択すると変更できます
+            </div>
+          ) : null}
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="px-3 py-3">
@@ -135,3 +167,4 @@ export function TouhouSidebar({
     </Sidebar>
   );
 }
+

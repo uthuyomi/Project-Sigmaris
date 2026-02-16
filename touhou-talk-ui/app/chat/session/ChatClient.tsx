@@ -47,6 +47,7 @@ type SessionSummary = {
   mode: "single" | "group";
   layer: string | null;
   location: string | null;
+  chatMode: "partner" | "roleplay" | "coach";
 };
 
 type PanelGroupContext = {
@@ -368,6 +369,12 @@ export default function ChatClient() {
     })();
   }, []);
 
+  const activeChatMode = useMemo(() => {
+    if (!activeSessionId) return "partner" as const;
+    const s = sessions.find((x) => x.id === activeSessionId);
+    return (s?.chatMode ?? "partner") as "partner" | "roleplay" | "coach";
+  }, [activeSessionId, sessions]);
+
   /* =========================
      Character select
   ========================= */
@@ -404,11 +411,12 @@ export default function ChatClient() {
 
       const newSession: SessionSummary = {
         id: data.sessionId,
-        title: "譁ｰ縺励＞莨夊ｩｱ",
+        title: "新しい会話",
         characterId,
         mode,
         layer: currentLayer,
         location: currentLocationId,
+        chatMode: "partner",
       };
 
       setSessions((prev) => [newSession, ...prev]);
@@ -419,6 +427,26 @@ export default function ChatClient() {
       setIsPanelOpen(false);
     },
     [sessions, mode, currentLayer, currentLocationId],
+  );
+
+  const changeActiveChatMode = useCallback(
+    async (nextMode: "partner" | "roleplay" | "coach") => {
+      if (!activeSessionId) return;
+      if (nextMode === activeChatMode) return;
+
+      const res = await fetch(`/api/session/${activeSessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatMode: nextMode }),
+      });
+
+      if (!res.ok) return;
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === activeSessionId ? { ...s, chatMode: nextMode } : s)),
+      );
+    },
+    [activeChatMode, activeSessionId],
   );
 
   const createSession = useCallback(async () => {
@@ -445,6 +473,7 @@ export default function ChatClient() {
       mode,
       layer: currentLayer,
       location: currentLocationId,
+      chatMode: "partner",
     };
 
     setSessions((prev) => [newSession, ...prev]);
@@ -943,6 +972,9 @@ export default function ChatClient() {
               visibleCharacters={visibleCharacters}
               activeCharacterId={activeCharacterId}
               onSelectCharacter={selectCharacter}
+              activeSessionId={activeSessionId}
+              activeChatMode={activeChatMode}
+              onChangeChatMode={changeActiveChatMode}
             />
 
             <SidebarInset className="relative flex flex-col overflow-hidden">
