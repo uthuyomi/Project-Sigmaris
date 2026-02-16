@@ -20,11 +20,10 @@ function readPublicConfig(): PublicConfig {
 export function EnvGuard({ children }: { children: React.ReactNode }) {
   const cfg = useMemo(() => readPublicConfig(), []);
 
-  const ok =
-    typeof cfg.supabaseUrl === "string" &&
-    cfg.supabaseUrl.trim() !== "" &&
-    typeof cfg.supabaseAnonKey === "string" &&
-    cfg.supabaseAnonKey.trim() !== "";
+  const urlOk = typeof cfg.supabaseUrl === "string" && cfg.supabaseUrl.trim() !== "";
+  const anonOk =
+    typeof cfg.supabaseAnonKey === "string" && cfg.supabaseAnonKey.trim() !== "";
+  const ok = urlOk && anonOk;
 
   if (ok) return <>{children}</>;
 
@@ -56,6 +55,11 @@ export function EnvGuard({ children }: { children: React.ReactNode }) {
             <li>NEXT_PUBLIC_SUPABASE_URL</li>
             <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
           </ul>
+
+          <div className="mt-3 text-xs text-muted-foreground">
+            読み込み状況: URL={urlOk ? "OK" : "MISSING"} / ANON={anonOk ? "OK" : "MISSING"}
+          </div>
+
           <p className="mt-3 text-xs text-muted-foreground">
             入力後にアプリを再起動してください。
           </p>

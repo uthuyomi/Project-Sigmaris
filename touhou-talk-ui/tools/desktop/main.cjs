@@ -62,7 +62,18 @@ function resolveEnvPath() {
     path.join(app.getPath("appData"), "Touhou Talk", filename),
   ];
 
-  // Prefer an existing file if one is found.
+  // Prefer a file that already contains required keys.
+  for (const p of candidates) {
+    try {
+      if (!fs.existsSync(p)) continue;
+      const vars = readEnvFile(p);
+      const url = String(vars?.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+      const anon = String(vars?.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+      if (url && anon) return p;
+    } catch {}
+  }
+
+  // Otherwise prefer any existing file.
   for (const p of candidates) {
     try {
       if (fs.existsSync(p)) return p;
