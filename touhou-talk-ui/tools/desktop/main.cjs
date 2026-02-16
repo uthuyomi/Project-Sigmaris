@@ -50,9 +50,36 @@ function ensureEnvTemplate(envPath) {
   fs.writeFileSync(envPath, tpl, "utf8");
 }
 
-function applyEnvFromUserData() {
-  const envPath = path.join(app.getPath("userData"), "touhou-talk.env");
+function resolveEnvPath() {
+  const filename = "touhou-talk.env";
+
+  const candidates = [
+    // Standard Electron location (depends on app name / productName)
+    path.join(app.getPath("userData"), filename),
+
+    // Common alternatives (older builds / different naming)
+    path.join(app.getPath("appData"), "touhou-talk", filename),
+    path.join(app.getPath("appData"), "Touhou Talk", filename),
+  ];
+
+  // Prefer an existing file if one is found.
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {}
+  }
+
+  // Otherwise default to userData (we'll create a template there).
+  return candidates[0];
+}
+
+function applyEnvFromDisk() {
+  const envPath = resolveEnvPath();
   ensureEnvTemplate(envPath);
+
+  process.env.TOUHOU_DESKTOP_ENV_PATH = envPath;
+  process.env.TOUHOU_DESKTOP_USERDATA_DIR = app.getPath("userData");
+
   const vars = readEnvFile(envPath);
   if (!vars) return;
   for (const [k, v] of Object.entries(vars)) {
@@ -191,7 +218,7 @@ app.on("before-quit", () => {
 });
 
 app.whenReady().then(async () => {
-  applyEnvFromUserData();
+  applyEnvFromDisk();
 
   if (isDev) {
     // In dev we just open the normal Next dev server.
@@ -203,4 +230,3 @@ app.whenReady().then(async () => {
   const url = await startNextServer();
   createWindow(url);
 });
-

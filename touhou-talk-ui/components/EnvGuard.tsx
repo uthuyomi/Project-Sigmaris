@@ -5,6 +5,8 @@ import { useMemo } from "react";
 type PublicConfig = {
   supabaseUrl?: string;
   supabaseAnonKey?: string;
+  desktopEnvPath?: string;
+  desktopUserDataDir?: string;
 };
 
 function readPublicConfig(): PublicConfig {
@@ -37,8 +39,15 @@ export function EnvGuard({ children }: { children: React.ReactNode }) {
         <div className="mt-6 rounded-xl border bg-card p-4 text-sm">
           <div className="font-medium">設定ファイル</div>
           <div className="mt-2 font-mono text-xs text-muted-foreground">
-            %APPDATA%\Touhou Talk\touhou-talk.env
+            {cfg.desktopEnvPath?.trim()
+              ? cfg.desktopEnvPath
+              : "%APPDATA%\\Touhou Talk\\touhou-talk.env"}
           </div>
+          {cfg.desktopUserDataDir?.trim() ? (
+            <div className="mt-3 text-xs text-muted-foreground">
+              userData: <span className="font-mono">{cfg.desktopUserDataDir}</span>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-4 rounded-xl border bg-card p-4 text-sm">

@@ -58,6 +58,8 @@ export default function RootLayout({
   const publicConfig = {
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+    desktopEnvPath: process.env.TOUHOU_DESKTOP_ENV_PATH ?? "",
+    desktopUserDataDir: process.env.TOUHOU_DESKTOP_USERDATA_DIR ?? "",
   };
 
   return (
