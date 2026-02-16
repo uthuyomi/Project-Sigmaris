@@ -60,6 +60,14 @@ from persona_core.temporal_identity.temporal_identity_state import TemporalIdent
 from persona_core.phase03.intent_layers import IntentLayers, IntentVectorEMA
 from persona_core.phase03.dialogue_state_machine import STATE_IDS, DialogueState, DialogueStateMachine
 from persona_core.phase03.safety_override import SafetyOverrideLayer
+from persona_core.phase03.naturalness_controller import (
+    NaturalnessState,
+    build_naturalness_system,
+    detect_user_wants_choices,
+    sanitize_reply_text,
+    self_assess_and_correct,
+    update_params_on_user,
+)
 
 
 # --------------------------------------------------------------
@@ -185,6 +193,8 @@ class PersonaController:
         self._intent_ema_by_session: Dict[str, IntentVectorEMA] = {}
         self._dialogue_state_by_session: Dict[str, DialogueState] = {}
         self._auto_recovery_prev_by_session: Dict[str, Dict[str, float]] = {}
+        self._naturalness_by_session: Dict[str, NaturalnessState] = {}
+        self._naturalness_lru: list[str] = []
         try:
             self._phase03_session_cap = int(os.getenv("SIGMARIS_PHASE03_SESSION_CAP", "1024") or "1024")
         except Exception:
@@ -203,6 +213,100 @@ class PersonaController:
         # 「成長」の軸: baseline（ユーザー固有の体質）
         self._trait_baseline = initial_trait_baseline or TraitState()
         self._prev_global_state: Optional[PersonaGlobalState] = None
+
+    def _naturalness_get(self, *, session_id: str) -> NaturalnessState:
+        sid = str(session_id or "").strip()
+        if not sid:
+            return NaturalnessState()
+
+        st = self._naturalness_by_session.get(sid)
+        if st is None:
+            st = NaturalnessState()
+            self._naturalness_by_session[sid] = st
+
+        # LRU touch + cap (best-effort)
+        try:
+            if sid in self._naturalness_lru:
+                self._naturalness_lru.remove(sid)
+            self._naturalness_lru.append(sid)
+            cap = int(self._phase03_session_cap or 1024)
+            if cap < 16:
+                cap = 16
+            if len(self._naturalness_lru) > cap:
+                drop = self._naturalness_lru[: max(0, len(self._naturalness_lru) - cap)]
+                self._naturalness_lru = self._naturalness_lru[len(drop) :]
+                for d in drop:
+                    self._naturalness_by_session.pop(d, None)
+        except Exception:
+            pass
+
+        return st
+
+    def _apply_naturalness_policy(
+        self,
+        *,
+        req: PersonaRequest,
+        session_id: str,
+        meta: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Update internal naturalness params based on the user message and inject a compact
+        policy block into req.metadata["persona_system"].
+
+        Returns a dict with debug fields for meta.
+        """
+        md = getattr(req, "metadata", None)
+        if not isinstance(md, dict):
+            return {"enabled": False}
+
+        user_text = str(getattr(req, "message", "") or "")
+        allow_choices = bool(detect_user_wants_choices(user_text))
+
+        st = self._naturalness_get(session_id=session_id)
+        st, upd = update_params_on_user(st, user_text=user_text)
+
+        policy = build_naturalness_system(params=st.params, allow_choices=allow_choices)
+
+        # Merge into external persona system (keep client persona intact, add as a late policy block).
+        base = str(md.get("persona_system") or "").strip()
+        merged = (base + "\n\n# Conversation Naturalness\n" + policy).strip() if base else policy
+        md["persona_system"] = merged
+
+        # Expose non-sensitive state (no full policy text in meta by default).
+        out = {
+            "enabled": True,
+            "allow_choices": allow_choices,
+            "update_on_user": upd,
+            "params": st.params.as_dict(),
+        }
+        meta["naturalness"] = {**out}
+        return out
+
+    def _finalize_naturalness_policy(
+        self,
+        *,
+        req: PersonaRequest,
+        session_id: str,
+        meta: Dict[str, Any],
+        reply_text: str,
+        allow_choices: bool,
+    ) -> None:
+        md = getattr(req, "metadata", None)
+        if not isinstance(md, dict):
+            return
+        st = self._naturalness_get(session_id=session_id)
+        st, assessed = self_assess_and_correct(
+            st,
+            user_text=str(getattr(req, "message", "") or ""),
+            assistant_text=str(reply_text or ""),
+            allow_choices=bool(allow_choices),
+        )
+
+        cur = meta.get("naturalness") if isinstance(meta.get("naturalness"), dict) else {}
+        cur2 = dict(cur) if isinstance(cur, dict) else {}
+        cur2["self_assess"] = assessed
+        cur2["params_after"] = st.params.as_dict()
+        meta["naturalness"] = cur2
 
     # ==========================================================
     # Main turn
@@ -1106,6 +1210,15 @@ class PersonaController:
             pass
         t_marks["guardrail"] = time.perf_counter()
 
+        # ---- 5.8) Naturalness (turn-taking / style control) ----
+        allow_choices = False
+        try:
+            session_id = str(getattr(req, "session_id", "") or "").strip()
+            nat = self._apply_naturalness_policy(req=req, session_id=session_id, meta=meta)
+            allow_choices = bool(nat.get("allow_choices"))
+        except Exception:
+            pass
+
         # ---- 6) LLM generate ----
         memory_for_llm = self._memory_for_llm(req=req, memory_result=memory_result)
         reply_text = self._call_llm(
@@ -1118,6 +1231,21 @@ class PersonaController:
         )
         t_marks["llm"] = time.perf_counter()
 
+        # ---- 6.2) Naturalness hardening (forced rules) ----
+        try:
+            cleaned, clean_meta = sanitize_reply_text(
+                reply_text=reply_text,
+                allow_choices=allow_choices,
+            )
+            reply_text = cleaned
+            nat = meta.get("naturalness") if isinstance(meta.get("naturalness"), dict) else None
+            if isinstance(nat, dict):
+                nat2 = dict(nat)
+                nat2["sanitizer"] = clean_meta
+                meta["naturalness"] = nat2
+        except Exception:
+            pass
+
         # ---- 7) EpisodeStore / PersonaDB 保存 ----
         _trace(
             "llm_generated",
@@ -1126,6 +1254,19 @@ class PersonaController:
                 "reply_preview": preview_text(reply_text) if TRACE_INCLUDE_TEXT else "",
             },
         )
+
+        # ---- 6.5) Naturalness self-correction (post) ----
+        try:
+            session_id = str(getattr(req, "session_id", "") or "").strip()
+            self._finalize_naturalness_policy(
+                req=req,
+                session_id=session_id,
+                meta=meta,
+                reply_text=reply_text,
+                allow_choices=allow_choices,
+            )
+        except Exception:
+            pass
 
         self._store_episode(
             user_id=uid,
@@ -1793,6 +1934,15 @@ class PersonaController:
             pass
         t_marks["guardrail"] = time.perf_counter()
 
+        # ---- 5.8) Naturalness (turn-taking / style control) ----
+        allow_choices = False
+        try:
+            session_id = str(getattr(req, "session_id", "") or "").strip()
+            nat = self._apply_naturalness_policy(req=req, session_id=session_id, meta=meta)
+            allow_choices = bool(nat.get("allow_choices"))
+        except Exception:
+            pass
+
         # ---- 6) LLM (stream) ----
         parts: list[str] = []
         memory_for_llm = self._memory_for_llm(req=req, memory_result=memory_result)
@@ -1829,6 +1979,21 @@ class PersonaController:
 
         reply_text = "".join(parts).strip()
 
+        # ---- 6.2) Naturalness hardening (forced rules) ----
+        try:
+            cleaned, clean_meta = sanitize_reply_text(
+                reply_text=reply_text,
+                allow_choices=allow_choices,
+            )
+            reply_text = cleaned
+            nat = meta.get("naturalness") if isinstance(meta.get("naturalness"), dict) else None
+            if isinstance(nat, dict):
+                nat2 = dict(nat)
+                nat2["sanitizer"] = clean_meta
+                meta["naturalness"] = nat2
+        except Exception:
+            pass
+
         _trace(
             "reply_generated",
             {
@@ -1836,6 +2001,19 @@ class PersonaController:
                 "reply_preview": preview_text(reply_text) if TRACE_INCLUDE_TEXT else "",
             },
         )
+
+        # ---- 6.5) Naturalness self-correction (post) ----
+        try:
+            session_id = str(getattr(req, "session_id", "") or "").strip()
+            self._finalize_naturalness_policy(
+                req=req,
+                session_id=session_id,
+                meta=meta,
+                reply_text=reply_text,
+                allow_choices=allow_choices,
+            )
+        except Exception:
+            pass
 
         def _persist_async() -> None:
             try:
