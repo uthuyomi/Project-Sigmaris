@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { supabaseServer } from "@/lib/supabase-server";
 
 type TtsRequest = {
   text: string;
@@ -40,6 +41,15 @@ async function fileExists(p: string) {
   }
 }
 
+function parseAllowedEmails() {
+  const raw = String(process.env.TOUHOU_TTS_ALLOWED_EMAILS ?? "").trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export async function POST(req: NextRequest) {
   let body: TtsRequest;
   try {
@@ -71,6 +81,24 @@ export async function POST(req: NextRequest) {
     if (process.platform !== "win32" || !(await fileExists(exe))) {
       return NextResponse.json({ error: "TTS disabled" }, { status: 404 });
     }
+  }
+
+  // IMPORTANT: Restrict TTS to explicit allowlisted accounts only.
+  // This is intended to avoid accidentally enabling voice playback for general users.
+  const allowedEmails = parseAllowedEmails();
+  if (allowedEmails.length === 0) {
+    return NextResponse.json({ error: "TTS disabled" }, { status: 404 });
+  }
+
+  try {
+    const supabase = await supabaseServer();
+    const { data, error } = await supabase.auth.getUser();
+    const email = String(data.user?.email ?? "").trim().toLowerCase();
+    if (error || !email || !allowedEmails.includes(email)) {
+      return NextResponse.json({ error: "TTS disabled" }, { status: 404 });
+    }
+  } catch {
+    return NextResponse.json({ error: "TTS disabled" }, { status: 404 });
   }
 
   if (!(await fileExists(exe))) {
