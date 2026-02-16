@@ -34,7 +34,8 @@
     "**/*.tsx",
     "**/*.mts",
     "engine/GrowthEngine.ts",
-    "next.config.mjs"
+    "next.config.mjs",
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

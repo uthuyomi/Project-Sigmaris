@@ -39,13 +39,21 @@ https://touhou-talk.vercel.app/
 
 ## Auth / Login
 
-This UI uses **Supabase Auth (Google login)** (same style as `sigmaris-os`).
+This UI uses **Supabase Auth (OAuth login)** (same style as `sigmaris-os`).
 
 Prerequisites:
 
-- Enable Google provider in Supabase Auth
+- Enable providers in Supabase Auth (Google / GitHub / Discord)
 - Add redirect URL(s) for local dev, e.g.:
   - `http://localhost:3000/auth/callback` (or your port)
+
+Notes:
+
+- OAuth callback is handled by a **Route Handler** at `GET /auth/callback` (server-side exchange).
+- For production hardening, Phase04 features in the chat API can be toggled via env:
+  - `TOUHOU_UPLOAD_ENABLED`
+  - `TOUHOU_LINK_ANALYSIS_ENABLED`
+  - `TOUHOU_AUTO_BROWSE_ENABLED`
 
 ## Local TTS / Voice Input (optional)
 
@@ -113,3 +121,19 @@ copyright © Team Shanghai Alice.
 
 This repository is **unofficial** and has no association with
 Team Shanghai Alice.
+
+---
+
+## Production checklist (Vercel)
+
+- Set Vercel env:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `SIGMARIS_CORE_URL` (FastAPI backend)
+- Supabase Auth:
+  - Add your Vercel domain redirect URLs:
+    - `https://<your-app>.vercel.app/auth/callback`
+- Recommended:
+  - Set `TOUHOU_ALLOWED_ORIGINS` and `TOUHOU_RATE_LIMIT_MS`
+  - Keep Phase04 toggles OFF unless you add allowlists / limits in production
