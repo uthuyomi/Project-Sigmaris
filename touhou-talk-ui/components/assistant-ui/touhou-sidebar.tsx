@@ -29,19 +29,12 @@ type Props = React.ComponentProps<typeof Sidebar> & {
   visibleCharacters: Character[];
   activeCharacterId: string | null;
   onSelectCharacter: (id: string) => void;
-
-  activeSessionId: string | null;
-  activeChatMode: "partner" | "roleplay" | "coach";
-  onChangeChatMode: (mode: "partner" | "roleplay" | "coach") => void;
 };
 
 export function TouhouSidebar({
   visibleCharacters,
   activeCharacterId,
   onSelectCharacter,
-  activeSessionId,
-  activeChatMode,
-  onChangeChatMode,
   className,
   ...props
 }: Props) {
@@ -129,30 +122,6 @@ export function TouhouSidebar({
             })}
           </div>
         </div>
-
-        <div className="mt-4 px-1">
-          <div className="mb-2 text-xs text-sidebar-foreground/60">会話モード</div>
-          <select
-            className="w-full rounded-lg border border-sidebar-border bg-background/60 px-3 py-2 text-sm text-sidebar-foreground outline-none transition focus:border-sidebar-ring disabled:opacity-60"
-            value={activeChatMode}
-            onChange={(e) => {
-              const v = e.target.value;
-              onChangeChatMode(
-                v === "roleplay" ? "roleplay" : v === "coach" ? "coach" : "partner",
-              );
-            }}
-            disabled={!activeSessionId}
-          >
-            <option value="partner">相棒（バランス）</option>
-            <option value="roleplay">ロールプレイ（再現優先）</option>
-            <option value="coach">コーチ（実用優先）</option>
-          </select>
-          {!activeSessionId ? (
-            <div className="mt-2 text-xs text-sidebar-foreground/50">
-              セッションを選択すると変更できます
-            </div>
-          ) : null}
-        </div>
       </SidebarHeader>
 
       <SidebarContent className="px-3 py-3">
@@ -167,4 +136,3 @@ export function TouhouSidebar({
     </Sidebar>
   );
 }
-
