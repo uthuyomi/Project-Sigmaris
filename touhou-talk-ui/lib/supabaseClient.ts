@@ -37,10 +37,21 @@ function setDocumentCookie(name: string, value: string, options?: any) {
  * - auth / session / callback 対応済み
  * - App Router 正式対応
  */
-export const supabase: SupabaseClient = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
+let _client: SupabaseClient | null = null;
+
+export function supabaseBrowser(): SupabaseClient {
+  if (_client) return _client;
+  if (typeof window === "undefined") {
+    throw new Error("[supabaseClient] supabaseBrowser() called on server");
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) {
+    throw new Error("[supabaseClient] NEXT_PUBLIC_SUPABASE_URL / ANON_KEY missing");
+  }
+
+  _client = createBrowserClient(url, anon, {
     cookies: {
       getAll() {
         return parseDocumentCookies();
@@ -51,5 +62,7 @@ export const supabase: SupabaseClient = createBrowserClient(
         });
       },
     },
-  }
-);
+  });
+
+  return _client;
+}
