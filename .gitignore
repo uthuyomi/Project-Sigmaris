@@ -41,3 +41,6 @@ sigmaris_core/persona_db/
 
 # === Third-party SDKs (local only) ===
 aquestalk/
+tools/aquestalk_tts_cmd/bin/
+tools/aquestalk_tts_cmd/obj/
+tools/aquestalk_tts_cmd/*.wav
