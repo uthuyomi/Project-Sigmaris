@@ -4,3 +4,10 @@ pydantic>=2.0
 openai>=1.0
 python-multipart>=0.0.9
 pillow>=10.0
+
+# Optional-but-recommended: high-quality Web RAG pipeline (Phase04 IO)
+trafilatura>=1.9.0
+readability-lxml>=0.8.1
+selectolax>=0.3.21
+rank-bm25>=0.2.2
+rapidfuzz>=3.6.1

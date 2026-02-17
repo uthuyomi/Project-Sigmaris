@@ -730,6 +730,222 @@ def _merge_external_system(persona_system: Optional[str], system: Optional[str])
     return a or b or None
 
 
+def _web_rag_enabled() -> bool:
+    return os.getenv("SIGMARIS_WEB_RAG_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _web_rag_auto_enabled() -> bool:
+    return os.getenv("SIGMARIS_WEB_RAG_AUTO", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _web_rag_explicit_request(message: str) -> bool:
+    s = (message or "")
+    # Explicit user intent (Japanese + common English)
+    keywords = [
+        "検索",
+        "調べて",
+        "ソース",
+        "出典",
+        "引用元",
+        "一次ソース",
+        "リンク",
+        "URL",
+        "source",
+        "citation",
+        "browse",
+        "web search",
+    ]
+    return any(k in s for k in keywords)
+
+
+def _web_rag_time_sensitive_hint(message: str) -> bool:
+    s = (message or "")
+    keywords = ["最新", "今日", "昨日", "今週", "今月", "ニュース", "速報", "いま", "現状", "料金", "価格", "リリース", "バージョン"]
+    return any(k in s for k in keywords)
+
+
+async def _maybe_web_rag_for_turn(
+    *,
+    message: str,
+    gen: Optional[Dict[str, Any]],
+    trace_id: str,
+    session_id: str,
+    user_id: str,
+    persona_db: Optional[Any],
+) -> tuple[Optional[str], Optional[List[Dict[str, Any]]], Optional[Dict[str, Any]]]:
+    """
+    Build (context_text, sources, meta) for prompt injection.
+
+    - Default: disabled unless SIGMARIS_WEB_RAG_ENABLED=1
+    - Auto trigger: SIGMARIS_WEB_RAG_AUTO=1 + heuristics (time-sensitive)
+    - Explicit trigger: user asked to search/cite
+    - Cache: uses IO event cache when enabled (same TTL env as other IO)
+    """
+    if not _web_rag_enabled():
+        return (None, None, None)
+
+    g = gen if isinstance(gen, dict) else {}
+    web_cfg = g.get("web_rag")
+    force = False
+    if isinstance(web_cfg, dict):
+        force = bool(web_cfg.get("enabled") is True)
+    elif web_cfg is True:
+        force = True
+
+    explicit = _web_rag_explicit_request(message)
+    auto = _web_rag_auto_enabled() and _web_rag_time_sensitive_hint(message)
+    if not (force or explicit or auto):
+        return (None, None, None)
+
+    # Provider must be configured (SERPER_API_KEY etc). If not, skip silently.
+    try:
+        from persona_core.phase04.io.web_search import get_web_search_provider
+
+        if get_web_search_provider() is None:
+            return (None, None, None)
+    except Exception:
+        return (None, None, None)
+
+    # Build request payload from env defaults + optional overrides
+    def _get_int(key: str, default: int) -> int:
+        try:
+            if isinstance(web_cfg, dict) and key in web_cfg:
+                return int(web_cfg.get(key))
+        except Exception:
+            pass
+        try:
+            return int(os.getenv(f"SIGMARIS_WEB_RAG_{key.upper()}", str(default)) or str(default))
+        except Exception:
+            return int(default)
+
+    def _get_bool(key: str, default: bool) -> bool:
+        try:
+            if isinstance(web_cfg, dict) and key in web_cfg:
+                return bool(web_cfg.get(key))
+        except Exception:
+            pass
+        v = os.getenv(f"SIGMARIS_WEB_RAG_{key.upper()}", "1" if default else "0") or ("1" if default else "0")
+        return str(v).strip().lower() in ("1", "true", "yes", "on")
+
+    def _get_str(key: str, default: str) -> str:
+        try:
+            if isinstance(web_cfg, dict) and key in web_cfg and isinstance(web_cfg.get(key), str):
+                return str(web_cfg.get(key) or "").strip() or default
+        except Exception:
+            pass
+        return str(os.getenv(f"SIGMARIS_WEB_RAG_{key.upper()}", default) or default).strip() or default
+
+    recency_days: Optional[int] = None
+    try:
+        if isinstance(web_cfg, dict) and web_cfg.get("recency_days") is not None:
+            recency_days = int(web_cfg.get("recency_days"))
+        elif _web_rag_time_sensitive_hint(message):
+            recency_days = int(os.getenv("SIGMARIS_WEB_RAG_RECENCY_DAYS", "14") or "14")
+    except Exception:
+        recency_days = None
+
+    request_payload: Dict[str, Any] = {
+        "query": str(message or "").strip()[:800],
+        "max_search_results": _get_int("max_search_results", 8),
+        "recency_days": int(recency_days) if recency_days is not None else None,
+        "safe_search": _get_str("safe_search", "active"),
+        "domains": list(web_cfg.get("domains") or []) if isinstance(web_cfg, dict) and isinstance(web_cfg.get("domains"), list) else [],
+        "max_pages": _get_int("max_pages", 20),
+        "max_depth": _get_int("max_depth", 1),
+        "top_k": _get_int("top_k", 6),
+        "per_host_limit": _get_int("per_host_limit", 8),
+        "summarize": _get_bool("summarize", True),
+    }
+
+    ck = _cache_key(event_type="web_rag", request_payload=request_payload)
+
+    if persona_db is not None and _io_cache_enabled():
+        ttl = _io_cache_ttl_sec()
+        if ttl > 0:
+            not_before = (datetime.now(timezone.utc) - timedelta(seconds=int(ttl))).isoformat()
+            try:
+                cached = persona_db.load_cached_io_event(
+                    user_id=str(user_id),
+                    event_type="web_rag",
+                    cache_key=ck,
+                    not_before_iso=not_before,
+                )
+            except Exception:
+                cached = None
+            if isinstance(cached, dict):
+                resp = cached.get("response") if isinstance(cached.get("response"), dict) else {}
+                ctx = resp.get("context_text") if isinstance(resp.get("context_text"), str) else None
+                sources = resp.get("sources") if isinstance(resp.get("sources"), list) else None
+                meta = resp.get("meta") if isinstance(resp.get("meta"), dict) else None
+                if isinstance(ctx, str) and isinstance(sources, list):
+                    return (ctx, sources, (meta or {}))
+
+    try:
+        from persona_core.phase04.io.web_rag import build_web_rag
+
+        out = await asyncio.to_thread(
+            build_web_rag,
+            query=str(request_payload["query"]),
+            max_search_results=int(request_payload["max_search_results"]),
+            recency_days=(int(request_payload["recency_days"]) if request_payload.get("recency_days") is not None else None),
+            safe_search=str(request_payload["safe_search"] or "active"),
+            domains=(request_payload.get("domains") if isinstance(request_payload.get("domains"), list) else None),
+            max_pages=int(request_payload["max_pages"]),
+            max_depth=int(request_payload["max_depth"]),
+            top_k=int(request_payload["top_k"]),
+            per_host_limit=int(request_payload["per_host_limit"]),
+            summarize=bool(request_payload["summarize"]),
+            timeout_sec=int(os.getenv("SIGMARIS_WEB_FETCH_TIMEOUT_SEC", "20") or "20"),
+            max_bytes=int(os.getenv("SIGMARIS_WEB_FETCH_MAX_BYTES", "1500000") or "1500000"),
+        )
+    except Exception:
+        return (None, None, None)
+
+    ctx = str(getattr(out, "context_text", "") or "").strip()
+    sources_obj = getattr(out, "sources", None)
+    sources: List[Dict[str, Any]] = []
+    if isinstance(sources_obj, list):
+        for s in sources_obj:
+            try:
+                if hasattr(s, "to_dict"):
+                    sources.append(s.to_dict())
+                elif isinstance(s, dict):
+                    sources.append(s)
+            except Exception:
+                continue
+
+    meta_obj = getattr(out, "meta", None)
+    meta = meta_obj if isinstance(meta_obj, dict) else {}
+
+    if persona_db is not None:
+        try:
+            audit_chars = _io_audit_excerpt_chars()
+            audit_ctx = ctx[:audit_chars] if (audit_chars > 0 and ctx) else ""
+            resp_payload: Dict[str, Any] = {"context_text": audit_ctx, "sources": sources, "meta": meta}
+            source_urls = []
+            for s in sources:
+                if isinstance(s, dict) and (s.get("final_url") or s.get("url")):
+                    source_urls.append(str(s.get("final_url") or s.get("url")))
+            persona_db.insert_io_event(
+                user_id=str(user_id),
+                session_id=str(session_id),
+                trace_id=str(trace_id),
+                event_type="web_rag",
+                cache_key=ck,
+                ok=True,
+                error=None,
+                request=request_payload,
+                response=resp_payload,
+                source_urls=source_urls[:64],
+                content_sha256=_sha256_json(resp_payload),
+                meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "audit_excerpt_chars": audit_chars},
+            )
+        except Exception:
+            pass
+
+    return (ctx if ctx else None, sources if sources else None, meta if isinstance(meta, dict) else None)
+
+
 def _attachment_excerpt_from_parsed(parsed: Any) -> str:
     if not isinstance(parsed, dict):
         return ""
@@ -918,6 +1134,47 @@ class WebFetchResponse(BaseModel):
     confidence: Optional[float] = None
     text_excerpt: Optional[str] = None
     sources: List[Dict[str, Any]] = []
+
+
+class WebRagRequest(BaseModel):
+    query: str
+    max_search_results: int = 8
+    recency_days: Optional[int] = None
+    safe_search: str = "active"
+    domains: Optional[List[str]] = None
+
+    max_pages: int = 20
+    max_depth: int = 1
+    top_k: int = 6
+    per_host_limit: int = 8
+
+    summarize: bool = True
+
+    @field_validator("safe_search", mode="before")
+    @classmethod
+    def _coerce_safe_search(cls, v: Any) -> str:
+        # Keep parity with WebSearchRequest.
+        if v is True:
+            return "active"
+        if v is False:
+            return "off"
+        if v is None:
+            return "active"
+        if isinstance(v, str):
+            s = v.strip()
+            if s.lower() in ("true", "1", "yes", "on"):
+                return "active"
+            if s.lower() in ("false", "0", "no", "off"):
+                return "off"
+            return s or "active"
+        return "active"
+
+
+class WebRagResponse(BaseModel):
+    ok: bool
+    context_text: str
+    sources: List[Dict[str, Any]]
+    meta: Dict[str, Any] = {}
 
 
 class GitHubRepoSearchRequest(BaseModel):
@@ -1138,6 +1395,21 @@ async def persona_chat(req: ChatRequest, auth: Optional[AuthContext] = Depends(g
 
     overload_score = _estimate_overload_score(effective_message)
 
+    web_ctx = None
+    web_sources = None
+    web_meta = None
+    try:
+        web_ctx, web_sources, web_meta = await _maybe_web_rag_for_turn(
+            message=effective_message,
+            gen=(req.gen if isinstance(req.gen, dict) else None),
+            trace_id=trace_id,
+            session_id=session_id,
+            user_id=str(user_id),
+            persona_db=(SupabasePersonaDB(_supabase) if (_supabase is not None and _is_uuid(str(user_id))) else None),
+        )
+    except Exception:
+        web_ctx, web_sources, web_meta = (None, None, None)
+
     preq = PersonaRequest(
         user_id=user_id,
         session_id=session_id,
@@ -1146,6 +1418,9 @@ async def persona_chat(req: ChatRequest, auth: Optional[AuthContext] = Depends(g
             "_trace_id": trace_id,
             **({"character_id": req.character_id} if req.character_id else {}),
             **({"persona_system": external_system} if external_system else {}),
+            **({"_external_knowledge": web_ctx} if isinstance(web_ctx, str) and web_ctx.strip() else {}),
+            **({"_web_rag_sources": web_sources} if isinstance(web_sources, list) and web_sources else {}),
+            **({"_web_rag_meta": web_meta} if isinstance(web_meta, dict) and web_meta else {}),
             **({"gen": req.gen} if isinstance(req.gen, dict) and req.gen else {}),
             **({"client_history": client_history} if client_history else {}),
         },
@@ -1435,6 +1710,21 @@ async def persona_chat_stream(req: ChatRequest, auth: Optional[AuthContext] = De
 
     overload_score = _estimate_overload_score(effective_message)
 
+    web_ctx = None
+    web_sources = None
+    web_meta = None
+    try:
+        web_ctx, web_sources, web_meta = await _maybe_web_rag_for_turn(
+            message=effective_message,
+            gen=(req.gen if isinstance(req.gen, dict) else None),
+            trace_id=trace_id,
+            session_id=session_id,
+            user_id=str(user_id),
+            persona_db=(SupabasePersonaDB(_supabase) if (_supabase is not None and _is_uuid(str(user_id))) else None),
+        )
+    except Exception:
+        web_ctx, web_sources, web_meta = (None, None, None)
+
     preq = PersonaRequest(
         user_id=user_id,
         session_id=session_id,
@@ -1443,6 +1733,9 @@ async def persona_chat_stream(req: ChatRequest, auth: Optional[AuthContext] = De
             "_trace_id": trace_id,
             **({"character_id": req.character_id} if req.character_id else {}),
             **({"persona_system": external_system} if external_system else {}),
+            **({"_external_knowledge": web_ctx} if isinstance(web_ctx, str) and web_ctx.strip() else {}),
+            **({"_web_rag_sources": web_sources} if isinstance(web_sources, list) and web_sources else {}),
+            **({"_web_rag_meta": web_meta} if isinstance(web_meta, dict) and web_meta else {}),
             **({"gen": req.gen} if isinstance(req.gen, dict) and req.gen else {}),
             **({"client_history": client_history} if client_history else {}),
         },
@@ -2408,6 +2701,174 @@ async def io_web_fetch(
         text_excerpt=excerpt if excerpt else None,
         sources=sources,
     )
+
+
+@app.post("/io/web/rag", response_model=WebRagResponse)
+async def io_web_rag(
+    req: WebRagRequest,
+    auth: Optional[AuthContext] = Depends(get_auth_context),
+    x_sigmaris_trace_id: Optional[str] = Header(default=None, alias="x-sigmaris-trace-id"),
+    x_sigmaris_session_id: Optional[str] = Header(default=None, alias="x-sigmaris-session-id"),
+):
+    """
+    Phase04 IO: high-quality Web RAG (search -> bounded crawl -> extract -> (optional) summarize -> ranked context).
+
+    Notes:
+    - Fetch is guarded by SIGMARIS_WEB_FETCH_ALLOW_DOMAINS (SSRF + allowlist).
+    - Additional RAG-level allow/deny lists are available via SIGMARIS_WEB_RAG_ALLOW_DOMAINS / SIGMARIS_WEB_RAG_DENY_DOMAINS.
+    """
+    if auth is None and _auth_required:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if os.getenv("SIGMARIS_WEB_RAG_ENABLED", "").strip().lower() not in ("1", "true", "yes", "on"):
+        raise HTTPException(status_code=501, detail="web rag disabled")
+
+    trace_id = str((x_sigmaris_trace_id or "").strip() or new_trace_id())
+    session_id = str((x_sigmaris_session_id or "").strip() or "") or None
+    user_id = str(auth.user_id) if auth is not None else None
+    persona_db = SupabasePersonaDB(_supabase) if (_supabase is not None and user_id and _is_uuid(user_id)) else None
+
+    request_payload: Dict[str, Any] = {
+        "query": req.query,
+        "max_search_results": int(req.max_search_results),
+        "recency_days": int(req.recency_days) if req.recency_days is not None else None,
+        "safe_search": str(req.safe_search or "active"),
+        "domains": list(req.domains or []),
+        "max_pages": int(req.max_pages),
+        "max_depth": int(req.max_depth),
+        "top_k": int(req.top_k),
+        "per_host_limit": int(req.per_host_limit),
+        "summarize": bool(req.summarize),
+    }
+    ck = _cache_key(event_type="web_rag", request_payload=request_payload)
+
+    if persona_db is not None and _io_cache_enabled():
+        ttl = _io_cache_ttl_sec()
+        if ttl > 0:
+            not_before = (datetime.now(timezone.utc) - timedelta(seconds=int(ttl))).isoformat()
+            try:
+                cached = persona_db.load_cached_io_event(
+                    user_id=user_id,
+                    event_type="web_rag",
+                    cache_key=ck,
+                    not_before_iso=not_before,
+                )
+            except Exception:
+                cached = None
+            if isinstance(cached, dict):
+                resp = cached.get("response") if isinstance(cached.get("response"), dict) else {}
+                ctx = resp.get("context_text") if isinstance(resp.get("context_text"), str) else None
+                sources = resp.get("sources") if isinstance(resp.get("sources"), list) else None
+                meta = resp.get("meta") if isinstance(resp.get("meta"), dict) else {}
+                if isinstance(ctx, str) and isinstance(sources, list):
+                    try:
+                        persona_db.insert_io_event(
+                            user_id=user_id,
+                            session_id=session_id,
+                            trace_id=trace_id,
+                            event_type="web_rag",
+                            cache_key=ck,
+                            ok=True,
+                            error=None,
+                            request=request_payload,
+                            response={"context_text": ctx, "sources": sources, "meta": {**meta, "cache_hit": True}},
+                            source_urls=list(cached.get("source_urls") or []),
+                            content_sha256=_sha256_json({"context_text": ctx, "sources": sources}),
+                            meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "cache_hit": True},
+                        )
+                    except Exception:
+                        pass
+                    return WebRagResponse(ok=True, context_text=ctx, sources=sources, meta={**meta, "cache_hit": True})
+
+    try:
+        from persona_core.phase04.io.web_rag import WebRagError, build_web_rag
+
+        out = build_web_rag(
+            query=req.query,
+            max_search_results=req.max_search_results,
+            recency_days=req.recency_days,
+            safe_search=req.safe_search,
+            domains=req.domains,
+            max_pages=req.max_pages,
+            max_depth=req.max_depth,
+            top_k=req.top_k,
+            per_host_limit=req.per_host_limit,
+            summarize=bool(req.summarize),
+            timeout_sec=int(os.getenv("SIGMARIS_WEB_FETCH_TIMEOUT_SEC", "20") or "20"),
+            max_bytes=int(os.getenv("SIGMARIS_WEB_FETCH_MAX_BYTES", "1500000") or "1500000"),
+        )
+    except WebRagError as e:
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="web_rag",
+                    cache_key=ck,
+                    ok=False,
+                    error=str(e),
+                    request=request_payload,
+                    response={},
+                    source_urls=[],
+                    content_sha256=None,
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                )
+            except Exception:
+                pass
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        if persona_db is not None:
+            try:
+                persona_db.insert_io_event(
+                    user_id=user_id,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    event_type="web_rag",
+                    cache_key=ck,
+                    ok=False,
+                    error=f"web_rag_failed:{type(e).__name__}",
+                    request=request_payload,
+                    response={},
+                    source_urls=[],
+                    content_sha256=None,
+                    meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA},
+                )
+            except Exception:
+                pass
+        raise HTTPException(status_code=502, detail="web_rag_failed")
+
+    context_text = str(getattr(out, "context_text", "") or "")
+    sources = [s.to_dict() for s in (getattr(out, "sources", None) or []) if hasattr(s, "to_dict")]
+    meta = getattr(out, "meta", None) if isinstance(getattr(out, "meta", None), dict) else {}
+
+    if persona_db is not None:
+        try:
+            audit_chars = _io_audit_excerpt_chars()
+            audit_ctx = context_text[:audit_chars] if (audit_chars > 0 and context_text) else ""
+            resp_payload: Dict[str, Any] = {"context_text": audit_ctx, "sources": sources, "meta": meta}
+            source_urls = []
+            for s in sources:
+                if isinstance(s, dict) and (s.get("final_url") or s.get("url")):
+                    source_urls.append(str(s.get("final_url") or s.get("url")))
+            persona_db.insert_io_event(
+                user_id=user_id,
+                session_id=session_id,
+                trace_id=trace_id,
+                event_type="web_rag",
+                cache_key=ck,
+                ok=True,
+                error=None,
+                request=request_payload,
+                response=resp_payload,
+                source_urls=source_urls[:64],
+                content_sha256=_sha256_json(resp_payload),
+                meta={"config_hash": CONFIG_HASH, "build_sha": BUILD_SHA, "audit_excerpt_chars": audit_chars},
+            )
+        except Exception:
+            pass
+
+    return WebRagResponse(ok=True, context_text=context_text, sources=sources, meta=meta if isinstance(meta, dict) else {})
 
 
 @app.post("/io/github/repos", response_model=GitHubSearchResponse)
