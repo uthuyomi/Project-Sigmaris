@@ -944,7 +944,7 @@ export default function ChatClient() {
         }}
       >
         <SidebarProvider>
-          <div className="flex h-dvh w-full bg-background text-foreground transition-colors duration-300">
+          <div className="flex h-svh w-full overflow-hidden bg-background text-foreground transition-colors duration-300">
             <TouhouSidebar
               visibleCharacters={visibleCharacters}
               activeCharacterId={activeCharacterId}
@@ -964,7 +964,7 @@ export default function ChatClient() {
               />
 
               {/* Header */}
-              <header className="relative z-20 flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-background/70 backdrop-blur">
+              <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-background/70 backdrop-blur">
                 {activeCharacter?.color?.accent && (
                   <div
                     className={`absolute inset-0 -z-10 bg-gradient-to-br opacity-60 ${activeCharacter.color.accent}`}

@@ -3,6 +3,7 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { TouhouThemeInit } from "@/components/TouhouThemeInit";
 import { EnvGuard } from "@/components/EnvGuard";
+import { ViewportVars } from "@/components/ViewportVars";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -79,8 +80,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-dvh bg-background text-foreground antialiased">
+      <body className="min-h-svh bg-background text-foreground antialiased">
         <TouhouThemeInit />
+        <ViewportVars />
         <EnvGuard>{children}</EnvGuard>
         <Analytics />
       </body>
