@@ -586,6 +586,15 @@ class OpenAILLMClient(LLMClientLike):
         if isinstance(extra_system, str) and extra_system.strip():
             system_prompt_with_persona = system_prompt_with_persona + "\n\n# External Persona System\n" + extra_system.strip()
 
+        # Optional external knowledge injection (e.g., Web RAG / tool outputs) via req.context/metadata.
+        # This is owned by sigmaris-core (not client-controlled by default) and is bounded upstream.
+        try:
+            ext_knowledge = (getattr(req, "metadata", None) or {}).get("_external_knowledge")
+        except Exception:
+            ext_knowledge = None
+        if isinstance(ext_knowledge, str) and ext_knowledge.strip():
+            system_prompt_with_persona = system_prompt_with_persona + "\n\n# External Knowledge\n" + ext_knowledge.strip()
+
         user_text = req.message or ""
 
         client_history: List[Dict[str, str]] = []

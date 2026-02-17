@@ -189,6 +189,26 @@ class FetchResult:
         }
 
 
+@dataclass
+class RawFetchResult:
+    url: str
+    final_url: str
+    title: str
+    content_type: str
+    html_bytes: bytes
+    meta: Dict[str, Any]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "url": self.url,
+            "final_url": self.final_url,
+            "title": self.title,
+            "content_type": self.content_type,
+            "bytes": int(len(self.html_bytes or b"")),
+            "meta": self.meta,
+        }
+
+
 def _extract_title(html_bytes: bytes) -> str:
     try:
         s = html_bytes.decode("utf-8", errors="ignore")
@@ -201,13 +221,19 @@ def _extract_title(html_bytes: bytes) -> str:
     return t[:200]
 
 
-def fetch_url(
+def fetch_url_raw(
     *,
     url: str,
     timeout_sec: int = 20,
     max_bytes: int = 1_500_000,
     user_agent: str = "sigmaris-core-web-fetch/1.0",
-) -> FetchResult:
+) -> RawFetchResult:
+    """
+    Fetch an URL and return raw HTML bytes (bounded) + minimal metadata.
+
+    This is used for higher-level pipelines (e.g., link extraction / crawling).
+    NOTE: Allowlist + SSRF guards are enforced in this function.
+    """
     normalized = _normalize_url(url)
     parsed = urllib.parse.urlparse(normalized)
     host = parsed.hostname or ""
@@ -239,7 +265,6 @@ def fetch_url(
             snippet = raw[:200].decode("utf-8", errors="ignore") if isinstance(raw, (bytes, bytearray)) else ""
         except Exception:
             snippet = ""
-        # Mark as origin-side HTTP error (not our allowlist/SSRF guard).
         msg = f"origin_http:{code}"
         if snippet:
             msg += f":{snippet.strip()[:120]}"
@@ -251,18 +276,41 @@ def fetch_url(
         raise WebFetchError("response too large")
 
     title = _extract_title(raw)
-    text, extract_meta = _html_to_text(raw, content_type=ctype)
-
-    # Basic cleanup: keep only reasonably-sized content
-    text = re.sub(r"\\n{3,}", "\n\n", text).strip()
-
     meta: Dict[str, Any] = {
         "content_type": ctype,
         "bytes": int(len(raw)),
         "host": host,
         "allowlist": _split_csv(_env("SIGMARIS_WEB_FETCH_ALLOW_DOMAINS")),
         "robots_checked": False,
+        "extraction": "raw_html",
+    }
+
+    return RawFetchResult(
+        url=normalized,
+        final_url=str(final_url or normalized),
+        title=title,
+        content_type=ctype,
+        html_bytes=raw,
+        meta=meta,
+    )
+
+
+def fetch_url(
+    *,
+    url: str,
+    timeout_sec: int = 20,
+    max_bytes: int = 1_500_000,
+    user_agent: str = "sigmaris-core-web-fetch/1.0",
+) -> FetchResult:
+    fr = fetch_url_raw(url=url, timeout_sec=timeout_sec, max_bytes=max_bytes, user_agent=user_agent)
+    text, extract_meta = _html_to_text(fr.html_bytes, content_type=fr.content_type)
+
+    # Basic cleanup: keep only reasonably-sized content
+    text = re.sub(r"\\n{3,}", "\n\n", text).strip()
+
+    meta: Dict[str, Any] = {
+        **(fr.meta or {}),
         **extract_meta,
     }
 
-    return FetchResult(url=normalized, final_url=final_url, title=title, text=text, meta=meta)
+    return FetchResult(url=fr.url, final_url=fr.final_url, title=fr.title, text=text, meta=meta)
