@@ -749,6 +749,14 @@ def _web_rag_explicit_request(message: str) -> bool:
         "見出し",
         "引っ張って",
         "拾って",
+        "障害",
+        "不具合",
+        "落ちて",
+        "重い",
+        "遅い",
+        "繋がらない",
+        "つながらない",
+        "ステータス",
         "検索",
         "調べて",
         "ソース",
@@ -760,6 +768,8 @@ def _web_rag_explicit_request(message: str) -> bool:
         "news",
         "headline",
         "article",
+        "outage",
+        "status",
         "source",
         "citation",
         "browse",
@@ -770,7 +780,28 @@ def _web_rag_explicit_request(message: str) -> bool:
 
 def _web_rag_time_sensitive_hint(message: str) -> bool:
     s = (message or "")
-    keywords = ["最新", "今日", "昨日", "今週", "今月", "ニュース", "速報", "いま", "現状", "料金", "価格", "リリース", "バージョン"]
+    keywords = [
+        "最新",
+        "今日",
+        "昨日",
+        "今週",
+        "今月",
+        "ニュース",
+        "速報",
+        "いま",
+        "現状",
+        "障害",
+        "不具合",
+        "落ちて",
+        "重い",
+        "遅い",
+        "繋がらない",
+        "つながらない",
+        "料金",
+        "価格",
+        "リリース",
+        "バージョン",
+    ]
     return any(k in s for k in keywords)
 
 
@@ -1676,6 +1707,17 @@ async def persona_chat(req: ChatRequest, auth: Optional[AuthContext] = Depends(g
         "phase04": phase04_meta,
     }
 
+    # Web RAG observability (best-effort; safe to expose)
+    try:
+        meta["web_rag"] = {
+            "enabled": bool(_web_rag_enabled()),
+            "injected": bool(isinstance(web_ctx, str) and web_ctx.strip()),
+            "sources_count": int(len(web_sources)) if isinstance(web_sources, list) else 0,
+            "meta": (web_meta if isinstance(web_meta, dict) else {}),
+        }
+    except Exception:
+        pass
+
     persona_runtime = _extract_persona_runtime_meta(req.gen)
     if persona_runtime:
         meta["persona_runtime"] = persona_runtime
@@ -1965,6 +2007,17 @@ async def persona_chat_stream(req: ChatRequest, auth: Optional[AuthContext] = De
                     persona_runtime = _extract_persona_runtime_meta(req.gen)
                     if persona_runtime:
                         meta["persona_runtime"] = persona_runtime
+
+                    # Web RAG observability (best-effort; safe to expose)
+                    try:
+                        meta["web_rag"] = {
+                            "enabled": bool(_web_rag_enabled()),
+                            "injected": bool(isinstance(web_ctx, str) and web_ctx.strip()),
+                            "sources_count": int(len(web_sources)) if isinstance(web_sources, list) else 0,
+                            "meta": (web_meta if isinstance(web_meta, dict) else {}),
+                        }
+                    except Exception:
+                        pass
 
                     meta["meta_v1"] = {
                         "trace_id": str(meta.get("trace_id") or trace_id),
