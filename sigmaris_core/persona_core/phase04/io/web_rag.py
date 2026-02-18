@@ -167,6 +167,27 @@ def _extract_links(html_bytes: bytes, *, base_url: str, limit: int = 120) -> Lis
     return out
 
 
+def _extract_urls(text: str, *, limit: int = 5) -> List[str]:
+    t = str(text or "")
+    re_url = re.compile(r"https?://[^\\s<>\"')\\]]+", re.IGNORECASE)
+    matches = re_url.findall(t) or []
+    uniq: List[str] = []
+    for m in matches:
+        u = _canonicalize_url(m)
+        if not u:
+            continue
+        if u not in uniq:
+            uniq.append(u)
+        if len(uniq) >= int(limit):
+            break
+    return uniq
+
+
+def _strip_urls(text: str) -> str:
+    t = str(text or "")
+    return re.sub(r"https?://[^\\s<>\"')\\]]+", " ", t, flags=re.IGNORECASE).strip()
+
+
 def _extract_text_high_quality(fr: RawFetchResult) -> Tuple[str, Dict[str, Any]]:
     """
     Higher-quality HTML -> text extraction.
@@ -357,6 +378,7 @@ class WebRagOutput:
 def build_web_rag(
     *,
     query: str,
+    seed_urls: Optional[List[str]] = None,
     max_search_results: int = 8,
     recency_days: Optional[int] = None,
     safe_search: str = "active",
@@ -379,12 +401,20 @@ def build_web_rag(
     - optional per-page summarization via OpenAI (paraphrase, no long quotes)
     """
     q = (query or "").strip()
-    if not q:
+    seeds = [s for s in (seed_urls or []) if isinstance(s, str) and s.strip()]
+    if not seeds:
+        # Accept URLs embedded in query for URL-seed mode.
+        seeds = _extract_urls(q, limit=5)
+    q_rank = _strip_urls(q)
+
+    if not q_rank and not seeds:
         raise WebRagError("empty query")
 
-    provider = get_web_search_provider()
-    if provider is None:
-        raise WebRagError("web search provider not configured")
+    provider = None
+    if not seeds:
+        provider = get_web_search_provider()
+        if provider is None:
+            raise WebRagError("web search provider not configured")
 
     allow_domains = _split_csv(_env("SIGMARIS_WEB_RAG_ALLOW_DOMAINS"))
     deny_domains = _split_csv(_env("SIGMARIS_WEB_RAG_DENY_DOMAINS"))
@@ -396,23 +426,30 @@ def build_web_rag(
     per_host_limit = int(max(1, per_host_limit))
 
     started = time.time()
-    try:
-        results: List[WebSearchResult] = provider.search(
-            query=q,
-            max_results=int(max_search_results),
-            recency_days=recency_days,
-            safe_search=safe_search,
-            domains=domains,
-        )
-    except WebSearchError as e:
-        raise WebRagError(str(e)) from e
-
+    results: List[WebSearchResult] = []
     queue: List[Tuple[str, int, str]] = []
-    for r in results:
-        u = _canonicalize_url(r.url)
-        if not u:
-            continue
-        queue.append((u, 0, (r.snippet or "")[:220]))
+    if seeds:
+        for u0 in seeds:
+            u = _canonicalize_url(u0)
+            if not u:
+                continue
+            queue.append((u, 0, ""))
+    else:
+        try:
+            results = provider.search(
+                query=q_rank or q,
+                max_results=int(max_search_results),
+                recency_days=recency_days,
+                safe_search=safe_search,
+                domains=domains,
+            )
+        except WebSearchError as e:
+            raise WebRagError(str(e)) from e
+        for r in results:
+            u = _canonicalize_url(r.url)
+            if not u:
+                continue
+            queue.append((u, 0, (r.snippet or "")[:220]))
 
     visited: Set[str] = set()
     fetched: List[WebRagSource] = []
@@ -521,7 +558,7 @@ def build_web_rag(
             ]
         )
         docs.append(blob.strip())
-    scores = _bm25_rank(q, docs)
+    scores = _bm25_rank(q_rank or q, docs)
     for i, s in enumerate(deduped):
         s.score = float(scores[i] if i < len(scores) else 0.0)
 
@@ -532,7 +569,7 @@ def build_web_rag(
     ts = _now_iso()
     lines: List[str] = []
     lines.append("External Web Context (retrieved, paraphrase-only).")
-    lines.append(f"- query: {q}")
+    lines.append(f"- query: {q_rank or q}")
     lines.append(f"- retrieved_at_utc: {ts}")
     lines.append("")
     lines.append("Usage rules:")
@@ -568,6 +605,7 @@ def build_web_rag(
         "max_pages": int(max_pages),
         "max_depth": int(max_depth),
         "provider": "serper",
+        "seed_urls": [str(u) for u in seeds[:5]] if seeds else [],
         "policy": {
             "allow_domains": allow_domains,
             "deny_domains": deny_domains,
@@ -576,4 +614,3 @@ def build_web_rag(
     }
 
     return WebRagOutput(context_text="\n".join(lines).strip(), sources=picked, meta=meta)
-
