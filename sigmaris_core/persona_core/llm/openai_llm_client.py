@@ -593,7 +593,16 @@ class OpenAILLMClient(LLMClientLike):
         except Exception:
             ext_knowledge = None
         if isinstance(ext_knowledge, str) and ext_knowledge.strip():
-            system_prompt_with_persona = system_prompt_with_persona + "\n\n# External Knowledge\n" + ext_knowledge.strip()
+            system_prompt_with_persona = (
+                system_prompt_with_persona
+                + "\n\n# External Knowledge\n"
+                + ext_knowledge.strip()
+                + "\n\n# External Knowledge Rules\n"
+                + "- The system already retrieved this context from the web or tools.\n"
+                + "- Do NOT say you cannot access the internet when this block is present.\n"
+                + "- If you rely on a claim from this block, include the corresponding source URL in your reply.\n"
+                + "- Avoid long verbatim quotes; paraphrase.\n"
+            )
 
         user_text = req.message or ""
 
