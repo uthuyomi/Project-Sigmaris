@@ -24,6 +24,7 @@ import uuid
 import hashlib
 import sys
 import asyncio
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
@@ -742,6 +743,12 @@ def _web_rag_explicit_request(message: str) -> bool:
     s = (message or "")
     # Explicit user intent (Japanese + common English)
     keywords = [
+        "ニュース",
+        "記事",
+        "話題",
+        "見出し",
+        "引っ張って",
+        "拾って",
         "検索",
         "調べて",
         "ソース",
@@ -750,6 +757,9 @@ def _web_rag_explicit_request(message: str) -> bool:
         "一次ソース",
         "リンク",
         "URL",
+        "news",
+        "headline",
+        "article",
         "source",
         "citation",
         "browse",
@@ -797,14 +807,23 @@ async def _maybe_web_rag_for_turn(
     if not (force or explicit or auto):
         return (None, None, None)
 
-    # Provider must be configured (SERPER_API_KEY etc). If not, skip silently.
+    # Extract seed URLs (list pages etc.) from the message.
+    seed_urls: List[str] = []
     try:
-        from persona_core.phase04.io.web_search import get_web_search_provider
-
-        if get_web_search_provider() is None:
-            return (None, None, None)
+        seed_urls = re.findall(r"https?://[^\\s<>\"')\\]]+", str(message or ""))[:5]
+        seed_urls = [u.strip() for u in seed_urls if isinstance(u, str) and u.strip()]
     except Exception:
-        return (None, None, None)
+        seed_urls = []
+
+    # Provider must be configured (SERPER_API_KEY etc) only when we don't have seed URLs.
+    if not seed_urls:
+        try:
+            from persona_core.phase04.io.web_search import get_web_search_provider
+
+            if get_web_search_provider() is None:
+                return (None, None, None)
+        except Exception:
+            return (None, None, None)
 
     # Build request payload from env defaults + optional overrides
     def _get_int(key: str, default: int) -> int:
@@ -846,6 +865,7 @@ async def _maybe_web_rag_for_turn(
 
     request_payload: Dict[str, Any] = {
         "query": str(message or "").strip()[:800],
+        "seed_urls": list(seed_urls),
         "max_search_results": _get_int("max_search_results", 8),
         "recency_days": int(recency_days) if recency_days is not None else None,
         "safe_search": _get_str("safe_search", "active"),
@@ -886,6 +906,7 @@ async def _maybe_web_rag_for_turn(
         out = await asyncio.to_thread(
             build_web_rag,
             query=str(request_payload["query"]),
+            seed_urls=(request_payload.get("seed_urls") if isinstance(request_payload.get("seed_urls"), list) else None),
             max_search_results=int(request_payload["max_search_results"]),
             recency_days=(int(request_payload["recency_days"]) if request_payload.get("recency_days") is not None else None),
             safe_search=str(request_payload["safe_search"] or "active"),
@@ -1138,6 +1159,7 @@ class WebFetchResponse(BaseModel):
 
 class WebRagRequest(BaseModel):
     query: str
+    seed_urls: Optional[List[str]] = None
     max_search_results: int = 8
     recency_days: Optional[int] = None
     safe_search: str = "active"
@@ -2730,6 +2752,7 @@ async def io_web_rag(
 
     request_payload: Dict[str, Any] = {
         "query": req.query,
+        "seed_urls": list(req.seed_urls or []),
         "max_search_results": int(req.max_search_results),
         "recency_days": int(req.recency_days) if req.recency_days is not None else None,
         "safe_search": str(req.safe_search or "active"),
@@ -2785,6 +2808,7 @@ async def io_web_rag(
 
         out = build_web_rag(
             query=req.query,
+            seed_urls=(req.seed_urls if isinstance(req.seed_urls, list) else None),
             max_search_results=req.max_search_results,
             recency_days=req.recency_days,
             safe_search=req.safe_search,
