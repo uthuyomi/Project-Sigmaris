@@ -947,8 +947,13 @@ export default function ChatClient() {
     const update = () => {
       const height = vv?.height ?? window.innerHeight;
       const offsetTop = vv?.offsetTop ?? 0;
+      const bottomOcclusion = Math.max(
+        0,
+        window.innerHeight - (offsetTop + height),
+      );
       root.style.setProperty("--app-vvh", `${height}px`);
       root.style.setProperty("--app-vvo", `${offsetTop}px`);
+      root.style.setProperty("--app-vvb", `${bottomOcclusion}px`);
     };
 
     update();
