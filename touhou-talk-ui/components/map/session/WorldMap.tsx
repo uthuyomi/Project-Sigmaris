@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useButton } from "@react-aria/button";
 import { motion } from "framer-motion";
@@ -140,8 +147,7 @@ function CharacterAvatar({
   size: "sm" | "md";
 }) {
   const pixel = size === "md" ? "h-16 w-16" : "h-12 w-12";
-  const border = "border-[color:var(--map-accent-soft)]";
-  const shadow = "shadow-[0_0_18px_var(--map-accent-strong)]";
+  const border = "border-border";
 
   if (typeof character.ui?.avatar === "string" && character.ui.avatar.trim()) {
     return (
@@ -150,7 +156,7 @@ function CharacterAvatar({
         alt=""
         aria-hidden="true"
         draggable={false}
-        className={`${pixel} shrink-0 rounded-2xl border ${border} bg-black/40 object-cover ${shadow}`}
+        className={`${pixel} shrink-0 rounded-2xl border ${border} bg-muted/30 object-cover`}
       />
     );
   }
@@ -158,7 +164,7 @@ function CharacterAvatar({
   return (
     <div
       aria-hidden="true"
-      className={`${pixel} shrink-0 rounded-2xl border border-white/10 bg-black/40`}
+      className={`${pixel} shrink-0 rounded-2xl border ${border} bg-muted/30`}
     />
   );
 }
@@ -206,6 +212,7 @@ function LocationPin({
           type="button"
           aria-pressed={isActive}
           data-pressed={isPressed ? "true" : "false"}
+          onClickCapture={(e) => e.stopPropagation()}
           className="map-pin group absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--map-marker)] focus-visible:ring-offset-2 focus-visible:ring-offset-black/40"
           style={{ left: `${position.x}%`, top: `${position.y}%` }}
           whileHover={{ scale: 1.04 }}
@@ -380,6 +387,14 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
   };
 
   const hint = "マップ上の地点を選択";
+  const closeIfClickedOnMap = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!activeId) return;
+    const t = e.target as HTMLElement | null;
+    if (!t) return;
+    if (t.closest(".map-ui")) return;
+    if (t.closest(".map-pin")) return;
+    setActiveId(null);
+  };
 
   return (
     <div
@@ -413,7 +428,7 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
       </div>
 
       <TooltipProvider delayDuration={150}>
-        <div className="absolute inset-0 z-10">
+        <div className="absolute inset-0 z-10" onClick={closeIfClickedOnMap}>
           <TransformWrapper
             ref={transformRef}
             minScale={0.2}
@@ -472,6 +487,7 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
           <div className="map-ui pointer-events-auto absolute left-1/2 top-4 z-30 -translate-x-1/2 touch-auto">
             <div
               ref={layerPanelRef}
+              onClickCapture={(e) => e.stopPropagation()}
               className="w-[520px] max-w-[94vw] rounded-2xl border border-[color:var(--map-accent-weak)] bg-black/45 px-4 py-3 text-white backdrop-blur-md shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
             >
               <div className="mt-1 text-center font-gensou text-2xl tracking-[0.16em] drop-shadow-[0_2px_14px_var(--map-accent-strong)]">
@@ -500,6 +516,10 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
                     active={layer === "higan"}
                   />
                 )}
+              </div>
+
+              <div className="mt-2 text-center text-xs text-white/70">
+                マップを選択してください
               </div>
             </div>
           </div>
