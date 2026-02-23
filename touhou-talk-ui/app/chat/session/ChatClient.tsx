@@ -366,7 +366,7 @@ export default function ChatClient() {
       if (!res.ok) return;
       const data = (await res.json()) as { sessions?: SessionSummary[] };
       setSessions(data.sessions ?? []);
-      setSessionsLoaded(true); // 笘・％繧・
+      setSessionsLoaded(true); // セッション一覧の取得完了
     })();
   }, []);
 
@@ -384,7 +384,7 @@ export default function ChatClient() {
       );
       if (existing) {
         setActiveSessionId(existing.id);
-        setActiveCharacterId(characterId); // 笘・％繧後′蠢・・
+        setActiveCharacterId(characterId); // 既存セッションに切り替え
         setHasSelectedOnce(true);
         setIsPanelOpen(false);
         return;
@@ -478,7 +478,7 @@ export default function ChatClient() {
 
     autoSelectDoneRef.current = true;
 
-    // 笘・譌｢蟄・/ 譁ｰ隕上・蛻､螳壹・ selectCharacter 縺ｫ螳悟・蟋碑ｭｲ
+    // URLの変更直後は状態が競合しやすいので、次のtickで selectCharacter を実行する
     Promise.resolve().then(() => {
       selectCharacter(charFromUrl);
     });
@@ -689,7 +689,7 @@ export default function ChatClient() {
           // ignore
         }
 
-        // 竭 user message
+        // user message
         appendMessage({
           id: crypto.randomUUID(),
           role: "user",
@@ -698,10 +698,10 @@ export default function ChatClient() {
           meta: null,
         });
 
-        // 竭｡ talk蟆ら畑 endpoint
+        // talk endpoint
         const endpoint = `/api/session/${activeSessionId}/message`;
 
-        // 竭｢ talk縺ｯ FormData 縺ｧ files 騾√ｋ
+        // talk: FormData に files を詰める
         const form = new FormData();
         form.append("characterId", activeCharacterId);
         form.append("text", text);
@@ -710,7 +710,7 @@ export default function ChatClient() {
           form.append("files", file);
         }
 
-        // 遶ｭ・｣ AI placeholder (stream target)
+        // AI placeholder (stream target)
         const aiId = crypto.randomUUID();
         appendMessage({
           id: aiId,
@@ -733,7 +733,7 @@ export default function ChatClient() {
 
         const reader = res.body.getReader();
 
-        // 竭｣ ai message
+        // ai message
         const decoder = new TextDecoder();
         let buf = "";
         let doneReceived = false;
