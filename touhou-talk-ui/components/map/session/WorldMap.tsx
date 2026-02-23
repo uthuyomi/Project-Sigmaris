@@ -212,7 +212,6 @@ function LocationPin({
           type="button"
           aria-pressed={isActive}
           data-pressed={isPressed ? "true" : "false"}
-          onClickCapture={(e) => e.stopPropagation()}
           className="map-pin group absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--map-marker)] focus-visible:ring-offset-2 focus-visible:ring-offset-black/40"
           style={{ left: `${position.x}%`, top: `${position.y}%` }}
           whileHover={{ scale: 1.04 }}
@@ -519,7 +518,7 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
               </div>
 
               <div className="mt-2 text-center text-xs text-white/70">
-                マップを選択してください
+                場所を選択してください
               </div>
             </div>
           </div>
