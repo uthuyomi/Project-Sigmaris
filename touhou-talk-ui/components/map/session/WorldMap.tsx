@@ -582,7 +582,7 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
                 </div>
 
                 <div className="px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-                  <div className="mx-auto flex max-w-[720px] flex-col items-center gap-3">
+                  <div className="mx-auto flex max-w-[720px] flex-col items-stretch gap-3">
                     {charactersHere.map((c) => (
                       <button
                         key={c.id}
@@ -591,9 +591,9 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
                         disabled={loadingChar === c.id}
                         className="w-full max-w-[560px] rounded-2xl border border-border bg-muted/30 px-4 py-4 text-left transition hover:bg-muted/45 disabled:opacity-60"
                       >
-                        <div className="flex items-center justify-center gap-4">
+                        <div className="flex items-center justify-start gap-4">
                           <CharacterAvatar character={c} size="md" />
-                          <div className="min-w-0 text-center">
+                          <div className="min-w-0 text-left">
                             <div className="truncate text-base font-semibold">
                               {c.name}
                             </div>
