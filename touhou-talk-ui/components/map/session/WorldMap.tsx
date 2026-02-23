@@ -155,7 +155,7 @@ function CharacterAvatar({
         alt=""
         aria-hidden="true"
         draggable={false}
-        className={`${pixel} shrink-0 rounded-2xl bg-muted/30 object-cover`}
+        className={`${pixel} shrink-0 rounded-2xl border border-transparent bg-muted/30 object-cover shadow-none`}
       />
     );
   }
@@ -163,7 +163,7 @@ function CharacterAvatar({
   return (
     <div
       aria-hidden="true"
-      className={`${pixel} shrink-0 rounded-2xl bg-muted/30`}
+      className={`${pixel} shrink-0 rounded-2xl border border-transparent bg-muted/30 shadow-none`}
     />
   );
 }
