@@ -106,6 +106,24 @@
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  /* =========================
+     Map UI accent (theme-linked)
+     - Used by the world-map UI (pins / HUD).
+  ========================= */
+  --map-accent: oklch(0.62 0.14 220);
+  --map-accent-ink: color-mix(in oklab, var(--map-accent) 78%, var(--foreground));
+  --map-accent-weak: color-mix(in oklab, var(--map-accent) 18%, transparent);
+  --map-accent-soft: color-mix(in oklab, var(--map-accent) 32%, transparent);
+  --map-accent-strong: color-mix(in oklab, var(--map-accent) 75%, transparent);
+  --map-accent-glow: color-mix(in oklab, var(--map-accent) 85%, transparent);
+
+  /* Map markers (high-visibility, game-like) */
+  --map-marker: oklch(0.78 0.14 200);
+  --map-marker-weak: color-mix(in oklab, var(--map-marker) 22%, transparent);
+  --map-marker-soft: color-mix(in oklab, var(--map-marker) 35%, transparent);
+  --map-marker-strong: color-mix(in oklab, var(--map-marker) 70%, transparent);
+  --map-marker-glow: color-mix(in oklab, var(--map-marker) 88%, transparent);
 }
 
 .dark {
@@ -142,6 +160,8 @@
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  --map-accent: oklch(0.78 0.14 200);
 }
 
 /* =========================
@@ -173,6 +193,8 @@
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.60 0.18 240);
+
+  --map-accent: var(--ring);
 }
 
 /* =========================
@@ -221,6 +243,8 @@
   --border: oklch(0.86 0.03 20 / 40%);
   --input: oklch(0.86 0.03 20 / 40%);
   --ring: oklch(0.65 0.08 335);
+
+  --map-accent: var(--ring);
 }
 
 /* =========================
@@ -362,4 +386,34 @@
 
 .animate-yinyang-spin {
   animation: yinyang-spin 2.8s linear infinite;
+}
+
+@keyframes beacon-pulse {
+  0% {
+    opacity: 0.35;
+    transform: translateY(0) scaleY(0.92);
+    filter: blur(0.5px);
+  }
+  50% {
+    opacity: 0.85;
+    transform: translateY(-2px) scaleY(1);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 0.35;
+    transform: translateY(0) scaleY(0.92);
+    filter: blur(0.5px);
+  }
+}
+
+@keyframes beacon-float {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+  100% {
+    transform: translateY(0);
+  }
 }
