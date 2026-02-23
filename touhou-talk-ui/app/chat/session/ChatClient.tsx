@@ -944,14 +944,14 @@ export default function ChatClient() {
         }}
       >
         <SidebarProvider>
-          <div className="flex h-svh w-full overflow-hidden bg-background text-foreground transition-colors duration-300">
+          <div className="flex h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground transition-colors duration-300">
             <TouhouSidebar
               visibleCharacters={visibleCharacters}
               activeCharacterId={activeCharacterId}
               onSelectCharacter={selectCharacter}
             />
 
-            <SidebarInset className="relative flex flex-col overflow-hidden">
+            <SidebarInset className="relative flex min-h-0 flex-col overflow-hidden">
               {/* Background */}
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-70"
@@ -984,7 +984,7 @@ export default function ChatClient() {
               </header>
 
               {/* Chat */}
-              <div className="relative z-10 flex-1 overflow-hidden">
+              <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
                 {activeSessionId ? (
                   <Thread />
                 ) : (
