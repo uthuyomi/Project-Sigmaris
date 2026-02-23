@@ -967,21 +967,68 @@ export default function ChatClient() {
     const mq = window.matchMedia("(max-width: 1024px)");
     if (!mq.matches) return;
 
+    const root = document.documentElement;
+    const vv = window.visualViewport ?? null;
+
     const prevOverflow = document.body.style.overflow;
     const prevPosition = document.body.style.position;
     const prevWidth = document.body.style.width;
     const prevHeight = document.body.style.height;
+    const prevTop = document.body.style.top;
+    const prevRootOverflow = root.style.overflow;
+    const prevRootHeight = root.style.height;
+    const prevOverscroll = root.style.overscrollBehaviorY;
+
+    const scrollY = window.scrollY;
 
     document.body.style.overflow = "hidden";
     document.body.style.position = "fixed";
     document.body.style.width = "100%";
     document.body.style.height = "100%";
+    document.body.style.top = `-${scrollY}px`;
+
+    root.style.overflow = "hidden";
+    root.style.height = "100%";
+    root.style.overscrollBehaviorY = "none";
+
+    const keepTop = () => {
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
+      if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+      if (root.scrollTop !== 0) root.scrollTop = 0;
+    };
+
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      const tag = t.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT" || t.isContentEditable) {
+        setTimeout(keepTop, 0);
+      }
+    };
+
+    keepTop();
+    vv?.addEventListener("resize", keepTop);
+    vv?.addEventListener("scroll", keepTop);
+    window.addEventListener("scroll", keepTop, { passive: true });
+    window.addEventListener("focusin", onFocusIn);
 
     return () => {
       document.body.style.overflow = prevOverflow;
       document.body.style.position = prevPosition;
       document.body.style.width = prevWidth;
       document.body.style.height = prevHeight;
+      document.body.style.top = prevTop;
+
+      root.style.overflow = prevRootOverflow;
+      root.style.height = prevRootHeight;
+      root.style.overscrollBehaviorY = prevOverscroll;
+
+      vv?.removeEventListener("resize", keepTop);
+      vv?.removeEventListener("scroll", keepTop);
+      window.removeEventListener("scroll", keepTop);
+      window.removeEventListener("focusin", onFocusIn);
+
+      window.scrollTo(0, scrollY);
     };
   }, []);
 
