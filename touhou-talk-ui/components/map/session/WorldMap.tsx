@@ -147,7 +147,6 @@ function CharacterAvatar({
   size: "sm" | "md";
 }) {
   const pixel = size === "md" ? "h-16 w-16" : "h-12 w-12";
-  const border = "border-border";
 
   if (typeof character.ui?.avatar === "string" && character.ui.avatar.trim()) {
     return (
@@ -156,7 +155,7 @@ function CharacterAvatar({
         alt=""
         aria-hidden="true"
         draggable={false}
-        className={`${pixel} shrink-0 rounded-2xl border ${border} bg-muted/30 object-cover`}
+        className={`${pixel} shrink-0 rounded-2xl bg-muted/30 object-cover`}
       />
     );
   }
@@ -164,7 +163,7 @@ function CharacterAvatar({
   return (
     <div
       aria-hidden="true"
-      className={`${pixel} shrink-0 rounded-2xl border ${border} bg-muted/30`}
+      className={`${pixel} shrink-0 rounded-2xl bg-muted/30`}
     />
   );
 }
