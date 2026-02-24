@@ -268,6 +268,7 @@
       "accent": "from-emerald-500/35 to-teal-500/20"
     },
     "ui": {
+      "avatar": "/avatar/sanae.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -285,6 +286,7 @@
       "accent": "from-amber-500/35 to-orange-500/20"
     },
     "ui": {
+      "avatar": "/avatar/kanako.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -302,6 +304,7 @@
       "accent": "from-lime-500/35 to-emerald-500/20"
     },
     "ui": {
+      "avatar": "/avatar/suwako.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -320,6 +323,7 @@
       "accent": "from-red-500/35 to-rose-500/20"
     },
     "ui": {
+      "avatar": "/avatar/meiling.png",
       "chatBackground": "/background/group_scarlet_mansion.png",
       "placeholder": "話しかける"
     }
@@ -337,6 +341,7 @@
       "accent": "from-indigo-500/35 to-violet-500/20"
     },
     "ui": {
+      "avatar": "/avatar/patchouli.png",
       "chatBackground": "/background/group_scarlet_mansion.png",
       "placeholder": "話しかける"
     }
@@ -354,6 +359,7 @@
       "accent": "from-fuchsia-500/35 to-purple-500/20"
     },
     "ui": {
+      "avatar": "/avatar/koakuma.png",
       "chatBackground": "/background/group_scarlet_mansion.png",
       "placeholder": "話しかける"
     }
@@ -372,6 +378,7 @@
       "accent": "from-pink-500/35 to-rose-500/20"
     },
     "ui": {
+      "avatar": "/avatar/kaguya.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -389,6 +396,7 @@
       "accent": "from-slate-500/35 to-sky-500/20"
     },
     "ui": {
+      "avatar": "/avatar/eirin.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -406,6 +414,7 @@
       "accent": "from-cyan-500/35 to-sky-500/20"
     },
     "ui": {
+      "avatar": "/avatar/reisen.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -423,6 +432,7 @@
       "accent": "from-zinc-200/30 to-stone-500/20"
     },
     "ui": {
+      "avatar": "/avatar/tewi.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -441,6 +451,7 @@
       "accent": "from-orange-500/35 to-red-500/20"
     },
     "ui": {
+      "avatar": "/avatar/mokou.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -458,6 +469,7 @@
       "accent": "from-amber-500/25 to-yellow-500/15"
     },
     "ui": {
+      "avatar": "/avatar/keine.png",
       "chatBackground": "/maps/gensokyo-pc.png",
       "placeholder": "話しかける"
     }
@@ -476,6 +488,7 @@
       "accent": "from-orange-500/35 to-rose-500/20"
     },
     "ui": {
+      "avatar": "/avatar/rin.png",
       "chatBackground": "/background/group_chireiden.png",
       "placeholder": "話しかける"
     }
@@ -493,6 +506,7 @@
       "accent": "from-yellow-500/35 to-orange-500/20"
     },
     "ui": {
+      "avatar": "/avatar/okuu.png",
       "chatBackground": "/background/group_chireiden.png",
       "placeholder": "話しかける"
     }
@@ -510,6 +524,7 @@
       "accent": "from-red-500/35 to-amber-500/20"
     },
     "ui": {
+      "avatar": "/avatar/yuugi.png",
       "chatBackground": "/maps/deep-pc.png",
       "placeholder": "話しかける"
     }
@@ -527,6 +542,7 @@
       "accent": "from-emerald-500/25 to-teal-500/15"
     },
     "ui": {
+      "avatar": "/avatar/parsee.png",
       "chatBackground": "/maps/deep-pc.png",
       "placeholder": "話しかける"
     }
@@ -544,6 +560,7 @@
       "accent": "from-lime-500/25 to-emerald-500/15"
     },
     "ui": {
+      "avatar": "/avatar/yamame.png",
       "chatBackground": "/maps/deep-pc.png",
       "placeholder": "話しかける"
     }
@@ -562,6 +579,7 @@
       "accent": "from-pink-500/25 to-violet-500/15"
     },
     "ui": {
+      "avatar": "/avatar/yuyuko.png",
       "chatBackground": "/maps/higan-pc.png",
       "placeholder": "話しかける"
     }
@@ -579,6 +597,7 @@
       "accent": "from-sky-500/25 to-cyan-500/15"
     },
     "ui": {
+      "avatar": "/avatar/komachi.png",
       "chatBackground": "/maps/higan-pc.png",
       "placeholder": "話しかける"
     }
@@ -596,6 +615,7 @@
       "accent": "from-indigo-500/25 to-slate-500/15"
     },
     "ui": {
+      "avatar": "/avatar/eiki.png",
       "chatBackground": "/maps/higan-pc.png",
       "placeholder": "話しかける"
     }
