@@ -585,6 +585,9 @@ class ChatRequest(BaseModel):
 
     # Optional character/persona injection (safe, ignored unless provided)
     character_id: Optional[str] = None
+    # Optional chat mode from client app ("partner" | "roleplay" | "coach").
+    # Used only for scoped style/policy adjustments; does not replace core OS prompt.
+    chat_mode: Optional[str] = None
     persona_system: Optional[str] = None
     # Optional per-request generation params (e.g., {"temperature":0.8,"max_tokens":600})
     gen: Optional[Dict[str, Any]] = None
@@ -1635,6 +1638,7 @@ async def persona_chat(req: ChatRequest, auth: Optional[AuthContext] = Depends(g
             **({"_tool_weather": tool_weather} if isinstance(tool_weather, dict) and tool_weather else {}),
             **({"_comparison": tool_comparison} if isinstance(tool_comparison, dict) and tool_comparison else {}),
             **({"character_id": req.character_id} if req.character_id else {}),
+            **({"chat_mode": req.chat_mode} if isinstance(req.chat_mode, str) and req.chat_mode.strip() else {}),
             **({"persona_system": external_system} if external_system else {}),
             **({"_external_knowledge": web_ctx} if isinstance(web_ctx, str) and web_ctx.strip() else {}),
             **({"_web_rag_sources": web_sources} if isinstance(web_sources, list) and web_sources else {}),

@@ -68,6 +68,7 @@ from persona_core.phase03.naturalness_controller import (
     self_assess_and_correct,
     update_params_on_user,
 )
+from persona_core.phase03.roleplay_character_policy import get_roleplay_character_policy
 
 
 # --------------------------------------------------------------
@@ -1212,10 +1213,57 @@ class PersonaController:
 
         # ---- 5.8) Naturalness (turn-taking / style control) ----
         allow_choices = False
+        applied_naturalness = False
+        roleplay_policy = None
         try:
             session_id = str(getattr(req, "session_id", "") or "").strip()
-            nat = self._apply_naturalness_policy(req=req, session_id=session_id, meta=meta)
-            allow_choices = bool(nat.get("allow_choices"))
+            md = getattr(req, "metadata", None) or {}
+            if isinstance(md, dict):
+                roleplay_policy = get_roleplay_character_policy(md)
+                # Expose policy info for debugging / snapshotting (compact, no prompt text).
+                try:
+                    meta["roleplay_policy"] = roleplay_policy.to_dict()
+                except Exception:
+                    meta["roleplay_policy"] = {"enabled": bool(getattr(roleplay_policy, "enabled", False))}
+
+                # Apply scoped per-character overrides before LLM call.
+                try:
+                    if getattr(roleplay_policy, "enabled", False):
+                        if bool(getattr(roleplay_policy, "stop_memory_injection", False)):
+                            md["_phase03_stop_memory_injection"] = True
+
+                        g0 = md.get("gen") if isinstance(md.get("gen"), dict) else {}
+                        g = dict(g0)
+                        if bool(getattr(roleplay_policy, "force_quality_pipeline", False)):
+                            g["quality_pipeline"] = True
+                            g["quality_mode"] = str(getattr(roleplay_policy, "quality_mode", "roleplay") or "roleplay")
+                        cap = getattr(roleplay_policy, "max_tokens_cap", None)
+                        if isinstance(cap, int) and cap > 0:
+                            try:
+                                if "max_tokens" in g:
+                                    g["max_tokens"] = min(int(g.get("max_tokens")), int(cap))
+                                else:
+                                    g["max_tokens"] = int(cap)
+                            except Exception:
+                                g["max_tokens"] = int(cap)
+                        md["gen"] = g
+                        req.metadata = md  # type: ignore[assignment]
+                except Exception:
+                    pass
+
+            # Naturalness injection can conflict with strict character roleplay (e.g., 2-choice prompts).
+            if getattr(roleplay_policy, "disable_naturalness_injection", False):
+                applied_naturalness = False
+                # Keep allow_choices conservative: roleplay may still want short choices.
+                allow_choices = True
+                meta["naturalness"] = {
+                    "enabled": False,
+                    "skipped_by_roleplay_policy": True,
+                }
+            else:
+                nat = self._apply_naturalness_policy(req=req, session_id=session_id, meta=meta)
+                applied_naturalness = True
+                allow_choices = bool(nat.get("allow_choices"))
         except Exception:
             pass
 
@@ -1233,9 +1281,14 @@ class PersonaController:
 
         # ---- 6.2) Naturalness hardening (forced rules) ----
         try:
+            md = getattr(req, "metadata", None) or {}
+            if isinstance(md, dict):
+                roleplay_policy = get_roleplay_character_policy(md)
             cleaned, clean_meta = sanitize_reply_text(
                 reply_text=reply_text,
                 allow_choices=allow_choices,
+                max_questions=int(getattr(roleplay_policy, "max_questions_per_turn", 1) or 1),
+                remove_interview_prompts=bool(getattr(roleplay_policy, "remove_interview_prompts", True)),
             )
             reply_text = cleaned
             nat = meta.get("naturalness") if isinstance(meta.get("naturalness"), dict) else None
@@ -1257,14 +1310,15 @@ class PersonaController:
 
         # ---- 6.5) Naturalness self-correction (post) ----
         try:
-            session_id = str(getattr(req, "session_id", "") or "").strip()
-            self._finalize_naturalness_policy(
-                req=req,
-                session_id=session_id,
-                meta=meta,
-                reply_text=reply_text,
-                allow_choices=allow_choices,
-            )
+            if applied_naturalness:
+                session_id = str(getattr(req, "session_id", "") or "").strip()
+                self._finalize_naturalness_policy(
+                    req=req,
+                    session_id=session_id,
+                    meta=meta,
+                    reply_text=reply_text,
+                    allow_choices=allow_choices,
+                )
         except Exception:
             pass
 
@@ -1936,10 +1990,54 @@ class PersonaController:
 
         # ---- 5.8) Naturalness (turn-taking / style control) ----
         allow_choices = False
+        applied_naturalness = False
+        roleplay_policy = None
         try:
             session_id = str(getattr(req, "session_id", "") or "").strip()
-            nat = self._apply_naturalness_policy(req=req, session_id=session_id, meta=meta)
-            allow_choices = bool(nat.get("allow_choices"))
+            md = getattr(req, "metadata", None) or {}
+            if isinstance(md, dict):
+                roleplay_policy = get_roleplay_character_policy(md)
+                try:
+                    meta["roleplay_policy"] = roleplay_policy.to_dict()
+                except Exception:
+                    meta["roleplay_policy"] = {"enabled": bool(getattr(roleplay_policy, "enabled", False))}
+
+                # Apply scoped per-character overrides before LLM call.
+                try:
+                    if getattr(roleplay_policy, "enabled", False):
+                        if bool(getattr(roleplay_policy, "stop_memory_injection", False)):
+                            md["_phase03_stop_memory_injection"] = True
+
+                        g0 = md.get("gen") if isinstance(md.get("gen"), dict) else {}
+                        g = dict(g0)
+                        if bool(getattr(roleplay_policy, "force_quality_pipeline", False)):
+                            g["quality_pipeline"] = True
+                            g["quality_mode"] = str(getattr(roleplay_policy, "quality_mode", "roleplay") or "roleplay")
+                        cap = getattr(roleplay_policy, "max_tokens_cap", None)
+                        if isinstance(cap, int) and cap > 0:
+                            try:
+                                if "max_tokens" in g:
+                                    g["max_tokens"] = min(int(g.get("max_tokens")), int(cap))
+                                else:
+                                    g["max_tokens"] = int(cap)
+                            except Exception:
+                                g["max_tokens"] = int(cap)
+                        md["gen"] = g
+                        req.metadata = md  # type: ignore[assignment]
+                except Exception:
+                    pass
+
+            if getattr(roleplay_policy, "disable_naturalness_injection", False):
+                applied_naturalness = False
+                allow_choices = True
+                meta["naturalness"] = {
+                    "enabled": False,
+                    "skipped_by_roleplay_policy": True,
+                }
+            else:
+                nat = self._apply_naturalness_policy(req=req, session_id=session_id, meta=meta)
+                applied_naturalness = True
+                allow_choices = bool(nat.get("allow_choices"))
         except Exception:
             pass
 
@@ -1981,9 +2079,14 @@ class PersonaController:
 
         # ---- 6.2) Naturalness hardening (forced rules) ----
         try:
+            md = getattr(req, "metadata", None) or {}
+            if isinstance(md, dict):
+                roleplay_policy = get_roleplay_character_policy(md)
             cleaned, clean_meta = sanitize_reply_text(
                 reply_text=reply_text,
                 allow_choices=allow_choices,
+                max_questions=int(getattr(roleplay_policy, "max_questions_per_turn", 1) or 1),
+                remove_interview_prompts=bool(getattr(roleplay_policy, "remove_interview_prompts", True)),
             )
             reply_text = cleaned
             nat = meta.get("naturalness") if isinstance(meta.get("naturalness"), dict) else None
@@ -2004,14 +2107,15 @@ class PersonaController:
 
         # ---- 6.5) Naturalness self-correction (post) ----
         try:
-            session_id = str(getattr(req, "session_id", "") or "").strip()
-            self._finalize_naturalness_policy(
-                req=req,
-                session_id=session_id,
-                meta=meta,
-                reply_text=reply_text,
-                allow_choices=allow_choices,
-            )
+            if applied_naturalness:
+                session_id = str(getattr(req, "session_id", "") or "").strip()
+                self._finalize_naturalness_policy(
+                    req=req,
+                    session_id=session_id,
+                    meta=meta,
+                    reply_text=reply_text,
+                    allow_choices=allow_choices,
+                )
         except Exception:
             pass
 

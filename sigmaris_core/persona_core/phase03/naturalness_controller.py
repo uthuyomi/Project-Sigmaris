@@ -364,6 +364,8 @@ def sanitize_reply_text(
     *,
     reply_text: str,
     allow_choices: bool,
+    max_questions: int = 1,
+    remove_interview_prompts: bool = True,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Hardening layer for the "forced rules".
@@ -392,7 +394,8 @@ def sanitize_reply_text(
             t = t.replace(p, "")
 
     # Remove explicit interview/choice prompts if user didn't ask for choices.
-    if not allow_choices:
+    # Roleplay policies may disable this removal to preserve character-specific "2択" style.
+    if remove_interview_prompts and (not allow_choices):
         interview_prompts = [
             "どれにする？",
             "どれが近い？",
@@ -406,15 +409,21 @@ def sanitize_reply_text(
                 removed_templates.append(p)
                 t = t.replace(p, "")
 
-    # Enforce max ONE question mark per turn.
+    # Enforce max question marks per turn (default 1).
+    try:
+        cap = int(max_questions)
+    except Exception:
+        cap = 1
+    if cap < 0:
+        cap = 0
     q_total = _count_questions(t)
-    if q_total > 1:
+    if cap >= 0 and q_total > cap:
         seen = 0
         out_chars: List[str] = []
         for ch in t:
             if ch in ("?", "？"):
                 seen += 1
-                if seen >= 2:
+                if seen > cap:
                     out_chars.append("。")
                     continue
             out_chars.append(ch)
@@ -430,5 +439,7 @@ def sanitize_reply_text(
         "removed_templates": removed_templates[:10],
         "question_count_before": int(_count_questions(original)),
         "question_count_after": int(_count_questions(t)),
+        "max_questions": int(cap),
+        "remove_interview_prompts": bool(remove_interview_prompts),
     }
     return t, meta
