@@ -8,15 +8,23 @@ type Props = {
   children: React.ReactNode;
   fog?: boolean;
   loading?: boolean;
+  scroll?: boolean;
 };
 
 export default function TopShell({
   children,
   fog = false,
   loading = false,
+  scroll = false,
 }: Props) {
   return (
-    <main className="relative h-dvh w-full overflow-hidden">
+    <main
+      className={
+        scroll
+          ? "relative min-h-dvh w-full overflow-y-auto"
+          : "relative h-dvh w-full overflow-hidden"
+      }
+    >
       {/* 背景動画（PC） */}
       <video
         className="absolute inset-0 hidden h-full object-cover lg:block m-auto"
@@ -38,7 +46,13 @@ export default function TopShell({
       </div>
 
       {/* 中央コンテンツ */}
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6">
+      <div
+        className={
+          scroll
+            ? "relative z-10 flex min-h-dvh flex-col items-center justify-start px-6 py-10"
+            : "relative z-10 flex h-full flex-col items-center justify-center px-6"
+        }
+      >
         {children}
       </div>
 

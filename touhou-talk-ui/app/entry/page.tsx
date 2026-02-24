@@ -101,7 +101,7 @@ export default function EntryPage() {
   }
 
   return (
-    <TopShell fog>
+    <TopShell fog scroll>
       <div className="w-full max-w-4xl rounded-2xl border border-white/10 bg-black/30 p-6 text-white backdrop-blur">
         <div className="mb-5 flex items-end justify-between gap-4">
           <div className="min-w-0">
@@ -157,4 +157,3 @@ export default function EntryPage() {
     </TopShell>
   );
 }
-
