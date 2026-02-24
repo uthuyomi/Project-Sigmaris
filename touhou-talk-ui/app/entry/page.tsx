@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import TopShell from "@/components/top/TopShell";
 import { CHARACTERS, type CharacterDef } from "@/data/characters";
-import { LOCATIONS, type LayerId, type MapLocation } from "@/lib/map/locations";
+import { LOCATIONS, type LayerId } from "@/lib/map/locations";
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +19,7 @@ function layerLabel(layer: LayerId) {
     case "deep":
       return "地底";
     case "higan":
-      return "彼岸";
+      return "白玉楼";
   }
 }
 
@@ -33,30 +33,41 @@ function buildNextPath(ch: CharacterDef) {
   return `/chat/session?${sp.toString()}`;
 }
 
-function locationKey(loc: MapLocation) {
-  return `${loc.layer}:${loc.id}`;
+function locationNameById(layer: LayerId, locationId: string): string {
+  const loc = LOCATIONS.find((l) => l.layer === layer && l.id === locationId);
+  return loc?.name ?? locationId;
 }
 
-function charactersByLocation() {
-  const byKey = new Map<string, CharacterDef[]>();
+function groupLabelForCharacter(ch: CharacterDef): LayerId | null {
+  const layer = ch.world?.map;
+  if (layer === "gensokyo" || layer === "deep" || layer === "higan") return layer;
+  return null;
+}
+
+function charactersByGroup(): Record<LayerId, CharacterDef[]> {
+  const out: Record<LayerId, CharacterDef[]> = { gensokyo: [], deep: [], higan: [] };
   for (const ch of Object.values(CHARACTERS)) {
-    const layer = ch.world?.map;
-    const loc = ch.world?.location;
-    if (!layer || !loc) continue;
-    const k = `${layer}:${loc}`;
-    const arr = byKey.get(k) ?? [];
-    arr.push(ch);
-    byKey.set(k, arr);
+    const g = groupLabelForCharacter(ch);
+    if (!g) continue;
+    out[g].push(ch);
   }
-  for (const arr of byKey.values()) {
-    arr.sort((a, b) => String(a.name).localeCompare(String(b.name), "ja"));
+  for (const layer of ["gensokyo", "deep", "higan"] as const) {
+    out[layer].sort((a, b) => {
+      const al = String(a.world?.location ?? "");
+      const bl = String(b.world?.location ?? "");
+      if (al !== bl) return al.localeCompare(bl, "ja");
+      return String(a.name).localeCompare(String(b.name), "ja");
+    });
   }
-  return byKey;
+  return out;
 }
 
 function CharacterCard({ ch }: { ch: CharacterDef }) {
   const nextPath = buildNextPath(ch);
   const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
+  const layer = (ch.world?.map ?? "") as LayerId;
+  const locId = typeof ch.world?.location === "string" ? ch.world.location : "";
+  const locName = layer && locId ? locationNameById(layer, locId) : "";
 
   return (
     <Link
@@ -82,7 +93,7 @@ function CharacterCard({ ch }: { ch: CharacterDef }) {
         {/* top chips */}
         <div className="absolute left-3 top-3 flex flex-wrap gap-2">
           <Chip>ロールプレイ</Chip>
-          <Chip>選択して開始</Chip>
+          {locName ? <Chip>{locName}</Chip> : null}
         </div>
 
         {/* bottom meta */}
@@ -105,17 +116,8 @@ function CharacterCard({ ch }: { ch: CharacterDef }) {
 }
 
 export default function EntryPage() {
-  const byLoc = charactersByLocation();
-
+  const byGroup = charactersByGroup();
   const layers: LayerId[] = ["gensokyo", "deep", "higan"];
-  const locationsByLayer: Record<LayerId, MapLocation[]> = {
-    gensokyo: [],
-    deep: [],
-    higan: [],
-  };
-  for (const loc of LOCATIONS) {
-    locationsByLayer[loc.layer].push(loc);
-  }
 
   return (
     <TopShell fog scroll>
@@ -173,25 +175,11 @@ export default function EntryPage() {
               </div>
 
               <div className="space-y-6">
-                {locationsByLayer[layer].map((loc) => {
-                  const key = locationKey(loc);
-                  const chars = byLoc.get(key) ?? [];
-                  if (chars.length === 0) return null;
-
-                  return (
-                    <div key={key} className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-base font-semibold">{loc.name}</div>
-                        <div className="text-xs text-white/50">{chars.length}人</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                        {chars.map((ch) => (
-                          <CharacterCard key={ch.id} ch={ch} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {(byGroup[layer] ?? []).map((ch) => (
+                    <CharacterCard key={ch.id} ch={ch} />
+                  ))}
+                </div>
               </div>
             </section>
           ))}
