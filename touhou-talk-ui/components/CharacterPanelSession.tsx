@@ -13,9 +13,13 @@ type Character = {
   id: string;
   name: string;
   title: string;
+  enabled?: boolean;
   world?: {
     map: string;
     location: string;
+  };
+  ui?: {
+    avatar?: string;
   };
   color?: {
     accent?: string;
@@ -93,7 +97,11 @@ export default function CharacterPanel({
   const visibleCharacters = useMemo(() => {
     if (!currentLocationId) return [];
     return Object.values(characters).filter(
-      (c) => c.world?.location === currentLocationId
+      (c) =>
+        (c.enabled ?? true) &&
+        typeof c.ui?.avatar === "string" &&
+        c.ui.avatar.trim().length > 0 &&
+        c.world?.location === currentLocationId
     );
   }, [characters, currentLocationId]);
 

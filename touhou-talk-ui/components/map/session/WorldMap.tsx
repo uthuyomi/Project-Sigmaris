@@ -17,7 +17,7 @@ import {
   TransformWrapper,
   type ReactZoomPanPinchRef,
 } from "react-zoom-pan-pinch";
-import { CHARACTERS, type CharacterDef } from "@/data/characters";
+import { CHARACTERS, isCharacterSelectable, type CharacterDef } from "@/data/characters";
 import type { DeviceType, LayerId, MapLocation } from "@/lib/map/locations";
 import {
   Tooltip,
@@ -349,7 +349,7 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
   );
 
   const characters = useMemo(
-    () => Object.values(CHARACTERS) as CharacterDef[],
+    () => Object.values(CHARACTERS).filter(isCharacterSelectable) as CharacterDef[],
     [],
   );
 

@@ -1,7 +1,12 @@
 import Link from "next/link";
 
 import TopShell from "@/components/top/TopShell";
-import { CHARACTERS, type CharacterDef } from "@/data/characters";
+import {
+  CHARACTERS,
+  isCharacterEnabled,
+  isCharacterSelectable,
+  type CharacterDef,
+} from "@/data/characters";
 import { LOCATIONS, type LayerId } from "@/lib/map/locations";
 
 function Chip({ children }: { children: React.ReactNode }) {
@@ -47,6 +52,7 @@ function groupLabelForCharacter(ch: CharacterDef): LayerId | null {
 function charactersByGroup(): Record<LayerId, CharacterDef[]> {
   const out: Record<LayerId, CharacterDef[]> = { gensokyo: [], deep: [], higan: [] };
   for (const ch of Object.values(CHARACTERS)) {
+    if (!isCharacterEnabled(ch)) continue;
     const g = groupLabelForCharacter(ch);
     if (!g) continue;
     out[g].push(ch);
@@ -63,54 +69,70 @@ function charactersByGroup(): Record<LayerId, CharacterDef[]> {
 }
 
 function CharacterCard({ ch }: { ch: CharacterDef }) {
+  const selectable = isCharacterSelectable(ch);
   const nextPath = buildNextPath(ch);
   const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
   const layer = (ch.world?.map ?? "") as LayerId;
   const locId = typeof ch.world?.location === "string" ? ch.world.location : "";
   const locName = layer && locId ? locationNameById(layer, locId) : "";
 
-  return (
-    <Link
-      href={href}
-      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-left text-white backdrop-blur transition-colors hover:bg-white/10"
-    >
-      <div className="relative aspect-[4/5] w-full">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {ch.ui?.avatar ? (
-          <img
-            src={ch.ui.avatar}
-            alt={ch.name}
-            className="absolute inset-0 h-full w-full object-cover opacity-95 transition-transform duration-300 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-white/10" />
-        )}
+  const content = (
+    <div className="relative aspect-[4/5] w-full">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {ch.ui?.avatar ? (
+        <img
+          src={ch.ui.avatar}
+          alt={ch.name}
+          className="absolute inset-0 h-full w-full object-cover opacity-95 transition-transform duration-300 group-hover:scale-[1.03]"
+          loading="lazy"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-white/10" />
+      )}
 
-        {/* vignette */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/10 to-black/70" />
+      {/* vignette */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/10 to-black/70" />
 
-        {/* top chips */}
-        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-          <Chip>ロールプレイ</Chip>
-          {locName ? <Chip>{locName}</Chip> : null}
+      {/* top chips */}
+      <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+        <Chip>ロールプレイ</Chip>
+        {locName ? <Chip>{locName}</Chip> : null}
+        {!selectable ? <Chip>準備中</Chip> : null}
+      </div>
+
+      {/* bottom meta */}
+      <div className="absolute inset-x-0 bottom-0 p-4">
+        <div className="text-base font-semibold leading-tight drop-shadow">
+          {ch.name}
+        </div>
+        <div className="mt-1 line-clamp-2 text-xs text-white/70 drop-shadow">
+          {ch.title}
         </div>
 
-        {/* bottom meta */}
-        <div className="absolute inset-x-0 bottom-0 p-4">
-          <div className="text-base font-semibold leading-tight drop-shadow">
-            {ch.name}
-          </div>
-          <div className="mt-1 line-clamp-2 text-xs text-white/70 drop-shadow">
-            {ch.title}
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Chip>チャット</Chip>
-            <Chip>ログイン必須</Chip>
-          </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Chip>チャット</Chip>
+          <Chip>ログイン必須</Chip>
         </div>
       </div>
+    </div>
+  );
+
+  const className = [
+    "group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-left text-white backdrop-blur transition-colors",
+    selectable ? "hover:bg-white/10" : "opacity-60",
+  ].join(" ");
+
+  if (!selectable) {
+    return (
+      <div aria-disabled className={className}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={href} className={className}>
+      {content}
     </Link>
   );
 }
