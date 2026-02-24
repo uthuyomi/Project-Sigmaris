@@ -75,7 +75,9 @@ export default function RootLayout({
           // Expose public runtime config for the desktop build (env from userData file).
           // This avoids relying on Next's compile-time NEXT_PUBLIC_* in the client bundle.
           dangerouslySetInnerHTML={{
-            __html: `window.__TOUHOU_PUBLIC=${JSON.stringify(publicConfig)};`,
+            __html: `window.__TOUHOU_PUBLIC=Object.assign(${JSON.stringify(
+              publicConfig,
+            )},window.__TOUHOU_PUBLIC||{});`,
           }}
         />
       </head>
