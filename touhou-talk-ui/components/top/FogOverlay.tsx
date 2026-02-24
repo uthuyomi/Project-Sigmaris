@@ -1,14 +1,46 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 type Props = {
   visible: boolean;
+  autoHideMs?: number;
+  fadeMs?: number;
 };
 
-export default function FogOverlay({ visible }: Props) {
-  if (!visible) return null;
+export default function FogOverlay({ visible, autoHideMs = 900, fadeMs = 650 }: Props) {
+  const [show, setShow] = useState<boolean>(visible);
+  const [hiding, setHiding] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setShow(false);
+      setHiding(false);
+      return;
+    }
+
+    setShow(true);
+    setHiding(false);
+
+    const t1 = window.setTimeout(() => setHiding(true), Math.max(0, autoHideMs));
+    const t2 = window.setTimeout(
+      () => setShow(false),
+      Math.max(0, autoHideMs) + Math.max(0, fadeMs),
+    );
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [visible, autoHideMs, fadeMs]);
+
+  if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 overflow-hidden pointer-events-none transition-opacity"
+      style={{ opacity: hiding ? 0 : 1, transitionDuration: `${fadeMs}ms` }}
+    >
       {/* ベース暗転 */}
       <div className="absolute inset-0 bg-black/30" />
 
