@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { MAP_BACKGROUNDS, type DeviceType, type LayerId } from "@/lib/map/locations";
+import type { DeviceType, LayerId } from "@/lib/map/locations";
 
 type SectionId = "hero" | LayerId;
 
@@ -12,17 +12,11 @@ function getDeviceType(width: number): DeviceType {
   return "sp";
 }
 
-function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-}
-
 export default function EntryParallaxBackground() {
   const [device, setDevice] = useState<DeviceType>(() =>
     typeof window === "undefined" ? "pc" : getDeviceType(window.innerWidth),
   );
   const [active, setActive] = useState<SectionId>("hero");
-  const [parallaxY, setParallaxY] = useState<number>(0);
 
   useEffect(() => {
     const onResize = () => setDevice(getDeviceType(window.innerWidth));
@@ -32,15 +26,52 @@ export default function EntryParallaxBackground() {
 
   const backgrounds = useMemo(() => {
     const heroBg: Record<DeviceType, string> = {
-      pc: "/maps/base-pc.png",
-      tablet: "/maps/base-pc.png",
-      sp: "/maps/base-pc.png",
+      pc: "/entry/gensoukyou.png",
+      tablet: "/entry/gensoukyou.png",
+      sp: "/entry/gensoukyou.png",
     };
     return {
       hero: heroBg,
-      gensokyo: MAP_BACKGROUNDS.gensokyo,
-      deep: MAP_BACKGROUNDS.deep,
-      higan: MAP_BACKGROUNDS.higan,
+      gensokyo: {
+        pc: "/entry/gensoukyou.png",
+        tablet: "/entry/gensoukyou.png",
+        sp: "/entry/gensoukyou.png",
+      },
+      deep: {
+        pc: "/entry/titei.png",
+        tablet: "/entry/titei.png",
+        sp: "/entry/titei.png",
+      },
+      higan: {
+        pc: "/entry/hakugyokurou.png",
+        tablet: "/entry/hakugyokurou.png",
+        sp: "/entry/hakugyokurou.png",
+      },
+    } satisfies Record<SectionId, Record<DeviceType, string>>;
+  }, []);
+
+  const fallbacks = useMemo(() => {
+    return {
+      hero: {
+        pc: "/maps/base-pc.png",
+        tablet: "/maps/base-pc.png",
+        sp: "/maps/base-pc.png",
+      },
+      gensokyo: {
+        pc: "/maps/gensokyo-pc.png",
+        tablet: "/maps/gensokyo-sp.png",
+        sp: "/maps/gensokyo-sp.png",
+      },
+      deep: {
+        pc: "/maps/deep-pc.png",
+        tablet: "/maps/deep-sp.png",
+        sp: "/maps/deep-sp.png",
+      },
+      higan: {
+        pc: "/maps/higan-pc.png",
+        tablet: "/maps/higan-sp.png",
+        sp: "/maps/higan-sp.png",
+      },
     } satisfies Record<SectionId, Record<DeviceType, string>>;
   }, []);
 
@@ -82,56 +113,30 @@ export default function EntryParallaxBackground() {
     return () => io.disconnect();
   }, []);
 
-  useEffect(() => {
-    const root = document.querySelector("main") as HTMLElement | null;
-    if (!root) return;
-    if (prefersReducedMotion()) return;
-
-    let raf = 0;
-    const update = () => {
-      raf = 0;
-      const y = root.scrollTop * 0.12;
-      setParallaxY(y);
-    };
-    const onScroll = () => {
-      if (raf) return;
-      raf = window.requestAnimationFrame(update);
-    };
-
-    root.addEventListener("scroll", onScroll, { passive: true });
-    update();
-    return () => {
-      root.removeEventListener("scroll", onScroll);
-      if (raf) window.cancelAnimationFrame(raf);
-    };
-  }, []);
-
   const order: SectionId[] = ["hero", "gensokyo", "deep", "higan"];
   const activeSrc = backgrounds[active]?.[device] ?? backgrounds.hero[device];
 
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-      <div
-        className="absolute inset-0 will-change-transform"
-        style={{ transform: `translate3d(0, ${-parallaxY}px, 0) scale(1.06)` }}
-      >
-        {order.map((id) => {
-          const src = backgrounds[id]?.[device];
-          if (!src) return null;
-          const isActive = src === activeSrc;
-          return (
-            <div
-              key={id}
-              className="absolute inset-0 bg-cover bg-center transition-opacity duration-700"
-              style={{ backgroundImage: `url(${src})`, opacity: isActive ? 1 : 0 }}
-            />
-          );
-        })}
+      {order.map((id) => {
+        const src = backgrounds[id]?.[device];
+        const fallback = fallbacks[id]?.[device];
+        if (!src || !fallback) return null;
+        const isActive = src === activeSrc;
+        return (
+          <div
+            key={id}
+            className="absolute inset-0 bg-cover bg-center transition-opacity duration-700"
+            style={{
+              backgroundImage: `url(${src}), url(${fallback})`,
+              opacity: isActive ? 1 : 0,
+            }}
+          />
+        );
+      })}
 
-        {/* readability overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/30 to-black/55" />
-      </div>
+      {/* readability overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/30 to-black/55" />
     </div>
   );
 }
-
