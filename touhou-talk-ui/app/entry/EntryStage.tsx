@@ -204,9 +204,6 @@ export default function EntryStage() {
   }, []);
 
   useEffect(() => {
-    const root = document.querySelector("main") as HTMLElement | null;
-    if (!root) return;
-
     const sectionIds: Array<[SectionId, string]> = [
       ["hero", "entry-spacer-hero"],
       ["gensokyo", "entry-spacer-gensokyo"],
@@ -232,7 +229,7 @@ export default function EntryStage() {
         if (id) setActive(id);
       },
       {
-        root,
+        root: null,
         threshold: [0, 0.05, 0.15, 0.35, 0.6],
         rootMargin: "-35% 0px -55% 0px",
       },
@@ -361,4 +358,3 @@ export default function EntryStage() {
     </div>
   );
 }
-
