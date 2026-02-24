@@ -3,6 +3,7 @@ import Link from "next/link";
 import TopShell from "@/components/top/TopShell";
 import { CHARACTERS, type CharacterDef } from "@/data/characters";
 import { LOCATIONS, type LayerId } from "@/lib/map/locations";
+import EntryParallaxBackground from "./EntryParallaxBackground";
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -120,10 +121,19 @@ export default function EntryPage() {
   const layers: LayerId[] = ["gensokyo", "deep", "higan"];
 
   return (
-    <TopShell fog scroll>
+    <TopShell
+      fog
+      scroll
+      backgroundVariant="none"
+      backgroundSlot={<EntryParallaxBackground />}
+    >
       <div className="w-full max-w-6xl text-white">
         {/* Hero */}
-        <section className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-black/30 p-6 backdrop-blur sm:p-8">
+        <section
+          id="entry-hero"
+          data-entry-section="hero"
+          className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-black/30 p-6 backdrop-blur sm:p-8"
+        >
           <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="font-gensou text-3xl tracking-wide sm:text-4xl">
@@ -160,12 +170,29 @@ export default function EntryPage() {
               </Link>
             </div>
           </div>
+
+          <div className="mt-8 flex justify-center">
+            <a
+              href="#locations"
+              className="group inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/25 px-4 py-2 text-xs text-white/80 backdrop-blur hover:bg-black/35"
+            >
+              <span>スクロールしてキャラを選ぶ</span>
+              <span className="relative inline-flex h-8 w-5 items-start justify-center rounded-full border border-white/25">
+                <span className="mt-2 block h-1 w-1 rounded-full bg-white/80 motion-safe:animate-bounce" />
+              </span>
+            </a>
+          </div>
         </section>
 
         {/* Locations */}
         <div id="locations" className="mt-8 space-y-8">
           {layers.map((layer) => (
-            <section key={layer} className="space-y-3">
+            <section
+              key={layer}
+              id={`entry-${layer}`}
+              data-entry-section={layer}
+              className="space-y-3"
+            >
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-white/10" />
                 <div className="text-xs font-medium text-white/70">

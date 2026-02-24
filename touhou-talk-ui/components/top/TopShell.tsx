@@ -9,6 +9,8 @@ type Props = {
   fog?: boolean;
   loading?: boolean;
   scroll?: boolean;
+  backgroundVariant?: "top" | "none";
+  backgroundSlot?: React.ReactNode;
 };
 
 export default function TopShell({
@@ -16,6 +18,8 @@ export default function TopShell({
   fog = false,
   loading = false,
   scroll = false,
+  backgroundVariant = "top",
+  backgroundSlot,
 }: Props) {
   return (
     <main
@@ -26,26 +30,32 @@ export default function TopShell({
       }
     >
       {/* 背景動画（PC） */}
-      <video
-        className="absolute inset-0 hidden h-full object-cover lg:block m-auto"
-        src="/top/top-pc.mp4"
-        autoPlay
-        muted
-        playsInline
-      />
+      {backgroundVariant === "top" ? (
+        <video
+          className="absolute inset-0 hidden h-full object-cover lg:block m-auto"
+          src="/top/top-pc.mp4"
+          autoPlay
+          muted
+          playsInline
+        />
+      ) : null}
 
       {/* 背景イラスト（SP） */}
-      <div className="absolute inset-0 lg:hidden">
-        <Image
+      {backgroundVariant === "top" ? (
+        <div className="absolute inset-0 lg:hidden">
+          <Image
           src="/top/top-sp.png"
           alt="幻想郷"
           fill
           priority
           className="object-cover"
-        />
-      </div>
+          />
+        </div>
+      ) : null}
 
       {/* 中央コンテンツ */}
+      {backgroundSlot}
+
       <div
         className={
           scroll
