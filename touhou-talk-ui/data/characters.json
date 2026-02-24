@@ -259,7 +259,7 @@
     "id": "sanae",
     "name": "東風谷 早苗",
     "title": "現代の風祝",
-    "enabled": false,
+    "enabled": true,
     "world": {
       "map": "gensokyo",
       "location": "moriya_shrine"
@@ -332,7 +332,7 @@
     "id": "patchouli",
     "name": "パチュリー・ノーレッジ",
     "title": "知識と日陰の少女",
-    "enabled": false,
+    "enabled": true,
     "world": {
       "map": "gensokyo",
       "location": "scarlet_mansion"
@@ -479,7 +479,7 @@
     "id": "rin",
     "name": "火焔猫 燐",
     "title": "お燐",
-    "enabled": false,
+    "enabled": true,
     "world": {
       "map": "deep",
       "location": "chireiden"
@@ -497,7 +497,7 @@
     "id": "okuu",
     "name": "霊烏路 空",
     "title": "地獄の太陽",
-    "enabled": false,
+    "enabled": true,
     "world": {
       "map": "deep",
       "location": "chireiden"
@@ -570,7 +570,7 @@
     "id": "yuyuko",
     "name": "西行寺 幽々子",
     "title": "華胥の亡霊",
-    "enabled": false,
+    "enabled": true,
     "world": {
       "map": "higan",
       "location": "hakugyokurou"
