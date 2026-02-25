@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
 
 type EntryCharacter = {
   id: string;
@@ -93,34 +92,11 @@ function CharacterCard({ ch }: { ch: EntryCharacter }) {
   );
 }
 
-function defaultOpenKeys(layers: EntryLayerGroup[]) {
-  const open = new Set<string>();
-  for (const layer of layers) {
-    const top = [...layer.locations]
-      .sort((a, b) => b.count - a.count)
-      .slice(0, Math.min(2, layer.locations.length));
-    for (const loc of top) open.add(`${layer.layer}:${loc.id}`);
-  }
-  return open;
-}
-
 export default function EntryLocationAccordion({
   layers,
-  openKey,
-  onToggleLocation,
 }: {
   layers: EntryLayerGroup[];
-  openKey: string | null;
-  onToggleLocation: (key: string) => void;
 }) {
-  const initialOpen = useMemo(() => defaultOpenKeys(layers), [layers]);
-  const fallbackOpenKey = useMemo(() => {
-    const first = [...initialOpen][0];
-    return typeof first === "string" ? first : null;
-  }, [initialOpen]);
-
-  const effectiveOpenKey = openKey ?? fallbackOpenKey;
-
   return (
     <div id="locations" className="mt-8 space-y-10">
       {layers.map((layer) => (
@@ -141,59 +117,20 @@ export default function EntryLocationAccordion({
               このレイヤにはキャラクターがまだいないよ。
             </div>
           ) : (
-            <div className="space-y-10">
-              {layer.locations.map((loc) => {
-                const k = `${layer.layer}:${loc.id}`;
-                const isOpen = effectiveOpenKey === k;
-                const panelId = `entry-accordion-${layer.layer}-${loc.id}`;
-                const buttonId = `entry-loc-${layer.layer}-${loc.id}`;
-
-                return (
-                  <div key={k} className="space-y-4">
-                    <button
-                      type="button"
-                      id={buttonId}
-                      data-entry-location={k}
-                      aria-expanded={isOpen}
-                      aria-controls={panelId}
-                      onClick={() => onToggleLocation(k)}
-                      className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-left backdrop-blur transition hover:bg-black/30"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-base font-semibold text-white">{loc.name}</div>
-                        <div className="mt-1 text-xs text-white/50">
-                          {loc.count}人
-                        </div>
-                      </div>
-                      <div
-                        className={[
-                          "shrink-0 select-none text-white/60 transition-transform duration-200",
-                          isOpen ? "rotate-180" : "rotate-0",
-                        ].join(" ")}
-                        aria-hidden="true"
-                      >
-                        ▼
-                      </div>
-                    </button>
-
-                    <div
-                      id={panelId}
-                      className={[
-                        "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
-                        isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-                      ].join(" ")}
-                    >
-                      <div className="overflow-hidden">
-                        <div className="grid grid-cols-2 gap-3 pt-1 sm:grid-cols-3 lg:grid-cols-4">
-                          {loc.characters.map((ch) => (
-                            <CharacterCard key={ch.id} ch={ch} />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+            <div className="space-y-12">
+              {layer.locations.map((loc) => (
+                <div key={`${layer.layer}:${loc.id}`} className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-base font-semibold text-white">{loc.name}</div>
+                    <div className="text-xs text-white/50">{loc.count}人</div>
                   </div>
-                );
-              })}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {loc.characters.map((ch) => (
+                      <CharacterCard key={ch.id} ch={ch} />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>
