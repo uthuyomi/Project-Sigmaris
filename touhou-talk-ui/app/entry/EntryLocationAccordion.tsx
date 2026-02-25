@@ -111,7 +111,12 @@ export default function EntryLocationAccordion({ layers }: { layers: EntryLayerG
   return (
     <div id="locations" className="mt-8 space-y-10">
       {layers.map((layer) => (
-        <section key={layer.layer} className="space-y-4">
+        <section
+          key={layer.layer}
+          id={`entry-layer-${layer.layer}`}
+          data-entry-section={layer.layer}
+          className="space-y-4"
+        >
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-white/10" />
             <div className="text-xs font-medium text-white/70">{layer.label}</div>
@@ -187,4 +192,3 @@ export default function EntryLocationAccordion({ layers }: { layers: EntryLayerG
     </div>
   );
 }
-

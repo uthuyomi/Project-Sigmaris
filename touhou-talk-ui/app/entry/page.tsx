@@ -8,6 +8,7 @@ import {
 } from "@/data/characters";
 import { LOCATIONS, type LayerId } from "@/lib/map/locations";
 import EntryLocationAccordion, { type EntryLayerGroup } from "./EntryLocationAccordion";
+import EntryScrollBackground from "./EntryScrollBackground";
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -119,10 +120,14 @@ export default function EntryPage() {
   });
 
   return (
-    <TopShell fog scroll>
+    <TopShell fog scroll backgroundVariant="none" backgroundSlot={<EntryScrollBackground />}>
       <div className="w-full max-w-6xl text-white">
         {/* Hero */}
-        <section className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-black/30 p-6 backdrop-blur sm:p-8">
+        <section
+          id="entry-hero"
+          data-entry-section="hero"
+          className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-black/30 p-6 backdrop-blur sm:p-8"
+        >
           <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="font-gensou text-3xl tracking-wide sm:text-4xl">
