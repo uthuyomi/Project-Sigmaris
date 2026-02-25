@@ -104,7 +104,13 @@ function defaultOpenKeys(layers: EntryLayerGroup[]) {
   return open;
 }
 
-export default function EntryLocationAccordion({ layers }: { layers: EntryLayerGroup[] }) {
+export default function EntryLocationAccordion({
+  layers,
+  activeLayer,
+}: {
+  layers: EntryLayerGroup[];
+  activeLayer?: string | null;
+}) {
   const initialOpen = useMemo(() => defaultOpenKeys(layers), [layers]);
   const [openKeys, setOpenKeys] = useState<Set<string>>(initialOpen);
 
@@ -123,6 +129,8 @@ export default function EntryLocationAccordion({ layers }: { layers: EntryLayerG
             <div className="h-px flex-1 bg-white/10" />
           </div>
 
+          {activeLayer && activeLayer !== layer.layer ? null : (
+            <>
           {layer.locations.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-black/25 p-6 text-sm text-white/70">
               このレイヤにはキャラクターがまだいないよ。
@@ -186,6 +194,8 @@ export default function EntryLocationAccordion({ layers }: { layers: EntryLayerG
                 );
               })}
             </div>
+          )}
+            </>
           )}
         </section>
       ))}
