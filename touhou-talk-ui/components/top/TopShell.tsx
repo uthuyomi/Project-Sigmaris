@@ -21,6 +21,8 @@ export default function TopShell({
   backgroundVariant = "top",
   backgroundSlot,
 }: Props) {
+  const bgPos = scroll ? "fixed" : "absolute";
+
   return (
     <main
       className={
@@ -32,7 +34,7 @@ export default function TopShell({
       {/* 背景動画（PC） */}
       {backgroundVariant === "top" ? (
         <video
-          className="absolute inset-0 hidden h-full object-cover lg:block m-auto"
+          className={`${bgPos} inset-0 hidden h-full object-cover lg:block m-auto`}
           src="/top/top-pc.mp4"
           autoPlay
           muted
@@ -42,7 +44,7 @@ export default function TopShell({
 
       {/* 背景イラスト（SP） */}
       {backgroundVariant === "top" ? (
-        <div className="absolute inset-0 lg:hidden">
+        <div className={`${bgPos} inset-0 lg:hidden`}>
           <Image
           src="/top/top-sp.png"
           alt="幻想郷"
