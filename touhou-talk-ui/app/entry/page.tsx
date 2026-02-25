@@ -3,7 +3,6 @@ import Link from "next/link";
 import TopShell from "@/components/top/TopShell";
 import {
   CHARACTERS,
-  isCharacterEnabled,
   isCharacterSelectable,
   type CharacterDef,
 } from "@/data/characters";
@@ -52,7 +51,6 @@ function groupLabelForCharacter(ch: CharacterDef): LayerId | null {
 function charactersByGroup(): Record<LayerId, CharacterDef[]> {
   const out: Record<LayerId, CharacterDef[]> = { gensokyo: [], deep: [], higan: [] };
   for (const ch of Object.values(CHARACTERS)) {
-    if (!isCharacterEnabled(ch)) continue;
     const g = groupLabelForCharacter(ch);
     if (!g) continue;
     out[g].push(ch);
@@ -66,6 +64,44 @@ function charactersByGroup(): Record<LayerId, CharacterDef[]> {
     });
   }
   return out;
+}
+
+function charactersByLocationInLayer(layer: LayerId, chars: CharacterDef[]) {
+  const locations = LOCATIONS.filter((l) => l.layer === layer);
+  const locationIds = new Set(locations.map((l) => l.id));
+
+  const byId = new Map<string, CharacterDef[]>();
+  for (const ch of chars) {
+    const loc = typeof ch.world?.location === "string" ? ch.world.location : "";
+    if (!loc) continue;
+    const arr = byId.get(loc) ?? [];
+    arr.push(ch);
+    byId.set(loc, arr);
+  }
+
+  for (const arr of byId.values()) {
+    arr.sort((a, b) => String(a.name).localeCompare(String(b.name), "ja"));
+  }
+
+  const ordered = locations
+    .map((loc) => ({
+      id: loc.id,
+      name: loc.name,
+      characters: byId.get(loc.id) ?? [],
+    }))
+    .filter((g) => g.characters.length > 0);
+
+  const others = [...byId.entries()]
+    .filter(([id]) => !locationIds.has(id))
+    .sort(([a], [b]) => a.localeCompare(b, "ja"))
+    .map(([id, characters]) => ({
+      id,
+      name: id,
+      characters,
+    }))
+    .filter((g) => g.characters.length > 0);
+
+  return { ordered, others };
 }
 
 function CharacterCard({ ch }: { ch: CharacterDef }) {
@@ -196,12 +232,36 @@ export default function EntryPage() {
                 <div className="h-px flex-1 bg-white/10" />
               </div>
 
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {(byGroup[layer] ?? []).map((ch) => (
-                    <CharacterCard key={ch.id} ch={ch} />
-                  ))}
-                </div>
+              <div className="space-y-12">
+                {(() => {
+                  const { ordered, others } = charactersByLocationInLayer(
+                    layer,
+                    byGroup[layer] ?? [],
+                  );
+
+                  const groups = [...ordered, ...others];
+                  if (groups.length === 0) {
+                    return (
+                      <div className="rounded-2xl border border-white/10 bg-black/25 p-6 text-sm text-white/70">
+                        このレイヤにはキャラクターがまだいないよ。
+                      </div>
+                    );
+                  }
+
+                  return groups.map((g) => (
+                    <div key={g.id} className="space-y-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-base font-semibold">{g.name}</div>
+                        <div className="text-xs text-white/50">{g.characters.length}人</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        {g.characters.map((ch) => (
+                          <CharacterCard key={ch.id} ch={ch} />
+                        ))}
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
             </section>
           ))}
