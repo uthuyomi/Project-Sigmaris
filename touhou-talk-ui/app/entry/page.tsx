@@ -55,11 +55,13 @@ function buildNextPathForCharacterId(characterId: string) {
 function HeroCharacterButton({
   characterId,
   label,
+  verb = "話す",
   className,
   showAvatar = false,
 }: {
   characterId: string;
   label: string;
+  verb?: string;
   className?: string;
   showAvatar?: boolean;
 }) {
@@ -70,13 +72,13 @@ function HeroCharacterButton({
   const avatarSrc = typeof ch?.ui?.avatar === "string" ? ch.ui.avatar : "";
 
   const content = (
-    <span className="inline-flex items-center justify-center gap-2">
+    <span className="flex w-full items-center justify-center gap-2">
       {showAvatar && avatarSrc ? (
         <span className="relative h-7 w-7 overflow-hidden rounded-full border border-border bg-secondary shadow-sm">
           <Image src={avatarSrc} alt="" fill className="object-cover" />
         </span>
       ) : null}
-      <span className="whitespace-nowrap">{label}と話す</span>
+      <span className="text-center leading-tight">{label}と{verb}</span>
     </span>
   );
 
@@ -84,8 +86,7 @@ function HeroCharacterButton({
     <Link
       href={href}
       className={
-        className ??
-        "rounded-xl border border-border bg-card/90 px-4 py-3 text-sm font-medium text-foreground shadow-sm backdrop-blur hover:bg-card"
+        `inline-flex w-full items-center justify-center ${className ?? "rounded-xl border border-border bg-card/90 px-4 py-3 text-sm font-medium text-foreground shadow-sm backdrop-blur hover:bg-card"}`
       }
     >
       {content}
@@ -93,11 +94,10 @@ function HeroCharacterButton({
   ) : (
     <div
       className={
-        className ??
-        "rounded-xl border border-border bg-muted/60 px-4 py-3 text-sm text-muted-foreground"
+        `inline-flex w-full items-center justify-center ${className ?? "rounded-xl border border-border bg-muted/60 px-4 py-3 text-sm text-muted-foreground"}`
       }
     >
-      <span className="inline-flex items-center justify-center gap-2">
+      <span className="flex w-full items-center justify-center gap-2">
         {showAvatar && avatarSrc ? (
           <span className="relative h-7 w-7 overflow-hidden rounded-full border border-border bg-secondary">
             <Image src={avatarSrc} alt="" fill className="object-cover opacity-60" />
@@ -227,6 +227,32 @@ export default function EntryPage() {
               className="object-contain"
             />
 
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-6 sm:px-10">
+              <div className="mx-auto grid w-full grid-cols-3 gap-2 sm:grid-cols-[1fr_minmax(0,14rem)_1fr_minmax(0,14rem)_1fr_minmax(0,14rem)_1fr] sm:gap-0">
+                <HeroCharacterButton
+                  characterId="marisa"
+                  label="魔理沙"
+                  verb="対話する"
+                  showAvatar
+                  className="w-full rounded-2xl border border-border bg-card/80 px-3 py-4 text-[12px] font-semibold text-card-foreground shadow-lg shadow-black/20 backdrop-blur hover:bg-card active:bg-card/90 sm:col-start-2 sm:px-4 sm:text-sm"
+                />
+                <HeroCharacterButton
+                  characterId="reimu"
+                  label="霊夢"
+                  verb="対話する"
+                  showAvatar
+                  className="w-full rounded-2xl border border-border bg-card/80 px-3 py-4 text-[12px] font-semibold text-card-foreground shadow-lg shadow-black/20 backdrop-blur hover:bg-card active:bg-card/90 sm:col-start-4 sm:px-4 sm:text-sm"
+                />
+                <HeroCharacterButton
+                  characterId="alice"
+                  label="アリス"
+                  verb="対話する"
+                  showAvatar
+                  className="w-full rounded-2xl border border-border bg-card/80 px-3 py-4 text-[12px] font-semibold text-card-foreground shadow-lg shadow-black/20 backdrop-blur hover:bg-card active:bg-card/90 sm:col-start-6 sm:px-4 sm:text-sm"
+                />
+              </div>
+            </div>
+
             <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
               <div className="rounded-2xl border border-border bg-card/85 p-5 shadow-sm">
                 <div className="text-xs font-medium text-muted-foreground">
@@ -245,14 +271,6 @@ export default function EntryPage() {
                   <Chip>ログイン後に開始</Chip>
                 </div>
 
-                <div className="mt-5">
-                  <a
-                    href="#locations"
-                    className="inline-flex items-center justify-center rounded-xl bg-destructive px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"
-                  >
-                    キャラクターを選択
-                  </a>
-                </div>
               </div>
             </div>
           </div>
@@ -291,6 +309,13 @@ export default function EntryPage() {
               <div className="text-sm font-semibold">推奨環境</div>
               <div className="mt-3 text-sm leading-relaxed text-muted-foreground">
                 PC / タブレット / スマートフォンに対応しています。Chrome / Safari の最新版を推奨します。
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
+              <div className="text-sm font-semibold">運営について</div>
+              <div className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                本サービスは個人の負担で運営しております。混雑状況により、一時的に提供を停止する場合がございます。あらかじめご了承ください。
               </div>
             </div>
           </div>

@@ -46,5 +46,5 @@
   /* 背景色もここで決める（TopShellのmainに直接付与する想定） */
   background: var(--background);
 
-  --entry-danmaku-opacity: 0.7;
+  --entry-danmaku-opacity: 0.1;
 }

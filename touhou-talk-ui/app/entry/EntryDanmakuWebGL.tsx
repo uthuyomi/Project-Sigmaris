@@ -12,6 +12,7 @@ function useReducedMotion(): boolean {
 }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const TAU = Math.PI * 2;
 type Rgb = { r: number; g: number; b: number };
 
 function parseRgb(input: string): Rgb | null {
@@ -26,6 +27,27 @@ function parseRgb(input: string): Rgb | null {
   if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b))
     return null;
   return { r, g, b };
+}
+
+function parseColorToRgb(input: string): Rgb | null {
+  const s = input.trim().toLowerCase();
+  const rgb = parseRgb(s);
+  if (rgb) return rgb;
+
+  // CSS Color 4: color(srgb r g b / a)
+  // Example: "color(srgb 0.1 0.2 0.3 / 1)"
+  const m = s.match(/^color\(\s*srgb\s+([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)(?:\s*\/\s*([0-9.]+))?\s*\)$/);
+  if (!m) return null;
+  const r = Number(m[1]);
+  const g = Number(m[2]);
+  const b = Number(m[3]);
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b))
+    return null;
+  return {
+    r: Math.round(clamp(r, 0, 1) * 255),
+    g: Math.round(clamp(g, 0, 1) * 255),
+    b: Math.round(clamp(b, 0, 1) * 255),
+  };
 }
 
 function toGlColor(c: Rgb) {
@@ -109,15 +131,22 @@ export default function EntryDanmakuWebGL() {
           c3: { r: 1.0, g: 0.62, b: 0.78 }, // pink-ish
         };
       }
-      const s = getComputedStyle(probe);
-      const c1rgb = parseRgb(s.color) ?? { r: 255, g: 255, b: 255 };
-      const c2rgb = parseRgb(s.backgroundColor) ?? c1rgb;
-      const c3rgb = parseRgb(s.borderTopColor) ?? c1rgb;
-      return {
-        c1: toGlColor(c1rgb),
-        c2: toGlColor(c2rgb),
-        c3: toGlColor(c3rgb),
+
+      // getComputedStyle は backgroundColor/borderColor が oklch() のまま返るブラウザがある。
+      // color は確実に rgb() へ解決されやすいので、color を差し替えて3色を取る。
+      const prev = probe.style.color;
+      const readColor = (value: string) => {
+        probe.style.color = value;
+        const s = getComputedStyle(probe);
+        return parseColorToRgb(s.color);
       };
+
+      const c1rgb = readColor("var(--foreground)") ?? { r: 255, g: 255, b: 255 };
+      const c2rgb = readColor("var(--primary)") ?? c1rgb;
+      const c3rgb = readColor("var(--destructive)") ?? c1rgb;
+      probe.style.color = prev;
+
+      return { c1: toGlColor(c1rgb), c2: toGlColor(c2rgb), c3: toGlColor(c3rgb) };
     })();
 
     // ---------- shaders ----------
@@ -325,6 +354,7 @@ export default function EntryDanmakuWebGL() {
           const vyy = Math.sin(a) * speed;
 
           const r = 2.0 + 0.5 * (0.5 + 0.5 * Math.sin(t * 4.0));
+          const col = k % 3 === 0 ? palette.c1 : k % 3 === 1 ? palette.c2 : palette.c3;
           spawn(
             cx,
             cy,
@@ -332,15 +362,42 @@ export default function EntryDanmakuWebGL() {
             vyy,
             6.2,
             r,
-            palette.c2.r,
-            palette.c2.g,
-            palette.c2.b,
+            col.r,
+            col.g,
+            col.b,
             0.85,
           );
         }
       }
 
-      // 直線列になりやすいパターン（狙い弾/広域リング）は削除。円弾の渦だけ残す。
+      // 2) Wave rings (circle bullets only)
+      {
+        const period = 2.2;
+        if ((t % period) < dt) {
+          const rings = 2;
+          for (let rIdx = 0; rIdx < rings; rIdx++) {
+            const n = Math.round(140 * intensity);
+            const baseA = t * 0.7 + rIdx * 0.55;
+            const col = rIdx % 2 === 0 ? palette.c2 : palette.c1;
+            for (let i = 0; i < n; i++) {
+              const aa = baseA + (i / n) * TAU;
+              const speed = 90 + rIdx * 25;
+              spawn(
+                cx,
+                cy,
+                Math.cos(aa) * speed,
+                Math.sin(aa) * speed,
+                7.0,
+                1.8,
+                col.r,
+                col.g,
+                col.b,
+                0.55,
+              );
+            }
+          }
+        }
+      }
     }
 
     // ---------- animation loop ----------
@@ -464,10 +521,6 @@ export default function EntryDanmakuWebGL() {
         style={{
           // 3色：foreground / primary / destructive（テーマ側を変えれば色も追従）
           color: "var(--foreground)",
-          backgroundColor: "var(--primary)",
-          borderTopColor: "var(--destructive)",
-          borderTopStyle: "solid",
-          borderTopWidth: 1,
         }}
       />
       <canvas
