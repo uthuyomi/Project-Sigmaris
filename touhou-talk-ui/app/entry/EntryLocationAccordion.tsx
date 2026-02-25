@@ -1,6 +1,9 @@
-"use client";
-
 import Link from "next/link";
+
+type CharacterTtsConfig = {
+  voice?: string;
+  speed?: number;
+};
 
 type EntryCharacter = {
   id: string;
@@ -9,14 +12,15 @@ type EntryCharacter = {
   layer: string;
   locationId: string;
   locationName: string;
+  tts?: CharacterTtsConfig;
   world?: {
     map: string;
     location: string;
   };
   ui: {
     avatar?: string;
-    chatBackground: string;
-    placeholder: string;
+    chatBackground?: string;
+    placeholder?: string;
   };
 };
 
@@ -41,6 +45,19 @@ function Chip({ children }: { children: React.ReactNode }) {
   );
 }
 
+function layerLabel(layer: string) {
+  switch (layer) {
+    case "gensokyo":
+      return "幻想郷";
+    case "deep":
+      return "地底";
+    case "higan":
+      return "白玉楼";
+    default:
+      return layer;
+  }
+}
+
 function buildNextPath(ch: EntryCharacter) {
   const layer = ch.world?.map ? String(ch.world.map) : "";
   const loc = ch.world?.location ? String(ch.world.location) : "";
@@ -51,84 +68,57 @@ function buildNextPath(ch: EntryCharacter) {
   return `/chat/session?${sp.toString()}`;
 }
 
-function CharacterCard({
-  ch,
-  selected,
-  onSelect,
-}: {
-  ch: EntryCharacter;
-  selected: boolean;
-  onSelect: (ch: EntryCharacter) => void;
-}) {
+function CharacterCard({ ch }: { ch: EntryCharacter }) {
   const nextPath = buildNextPath(ch);
   const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
+  const ttsLabel =
+    typeof ch.tts?.voice === "string" && typeof ch.tts?.speed === "number"
+      ? `音声: ${ch.tts.voice} / ${ch.tts.speed}`
+      : typeof ch.tts?.voice === "string"
+        ? `音声: ${ch.tts.voice}`
+        : typeof ch.tts?.speed === "number"
+          ? `音声速度: ${ch.tts.speed}`
+          : null;
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(ch)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect(ch);
-        }
-      }}
-      className={[
-        "group relative overflow-hidden rounded-2xl border bg-white/5 text-left text-white backdrop-blur transition-colors hover:bg-white/10",
-        selected ? "border-[color:var(--map-accent)]/60" : "border-white/10",
-      ].join(" ")}
+    <Link
+      href={href}
+      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-white backdrop-blur transition-colors hover:bg-white/10"
     >
       <div className="relative aspect-[4/5] w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {ch.ui?.avatar ? (
-          <img
-            src={ch.ui.avatar}
-            alt={ch.name}
-            className="absolute inset-0 h-full w-full object-cover opacity-95 transition-transform duration-300 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-white/10" />
-        )}
+        <img
+          src={ch.ui.avatar ?? ""}
+          alt={ch.name}
+          className="absolute inset-0 h-full w-full object-cover opacity-95 transition-transform duration-300 group-hover:scale-[1.03]"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/35" />
+      </div>
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/10 to-black/70" />
-
-        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-          <Chip>ロールプレイ</Chip>
+      <div className="border-t border-white/10 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip>{layerLabel(ch.layer)}</Chip>
           <Chip>{ch.locationName}</Chip>
+          <Chip>ロールプレイ</Chip>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 p-4">
-          <div className="text-base font-semibold leading-tight drop-shadow">{ch.name}</div>
-          <div className="mt-1 line-clamp-2 text-xs text-white/70 drop-shadow">
-            {ch.title}
-          </div>
+        <div className="mt-3 text-base font-semibold leading-tight">{ch.name}</div>
+        <div className="mt-1 text-xs text-white/70">{ch.title}</div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link
-              href={href}
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center rounded-md border border-white/15 bg-black/35 px-2.5 py-1 text-[11px] text-white/85 hover:bg-black/45"
-            >
-              開始
-            </Link>
-            <Chip>ログイン必須</Chip>
-          </div>
+        <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+          設定: ロールプレイ（再現優先）
+          {ttsLabel ? ` / ${ttsLabel}` : ""}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
 export default function EntryLocationAccordion({
   layers,
-  selectedCharacterId,
-  onSelectCharacter,
 }: {
   layers: EntryLayerGroup[];
-  selectedCharacterId: string | null;
-  onSelectCharacter: (ch: EntryCharacter) => void;
 }) {
   return (
     <div id="locations" className="mt-8 space-y-10">
@@ -159,12 +149,7 @@ export default function EntryLocationAccordion({
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {loc.characters.map((ch) => (
-                      <CharacterCard
-                        key={ch.id}
-                        ch={ch}
-                        selected={selectedCharacterId === ch.id}
-                        onSelect={onSelectCharacter}
-                      />
+                      <CharacterCard key={ch.id} ch={ch} />
                     ))}
                   </div>
                 </div>

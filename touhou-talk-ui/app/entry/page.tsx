@@ -1,11 +1,9 @@
-import {
-  CHARACTERS,
-  isCharacterSelectable,
-  type CharacterDef,
-} from "@/data/characters";
+import Link from "next/link";
+
+import TopShell from "@/components/top/TopShell";
+import { CHARACTERS, isCharacterSelectable, type CharacterDef } from "@/data/characters";
 import { LOCATIONS, type LayerId } from "@/lib/map/locations";
-import EntryClient from "./EntryClient";
-import { type EntryLayerGroup } from "./EntryLocationAccordion";
+import EntryLocationAccordion, { type EntryLayerGroup } from "./EntryLocationAccordion";
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -107,6 +105,7 @@ export default function EntryPage() {
         layer,
         locationId: g.id,
         locationName: g.name,
+        tts: ch.tts,
         world: ch.world,
         ui: ch.ui,
       })),
@@ -119,5 +118,55 @@ export default function EntryPage() {
     };
   });
 
-  return <EntryClient layers={layerData} />;
+  return (
+    <TopShell fog scroll backgroundVariant="none">
+      <div className="w-full max-w-6xl text-white">
+        {/* Hero */}
+        <section
+          id="entry-hero"
+          data-entry-section="hero"
+          className="mx-auto w-full max-w-6xl rounded-3xl border border-white/10 bg-black/30 p-6 backdrop-blur sm:p-8"
+        >
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="font-gensou text-3xl tracking-wide sm:text-4xl">
+                Touhou Talk
+              </h1>
+              <p className="mt-2 text-sm text-white/70 sm:text-base">
+                気になるキャラを選んで、すぐ会話を始めよう。
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Chip>ロケーション別</Chip>
+                <Chip>カードで選択</Chip>
+                <Chip>ログイン後に開始</Chip>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <a
+                href="#locations"
+                className="rounded-xl bg-white px-4 py-3 text-sm font-medium text-black hover:bg-white/90"
+              >
+                キャラ一覧へ
+              </a>
+              <Link
+                href="/map/session/gensokyo"
+                className="rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white/90 hover:bg-black/45"
+              >
+                マップ導線へ
+              </Link>
+              <Link
+                href="/"
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 hover:bg-white/10"
+              >
+                既存トップへ
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <EntryLocationAccordion layers={layerData} />
+      </div>
+    </TopShell>
+  );
 }
