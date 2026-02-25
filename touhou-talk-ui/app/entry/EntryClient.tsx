@@ -4,9 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import TopShell from "@/components/top/TopShell";
-import EntryLocationAccordion, { type EntryLayerGroup } from "./EntryLocationAccordion";
+import EntryLocationAccordion, {
+  type EntryLayerGroup,
+} from "./EntryLocationAccordion";
 
 type SectionId = "hero" | "gensokyo" | "deep" | "higan";
+type LayerSectionId = Exclude<SectionId, "hero">;
+type EntryCharacter = EntryLayerGroup["locations"][number]["characters"][number];
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -29,7 +33,7 @@ function getScrollRoot(): HTMLElement | null {
   return scrollable ? main : null;
 }
 
-function sectionLabel(id: Exclude<SectionId, "hero">) {
+function sectionLabel(id: LayerSectionId) {
   switch (id) {
     case "gensokyo":
       return "幻想郷";
@@ -43,6 +47,7 @@ function sectionLabel(id: Exclude<SectionId, "hero">) {
 export default function EntryClient({ layers }: { layers: EntryLayerGroup[] }) {
   const [active, setActive] = useState<SectionId>("hero");
   const rafRef = useRef<number | null>(null);
+  const [selected, setSelected] = useState<EntryCharacter | null>(null);
 
   const backgrounds = useMemo(() => {
     return {
@@ -137,6 +142,9 @@ export default function EntryClient({ layers }: { layers: EntryLayerGroup[] }) {
           );
         })}
         <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/30 to-black/55" />
+        {/* scanlines/noise (intel terminal vibe) */}
+        <div className="absolute inset-0 opacity-[0.10] mix-blend-overlay [background:repeating-linear-gradient(to_bottom,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.02)_2px,rgba(0,0,0,0.00)_4px)]" />
+        <div className="entry-scanline absolute -inset-x-8 -top-1/2 h-1/2 bg-gradient-to-b from-transparent via-white/10 to-transparent opacity-30" />
       </div>
 
       <div className="relative z-10 w-full max-w-6xl text-white">
@@ -187,11 +195,152 @@ export default function EntryClient({ layers }: { layers: EntryLayerGroup[] }) {
             <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
               背景：{activeLayer ? sectionLabel(activeLayer) : "トップ"}
             </span>
+            {selected ? (
+              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+                選択中：{selected.name}
+              </span>
+            ) : null}
           </div>
         </section>
 
         {/* Locations */}
-        <EntryLocationAccordion layers={layers} />
+        <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px]">
+          <div className="min-w-0">
+            <EntryLocationAccordion
+              layers={layers}
+              selectedCharacterId={selected?.id ?? null}
+              onSelectCharacter={(ch) => setSelected(ch)}
+            />
+          </div>
+
+          {/* Dossier */}
+          <aside className="hidden lg:block">
+            <div className="sticky top-6 rounded-3xl border border-white/10 bg-black/25 p-5 backdrop-blur">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-xs font-medium tracking-widest text-white/60">
+                  SIGMARIS // DOSSIER
+                </div>
+                {selected ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelected(null)}
+                    className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/70 hover:bg-black/35"
+                  >
+                    クリア
+                  </button>
+                ) : null}
+              </div>
+
+              {!selected ? (
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
+                  キャラクターを選ぶと、ここに情報が表示されるよ。
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex gap-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selected.ui.avatar ?? ""}
+                      alt={selected.name}
+                      className="h-24 w-24 shrink-0 rounded-2xl border border-white/10 bg-white/5 object-cover"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-lg font-semibold leading-tight">
+                        {selected.name}
+                      </div>
+                      <div className="mt-1 text-sm text-white/70">
+                        {selected.title}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/70">
+                        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1">
+                          {selected.locationName}
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1">
+                          {sectionLabel(selected.layer as LayerSectionId)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-xs leading-relaxed text-white/70">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-white/80">ブリーフィング</div>
+                      <div className="text-white/40">CLASS: ROLLPLAY</div>
+                    </div>
+                    <div className="mt-2">
+                      会話モードはロールプレイ推奨。気軽に声をかけて、反応を観測しよう。
+                    </div>
+                  </div>
+
+                  <Link
+                    href={`/entry/require-login?next=${encodeURIComponent(
+                      `/chat/session?char=${encodeURIComponent(selected.id)}&layer=${encodeURIComponent(
+                        selected.layer,
+                      )}&loc=${encodeURIComponent(selected.locationId)}`,
+                    )}`}
+                    className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-white/90"
+                  >
+                    チャット開始
+                  </Link>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+
+        {/* Mobile dossier */}
+        {selected ? (
+          <div className="lg:hidden">
+            <div className="fixed inset-x-4 bottom-4 z-40 rounded-3xl border border-white/10 bg-black/40 p-4 text-white backdrop-blur">
+              <div className="flex items-start gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selected.ui.avatar ?? ""}
+                  alt={selected.name}
+                  className="h-14 w-14 shrink-0 rounded-2xl border border-white/10 bg-white/5 object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold leading-tight">{selected.name}</div>
+                  <div className="mt-0.5 text-xs text-white/70">{selected.title}</div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/70">
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">
+                      {selected.locationName}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="rounded-xl border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/70"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Link
+                  href={`/entry/require-login?next=${encodeURIComponent(
+                    `/chat/session?char=${encodeURIComponent(selected.id)}&layer=${encodeURIComponent(
+                      selected.layer,
+                    )}&loc=${encodeURIComponent(selected.locationId)}`,
+                  )}`}
+                  className="inline-flex items-center justify-center rounded-2xl bg-white px-3 py-2 text-sm font-semibold text-black"
+                >
+                  開始
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById(`entry-layer-${selected.layer}`);
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white/85"
+                >
+                  位置へ
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </TopShell>
   );

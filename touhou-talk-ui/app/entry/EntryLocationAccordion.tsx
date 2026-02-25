@@ -64,9 +64,16 @@ function CharacterCard({
   const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(ch)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(ch);
+        }
+      }}
       className={[
         "group relative overflow-hidden rounded-2xl border bg-white/5 text-left text-white backdrop-blur transition-colors hover:bg-white/10",
         selected ? "border-[color:var(--map-accent)]/60" : "border-white/10",
@@ -110,7 +117,7 @@ function CharacterCard({
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 

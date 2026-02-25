@@ -215,6 +215,30 @@
 }
 
 /* =========================
+   Entry (Intel Terminal) effects
+========================= */
+
+@keyframes entry-scanline {
+  from {
+    transform: translate3d(0, -70%, 0);
+  }
+  to {
+    transform: translate3d(0, 220%, 0);
+  }
+}
+
+.entry-scanline {
+  animation: entry-scanline 6.5s linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-scanline {
+    animation: none;
+  }
+}
+
+/* =========================
    Soft Theme (Light)
 ========================= */
 
