@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { TouhouThemeInit } from "@/components/TouhouThemeInit";
 import { EnvGuard } from "@/components/EnvGuard";
+import PwaRegister from "@/components/pwa/PwaRegister";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -45,9 +46,25 @@ export const metadata: Metadata = {
     images: ["/og.svg"],
   },
   icons: {
-    icon: [{ url: "/icons/icon.png", type: "image/png" }],
+    icon: [
+      { url: "/favicon.ico", type: "image/x-icon" },
+      { url: "/icons/icon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    shortcut: [{ url: "/favicon.ico", type: "image/x-icon" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", type: "image/png" }],
   },
   manifest: "/site.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Touhou Talk",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#05061a",
 };
 
 export default function RootLayout({
@@ -71,6 +88,8 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Shippori+Mincho:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
+        <meta name="msapplication-TileColor" content="#05061a" />
+        <meta name="msapplication-config" content="/browserconfig.xml" />
         <script
           // Expose public runtime config for the desktop build (env from userData file).
           // This avoids relying on Next's compile-time NEXT_PUBLIC_* in the client bundle.
@@ -83,6 +102,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-svh bg-background text-foreground antialiased">
         <TouhouThemeInit />
+        <PwaRegister />
         <EnvGuard>{children}</EnvGuard>
         <Analytics />
       </body>

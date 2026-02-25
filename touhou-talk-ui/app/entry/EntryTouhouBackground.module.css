@@ -1,0 +1,67 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.base {
+  position: absolute;
+  inset: 0;
+  background: var(--background);
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+  background:
+    radial-gradient(
+      1100px 720px at 70% 10%,
+      color-mix(in oklab, oklch(1 0 0) 22%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      1000px 680px at 18% 55%,
+      color-mix(in oklab, oklch(1 0 0) 14%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 760px at 70% 85%,
+      color-mix(in oklab, var(--destructive) 6%, transparent),
+      transparent 62%
+    );
+}
+
+.washiA {
+  position: absolute;
+  inset: 0;
+  opacity: 0.10;
+  mix-blend-mode: overlay;
+  background:
+    radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.22), transparent 55%),
+    radial-gradient(circle at 75% 35%, rgba(255, 255, 255, 0.14), transparent 60%),
+    radial-gradient(circle at 55% 75%, rgba(255, 255, 255, 0.18), transparent 58%);
+}
+
+.washiB {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  mix-blend-mode: overlay;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.10) 0px,
+    rgba(255, 255, 255, 0.04) 2px,
+    rgba(0, 0, 0, 0.00) 6px
+  );
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 40%, transparent 55%, oklch(0.2 0 0 / 0.05) 100%),
+    linear-gradient(180deg, oklch(0.2 0 0 / 0.03) 0%, transparent 35%, oklch(0.2 0 0 / 0.04) 100%);
+}
