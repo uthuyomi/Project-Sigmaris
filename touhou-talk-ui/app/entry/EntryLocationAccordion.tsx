@@ -6,6 +6,9 @@ type EntryCharacter = {
   id: string;
   name: string;
   title: string;
+  layer: string;
+  locationId: string;
+  locationName: string;
   world?: {
     map: string;
     location: string;
@@ -48,14 +51,26 @@ function buildNextPath(ch: EntryCharacter) {
   return `/chat/session?${sp.toString()}`;
 }
 
-function CharacterCard({ ch }: { ch: EntryCharacter }) {
+function CharacterCard({
+  ch,
+  selected,
+  onSelect,
+}: {
+  ch: EntryCharacter;
+  selected: boolean;
+  onSelect: (ch: EntryCharacter) => void;
+}) {
   const nextPath = buildNextPath(ch);
   const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
 
   return (
-    <Link
-      href={href}
-      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-left text-white backdrop-blur transition-colors hover:bg-white/10"
+    <button
+      type="button"
+      onClick={() => onSelect(ch)}
+      className={[
+        "group relative overflow-hidden rounded-2xl border bg-white/5 text-left text-white backdrop-blur transition-colors hover:bg-white/10",
+        selected ? "border-[color:var(--map-accent)]/60" : "border-white/10",
+      ].join(" ")}
     >
       <div className="relative aspect-[4/5] w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -74,6 +89,7 @@ function CharacterCard({ ch }: { ch: EntryCharacter }) {
 
         <div className="absolute left-3 top-3 flex flex-wrap gap-2">
           <Chip>ロールプレイ</Chip>
+          <Chip>{ch.locationName}</Chip>
         </div>
 
         <div className="absolute inset-x-0 bottom-0 p-4">
@@ -83,19 +99,29 @@ function CharacterCard({ ch }: { ch: EntryCharacter }) {
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <Chip>チャット</Chip>
+            <Link
+              href={href}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center rounded-md border border-white/15 bg-black/35 px-2.5 py-1 text-[11px] text-white/85 hover:bg-black/45"
+            >
+              開始
+            </Link>
             <Chip>ログイン必須</Chip>
           </div>
         </div>
       </div>
-    </Link>
+    </button>
   );
 }
 
 export default function EntryLocationAccordion({
   layers,
+  selectedCharacterId,
+  onSelectCharacter,
 }: {
   layers: EntryLayerGroup[];
+  selectedCharacterId: string | null;
+  onSelectCharacter: (ch: EntryCharacter) => void;
 }) {
   return (
     <div id="locations" className="mt-8 space-y-10">
@@ -126,7 +152,12 @@ export default function EntryLocationAccordion({
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {loc.characters.map((ch) => (
-                      <CharacterCard key={ch.id} ch={ch} />
+                      <CharacterCard
+                        key={ch.id}
+                        ch={ch}
+                        selected={selectedCharacterId === ch.id}
+                        onSelect={onSelectCharacter}
+                      />
                     ))}
                   </div>
                 </div>
