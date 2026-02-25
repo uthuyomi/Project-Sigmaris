@@ -42,6 +42,7 @@ function sectionLabel(id: Exclude<SectionId, "hero">) {
 
 export default function EntryClient({ layers }: { layers: EntryLayerGroup[] }) {
   const [active, setActive] = useState<SectionId>("hero");
+  const [openLocationKey, setOpenLocationKey] = useState<string | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const backgrounds = useMemo(() => {
@@ -71,21 +72,37 @@ export default function EntryClient({ layers }: { layers: EntryLayerGroup[] }) {
 
     const resolveActive = () => {
       const hero = document.getElementById("entry-hero");
-      const gensokyo = document.getElementById("entry-layer-gensokyo");
-      const deep = document.getElementById("entry-layer-deep");
-      const higan = document.getElementById("entry-layer-higan");
-      if (!hero || !gensokyo || !deep || !higan) return;
+      if (!hero) return;
 
       const vt = getScrollTop();
       const vh = getViewportH();
       const probe = vt + vh * 0.42;
 
+      // まずロケーション見出し（ボタン）から “今一番近い” を決める
+      const locationButtons = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-entry-location]"),
+      );
+
+      let bestLoc: { key: string; dist: number } | null = null;
+      for (const el of locationButtons) {
+        const key = el.dataset.entryLocation;
+        if (!key) continue;
+        const dist = Math.abs(getSectionTop(el) - probe);
+        if (!bestLoc || dist < bestLoc.dist) bestLoc = { key, dist };
+      }
+
+      const nextOpenKey = bestLoc?.key ?? null;
+      setOpenLocationKey((prev) => (prev === nextOpenKey ? prev : nextOpenKey));
+
+      // 背景はロケーションの属するレイヤ（layer:key）で切替
+      const layerFromLoc = nextOpenKey?.split(":")[0] as Exclude<SectionId, "hero"> | undefined;
+
       const candidates: Array<[SectionId, number]> = [
         ["hero", Math.abs(getSectionTop(hero) - probe)],
-        ["gensokyo", Math.abs(getSectionTop(gensokyo) - probe)],
-        ["deep", Math.abs(getSectionTop(deep) - probe)],
-        ["higan", Math.abs(getSectionTop(higan) - probe)],
       ];
+      if (layerFromLoc === "gensokyo" || layerFromLoc === "deep" || layerFromLoc === "higan") {
+        candidates.push([layerFromLoc, 0]);
+      }
 
       const winner = candidates.reduce((a, b) => (a[1] <= b[1] ? a : b));
       setActive(winner[0]);
@@ -191,9 +208,14 @@ export default function EntryClient({ layers }: { layers: EntryLayerGroup[] }) {
         </section>
 
         {/* Locations */}
-        <EntryLocationAccordion layers={layers} activeLayer={activeLayer} />
+        <EntryLocationAccordion
+          layers={layers}
+          openKey={openLocationKey}
+          onToggleLocation={(key) =>
+            setOpenLocationKey((prev) => (prev === key ? null : key))
+          }
+        />
       </div>
     </TopShell>
   );
 }
-

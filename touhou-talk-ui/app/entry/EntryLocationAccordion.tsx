@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 type EntryCharacter = {
   id: string;
@@ -106,13 +106,20 @@ function defaultOpenKeys(layers: EntryLayerGroup[]) {
 
 export default function EntryLocationAccordion({
   layers,
-  activeLayer,
+  openKey,
+  onToggleLocation,
 }: {
   layers: EntryLayerGroup[];
-  activeLayer?: string | null;
+  openKey: string | null;
+  onToggleLocation: (key: string) => void;
 }) {
   const initialOpen = useMemo(() => defaultOpenKeys(layers), [layers]);
-  const [openKeys, setOpenKeys] = useState<Set<string>>(initialOpen);
+  const fallbackOpenKey = useMemo(() => {
+    const first = [...initialOpen][0];
+    return typeof first === "string" ? first : null;
+  }, [initialOpen]);
+
+  const effectiveOpenKey = openKey ?? fallbackOpenKey;
 
   return (
     <div id="locations" className="mt-8 space-y-10">
@@ -129,8 +136,6 @@ export default function EntryLocationAccordion({
             <div className="h-px flex-1 bg-white/10" />
           </div>
 
-          {activeLayer && activeLayer !== layer.layer ? null : (
-            <>
           {layer.locations.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-black/25 p-6 text-sm text-white/70">
               このレイヤにはキャラクターがまだいないよ。
@@ -139,23 +144,19 @@ export default function EntryLocationAccordion({
             <div className="space-y-10">
               {layer.locations.map((loc) => {
                 const k = `${layer.layer}:${loc.id}`;
-                const isOpen = openKeys.has(k);
+                const isOpen = effectiveOpenKey === k;
                 const panelId = `entry-accordion-${layer.layer}-${loc.id}`;
+                const buttonId = `entry-loc-${layer.layer}-${loc.id}`;
 
                 return (
                   <div key={k} className="space-y-4">
                     <button
                       type="button"
+                      id={buttonId}
+                      data-entry-location={k}
                       aria-expanded={isOpen}
                       aria-controls={panelId}
-                      onClick={() =>
-                        setOpenKeys((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(k)) next.delete(k);
-                          else next.add(k);
-                          return next;
-                        })
-                      }
+                      onClick={() => onToggleLocation(k)}
                       className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-left backdrop-blur transition hover:bg-black/30"
                     >
                       <div className="min-w-0">
@@ -194,8 +195,6 @@ export default function EntryLocationAccordion({
                 );
               })}
             </div>
-          )}
-            </>
           )}
         </section>
       ))}
