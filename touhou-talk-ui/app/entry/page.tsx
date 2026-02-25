@@ -51,6 +51,8 @@ function groupLabelForCharacter(ch: CharacterDef): LayerId | null {
 function charactersByGroup(): Record<LayerId, CharacterDef[]> {
   const out: Record<LayerId, CharacterDef[]> = { gensokyo: [], deep: [], higan: [] };
   for (const ch of Object.values(CHARACTERS)) {
+    // /entry では「選択可能（enabled=true かつ avatarあり）」のみ表示
+    if (!isCharacterSelectable(ch)) continue;
     const g = groupLabelForCharacter(ch);
     if (!g) continue;
     out[g].push(ch);
