@@ -124,7 +124,7 @@ export default function PwaInstallButton() {
       <div className="relative">
         <div className="text-base font-semibold">ホームに追加して、1タップで起動</div>
         <div className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          ショートカットにしておくと、すぐチャットできるよ。
+          ショートカットを作成すると、すぐにチャットを開始できます。
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -133,8 +133,8 @@ export default function PwaInstallButton() {
           label="Android"
           description={
             deferred
-              ? "ボタン1つでホーム画面に追加できる。"
-              : "このブラウザでは表示されないことがある（メニューから追加してね）。"
+              ? "ボタン1つでホーム画面に追加できます。"
+              : "このブラウザでは表示されない場合があります（メニューから追加してください）。"
           }
           disabled={!deferred}
           active={android}
@@ -157,7 +157,7 @@ export default function PwaInstallButton() {
         <OsButton
           icon={<FaApple />}
           label="iPhone / iPad"
-          description="共有メニューから「ホーム画面に追加」で作成できる。"
+          description="共有メニューから「ホーム画面に追加」で作成できます。"
           disabled={!ios}
           active={ios}
           onClick={() => setShowIosHelp((v) => !v)}
@@ -168,8 +168,8 @@ export default function PwaInstallButton() {
           label="Windows"
           description={
             deferred
-              ? "ブラウザのインストール機能でデスクトップに追加できる。"
-              : "このブラウザでは表示されないことがある（メニューから追加してね）。"
+              ? "ブラウザのインストール機能でデスクトップに追加できます。"
+              : "このブラウザでは表示されない場合があります（メニューから追加してください）。"
           }
           disabled={!deferred}
           active={windows}
@@ -194,8 +194,8 @@ export default function PwaInstallButton() {
           label="macOS"
           description={
             deferred
-              ? "ブラウザのインストール機能でDock/Launchpadに追加できる。"
-              : "ブラウザによっては未対応（対応ブラウザならインストールが出る）。"
+              ? "ブラウザのインストール機能でDock/Launchpadに追加できます。"
+              : "ブラウザによっては未対応です（対応ブラウザではインストールが表示されます）。"
           }
           disabled={!deferred}
           active={mac}
@@ -234,8 +234,8 @@ export default function PwaInstallButton() {
           : windows
             ? "Windows: Chrome/Edge推奨"
             : mac
-              ? "macOS: Chromeは対応しやすい（Safariは挙動が違う）"
-              : "環境によってはインストールが出ない場合があるよ"}
+              ? "macOS: Chromeが対応しやすいです（Safariは挙動が異なる場合があります）"
+              : "環境によってはインストールが表示されない場合があります"}
       </div>
       </div>
     </div>

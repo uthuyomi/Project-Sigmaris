@@ -85,7 +85,7 @@ function HeroCharacterButton({
       href={href}
       className={
         className ??
-        "rounded-xl bg-white px-4 py-3 text-sm font-medium text-black hover:bg-white/90"
+        "rounded-xl border border-border bg-card/90 px-4 py-3 text-sm font-medium text-foreground shadow-sm backdrop-blur hover:bg-card"
       }
     >
       {content}
@@ -94,7 +94,7 @@ function HeroCharacterButton({
     <div
       className={
         className ??
-        "rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/55"
+        "rounded-xl border border-border bg-muted/60 px-4 py-3 text-sm text-muted-foreground"
       }
     >
       <span className="inline-flex items-center justify-center gap-2">
@@ -236,7 +236,7 @@ export default function EntryPage() {
                   東方キャラと“ちゃんと会話できる”体験。
                 </h1>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  キャラクターを選んで、ログインしたらすぐ会話を始められるよ。
+                  キャラクターを選択し、ログイン後すぐに会話を開始できます。
                 </p>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -248,9 +248,9 @@ export default function EntryPage() {
                 <div className="mt-5">
                   <a
                     href="#locations"
-                    className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"
+                    className="inline-flex items-center justify-center rounded-xl bg-destructive px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"
                   >
-                    キャラを選ぶ
+                    キャラクターを選択
                   </a>
                 </div>
               </div>
@@ -267,30 +267,30 @@ export default function EntryPage() {
           <div className="space-y-1">
             <h2 className="text-xl font-semibold tracking-wide">はじめに</h2>
             <p className="text-sm text-muted-foreground">
-              迷わず始められるように、要点だけまとめたよ。
+              迷わず開始できるよう、要点をまとめました。
             </p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
               <div className="text-sm font-semibold">遊び方</div>
               <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <li>1. キャラを選ぶ</li>
-                <li>2. ログインする</li>
-                <li>3. そのまま会話を始める</li>
+                <li>1. キャラクターを選択</li>
+                <li>2. ログイン</li>
+                <li>3. 会話を開始</li>
               </ol>
             </div>
 
             <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
               <div className="text-sm font-semibold">ロールプレイ方針</div>
               <div className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                口調や雰囲気の再現を優先するよ。キャラごとに距離感やテンポが違うから、合う相手を探してみてね。
+                口調や雰囲気の再現を優先します。キャラクターごとに距離感やテンポが異なるため、相性の良い相手をお試しください。
               </div>
             </div>
 
             <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
               <div className="text-sm font-semibold">推奨環境</div>
               <div className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                PC/タブレット/スマホ対応。Chrome/Safariの最新版推奨。
+                PC / タブレット / スマートフォンに対応しています。Chrome / Safari の最新版を推奨します。
               </div>
             </div>
           </div>
@@ -301,14 +301,14 @@ export default function EntryPage() {
             <div className="min-w-0">
               <h2 className="text-xl font-semibold tracking-wide">キャラクター一覧</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                ロケーション別に並んでいるよ。気になるカードから入ってみて。
+                ロケーション別に一覧表示しています。気になるカードからお選びください。
               </p>
             </div>
             <a
               href="#entry-hero"
               className="text-sm font-medium text-primary hover:opacity-80"
             >
-              上へ戻る
+              ページ上部へ
             </a>
           </div>
         </section>
@@ -322,7 +322,7 @@ export default function EntryPage() {
         >
           <h2 className="text-xl font-semibold tracking-wide">ホームに追加</h2>
           <p className="text-sm text-muted-foreground">
-            スマホやPCのホームに追加しておくと、次からすぐ開けるよ。
+            スマートフォンやPCのホームに追加しておくと、次回からすぐに起動できます。
           </p>
           <PwaInstallButton />
         </section>
@@ -332,17 +332,15 @@ export default function EntryPage() {
             <div>
               <div className="text-sm font-semibold text-foreground">順次追加</div>
               <div className="mt-3 text-sm leading-relaxed">
-                アバター画像と内部設定が揃ったキャラから、選択できるように増やしていくよ。
+                アバター画像と内部設定が揃い次第、選択できるキャラクターを順次追加します。
               </div>
             </div>
 
             <div>
               <div className="text-sm font-semibold text-foreground">不具合報告・要望</div>
               <div className="mt-3 text-sm leading-relaxed">
-                ここが変だなと思ったら、GitHub
-                Issuesに投げてくれると助かるよ。チャット画面なら{" "}
-                <span className="font-mono text-foreground/80">/dump</span>{" "}
-                でログを書き出せる。
+                不具合やご要望は GitHub Issues までお知らせください。チャット画面では{" "}
+                <span className="font-mono text-foreground/80">/dump</span> でログを書き出せます。
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <a

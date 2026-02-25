@@ -128,7 +128,7 @@ export default function EntryLocationAccordion({
 
           {layer.locations.length === 0 ? (
             <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-sm">
-              このレイヤにはキャラクターがまだいないよ。
+              このレイヤにはキャラクターがまだいません。
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">

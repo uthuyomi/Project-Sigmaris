@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 
 import TopShell from "@/components/top/TopShell";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import EntryTouhouBackground from "../EntryTouhouBackground";
+import styles from "../entry-theme.module.css";
 
 function safeNextPath(raw: string | null | undefined): string {
   const s = String(raw ?? "").trim();
@@ -45,33 +47,41 @@ export default function RequireLoginClient(props: { nextPath?: string | null }) 
   const loginHref = `/auth/login?next=${encodeURIComponent(nextPath)}`;
 
   return (
-    <TopShell fog>
-      <div className="w-full max-w-sm rounded-xl bg-white/10 p-6 backdrop-blur text-white">
-        <h1 className="mb-2 text-lg font-medium">ログインが必要です</h1>
-        <p className="mb-4 text-sm text-white/80">
+    <TopShell
+      scroll
+      backgroundVariant="none"
+      backgroundSlot={<EntryTouhouBackground />}
+      className={`${styles.entryTheme} bg-background text-foreground`}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-sm">
+        <h1 className="mb-2 text-lg font-semibold tracking-wide">
+          ログインが必要です
+        </h1>
+        <p className="mb-4 text-sm text-muted-foreground">
           キャラクターチャットを始めるにはログインしてください。
         </p>
 
         <div className="grid gap-2">
           <Link
             href={loginHref}
-            className="w-full rounded-lg bg-white px-4 py-2 text-center text-sm text-black"
+            className="w-full rounded-xl bg-primary px-4 py-3 text-center text-sm font-medium text-primary-foreground hover:opacity-90"
           >
             ログインする
           </Link>
           <Link
             href="/entry"
-            className="w-full rounded-lg border border-white/15 bg-black/30 px-4 py-2 text-center text-sm text-white/90 hover:bg-black/45"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-center text-sm font-medium text-secondary-foreground hover:bg-secondary/80"
           >
             戻る
           </Link>
         </div>
 
         {checking ? (
-          <div className="mt-4 text-center text-xs text-white/50">確認中…</div>
+          <div className="mt-4 text-center text-xs text-muted-foreground">
+            確認中…
+          </div>
         ) : null}
       </div>
     </TopShell>
   );
 }
-

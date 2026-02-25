@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WebGL2 Danmaku Background (Instanced)</title>
+  <style>
+    html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display:block;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .hint{
+      position:fixed; left:12px; bottom:10px; color:#cfd8dc; font:12px/1.4 system-ui, sans-serif;
+      opacity:.75; user-select:none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="hint">WebGL2 instancing / bullet-hell background (FPS will auto-throttle spawn)</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("c");
+  /** @type {WebGL2RenderingContext} */
+  const gl = canvas.getContext("webgl2", {
+    alpha: true,
+    antialias: false,
+    depth: false,
+    stencil: false,
+    premultipliedAlpha: true,
+    preserveDrawingBuffer: false,
+    powerPreference: "high-performance",
+  });
+  if (!gl) { alert("WebGL2 not supported"); return; }
+
+  // ---------- utils ----------
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const TAU = Math.PI * 2;
+
+  function createShader(type, src) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      const log = gl.getShaderInfoLog(sh);
+      console.error(src);
+      throw new Error(log);
+    }
+    return sh;
+  }
+  function createProgram(vsSrc, fsSrc) {
+    const p = gl.createProgram();
+    gl.attachShader(p, createShader(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(p, createShader(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(p));
+    }
+    return p;
+  }
+
+  // ---------- shaders ----------
+  // quad (2D) as triangle strip: [-1,-1]..[1,1], instanced attributes define center/radius/color.
+  const VS = `#version 300 es
+  precision highp float;
+
+  layout(location=0) in vec2 aQuad;      // per-vertex (4 verts): (-1,-1) (1,-1) (-1,1) (1,1)
+  layout(location=1) in vec2 iPos;       // per-instance: bullet center in pixels
+  layout(location=2) in float iR;        // per-instance: radius in pixels
+  layout(location=3) in vec4 iColor;     // per-instance: rgba (0..1)
+
+  uniform vec2 uRes; // canvas size in pixels
+
+  out vec2 vLocal;    // local quad coords (-1..1)
+  out vec4 vColor;
+
+  void main() {
+    vLocal = aQuad;
+    vColor = iColor;
+
+    vec2 p = iPos + aQuad * iR;             // pixel space
+    vec2 ndc = (p / uRes) * 2.0 - 1.0;      // 0..res -> -1..1
+    ndc.y *= -1.0;                          // flip Y for screen coords
+
+    gl_Position = vec4(ndc, 0.0, 1.0);
+  }`;
+
+  // Circle + soft edge + slight core highlight -> "弾"っぽくする
+  const FS = `#version 300 es
+  precision highp float;
+
+  in vec2 vLocal;
+  in vec4 vColor;
+  out vec4 outColor;
+
+  void main() {
+    float d = length(vLocal);              // 0 center, ~1 edge
+    float alpha = smoothstep(1.05, 0.85, d);  // soft edge
+    // core highlight
+    float core = smoothstep(0.6, 0.0, d);
+    vec3 col = vColor.rgb + core * 0.15;   // subtle brighten
+    outColor = vec4(col, vColor.a * alpha);
+
+    // hard discard outside (saves overdraw a bit)
+    if (alpha < 0.01) discard;
+  }`;
+
+  const prog = createProgram(VS, FS);
+  gl.useProgram(prog);
+
+  const uRes = gl.getUniformLocation(prog, "uRes");
+
+  // ---------- buffers / VAO ----------
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  // per-vertex quad
+  const quad = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1,-1,
+     1,-1,
+    -1, 1,
+     1, 1
+  ]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+  // per-instance buffers
+  const bPos = gl.createBuffer();
+  const bR   = gl.createBuffer();
+  const bCol = gl.createBuffer();
+
+  // attribute: iPos (vec2)
+  gl.bindBuffer(gl.ARRAY_BUFFER, bPos);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(1, 1);
+
+  // attribute: iR (float)
+  gl.bindBuffer(gl.ARRAY_BUFFER, bR);
+  gl.enableVertexAttribArray(2);
+  gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(2, 1);
+
+  // attribute: iColor (vec4)
+  gl.bindBuffer(gl.ARRAY_BUFFER, bCol);
+  gl.enableVertexAttribArray(3);
+  gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribDivisor(3, 1);
+
+  gl.bindVertexArray(null);
+
+  // ---------- bullet simulation (CPU) ----------
+  // SoA arrays for speed
+  const MAX = 45000; // ここを上げると密度増える。PCなら 6万くらいまで行ける場合もある。
+  const px = new Float32Array(MAX);
+  const py = new Float32Array(MAX);
+  const vx = new Float32Array(MAX);
+  const vy = new Float32Array(MAX);
+  const life = new Float32Array(MAX);
+  const rad = new Float32Array(MAX);
+  const cr = new Float32Array(MAX);
+  const cg = new Float32Array(MAX);
+  const cb = new Float32Array(MAX);
+  const ca = new Float32Array(MAX);
+  const active = new Uint8Array(MAX);
+
+  let alive = 0;
+
+  function spawn(x, y, vxx, vyy, ttl, r, rC, gC, bC, aC) {
+    // find free slot (linear scan; for background ok. For ultra scale, keep free list.)
+    for (let i = 0; i < MAX; i++) {
+      if (!active[i]) {
+        active[i] = 1;
+        px[i] = x; py[i] = y;
+        vx[i] = vxx; vy[i] = vyy;
+        life[i] = ttl;
+        rad[i] = r;
+        cr[i] = rC; cg[i] = gC; cb[i] = bC; ca[i] = aC;
+        alive++;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function kill(i) {
+    if (active[i]) {
+      active[i] = 0;
+      alive--;
+    }
+  }
+
+  // ---------- render instance packing buffers ----------
+  // we pack only active bullets each frame -> instanceCount
+  const packPos = new Float32Array(MAX * 2);
+  const packR   = new Float32Array(MAX);
+  const packCol = new Float32Array(MAX * 4);
+
+  // ---------- resize / DPR ----------
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = clamp(window.devicePixelRatio || 1, 1, 2); // 2で頭打ちにして背景負荷を抑える
+    W = Math.floor(window.innerWidth * DPR);
+    H = Math.floor(window.innerHeight * DPR);
+    canvas.width = W;
+    canvas.height = H;
+    gl.viewport(0, 0, W, H);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- blend / clear ----------
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  // additive寄り（光る弾っぽさ）: srcAlpha + 1
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+
+  // ---------- patterns (emitters) ----------
+  let t = 0;
+
+  // dynamic throttle (keeps FPS stable)
+  let spawnBudget = 2200; // bullets/sec baseline; auto-adjust
+  let fps = 60;
+
+  function emit(dt) {
+    t += dt;
+
+    const cx = (W / DPR) * 0.5;
+    const cy = (H / DPR) * 0.5;
+
+    // 1) Spiral (continuous)
+    {
+      const rate = spawnBudget * 0.55; // bullets/sec
+      const n = Math.floor(rate * dt);
+      for (let k = 0; k < n; k++) {
+        const phase = t * 2.7 + k * 0.14;
+        const wob = Math.sin(t * 2.1) * 0.35;
+        const a = phase + wob;
+
+        const speed = 110 + 60 * Math.sin(t * 1.6);
+        const vxx = Math.cos(a) * speed;
+        const vyy = Math.sin(a) * speed;
+
+        const r = 2.0 + 0.5 * (0.5 + 0.5 * Math.sin(t * 4.0));
+        // cyan-ish
+        spawn(cx, cy, vxx, vyy, 6.2, r, 0.45, 0.90, 1.00, 0.75);
+      }
+    }
+
+    // 2) Fan burst (periodic "walls")
+    {
+      const period = 1.15;
+      if ((t % period) < dt) {
+        const fanN = 110;
+        const centerA = t * 1.05;
+        const spread = 1.65;
+        for (let i = 0; i < fanN; i++) {
+          const u = (i / (fanN - 1)) * 2 - 1; // -1..1
+          const a = centerA + u * spread;
+          const speed = 150;
+          const r = 2.2;
+          // blue-purple gradient
+          const rr = 0.65 + 0.10 * u;
+          const gg = 0.55 - 0.10 * u;
+          const bb = 1.00;
+          spawn(cx, cy, Math.cos(a) * speed, Math.sin(a) * speed, 5.6, r, rr, gg, bb, 0.55);
+        }
+      }
+    }
+
+    // 3) Aimed shots (player = mouse; background use mouse as "target")
+    {
+      const rate = spawnBudget * 0.12;
+      const n = Math.floor(rate * dt);
+      const tx = pointer.x ?? cx;
+      const ty = pointer.y ?? (cy + 120);
+      for (let k = 0; k < n; k++) {
+        const dx = tx - cx;
+        const dy = ty - cy;
+        const base = Math.atan2(dy, dx);
+
+        // small spread + time wobble
+        const a = base + (Math.sin(t * 6.0) * 0.06) + (k - n*0.5) * 0.015;
+        const speed = 220;
+        spawn(cx, cy, Math.cos(a) * speed, Math.sin(a) * speed, 4.2, 2.0, 1.00, 0.60, 0.35, 0.55);
+      }
+    }
+
+    // 4) Wave rings (screen-filling "curtain")
+    {
+      const period = 2.4;
+      if ((t % period) < dt) {
+        const rings = 2;
+        for (let rIdx = 0; rIdx < rings; rIdx++) {
+          const n = 160;
+          const baseA = t * 0.7 + rIdx * 0.6;
+          for (let i = 0; i < n; i++) {
+            const a = baseA + (i / n) * TAU;
+            const speed = 95 + rIdx * 20;
+            const rr = 0.95;
+            const gg = 0.95;
+            const bb = 0.55;
+            spawn(cx, cy, Math.cos(a) * speed, Math.sin(a) * speed, 7.0, 1.8, rr, gg, bb, 0.35);
+          }
+        }
+      }
+    }
+  }
+
+  // ---------- pointer target ----------
+  const pointer = { x: null, y: null };
+  window.addEventListener("mousemove", (e) => {
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+  }, { passive: true });
+  window.addEventListener("mouseleave", () => {
+    pointer.x = null;
+    pointer.y = null;
+  });
+
+  // ---------- animation loop ----------
+  let last = performance.now();
+  let accFps = 0, accFrames = 0, accTime = 0;
+
+  function step(now) {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+
+    // FPS monitor (1s window)
+    accTime += dt;
+    accFrames++;
+    if (accTime >= 1.0) {
+      fps = accFrames / accTime;
+      accTime = 0; accFrames = 0;
+
+      // auto throttle: aim ~55-60fps
+      if (fps < 50) spawnBudget *= 0.88;
+      else if (fps > 58) spawnBudget *= 1.04;
+      spawnBudget = clamp(spawnBudget, 600, 6000);
+    }
+
+    emit(dt);
+
+    // sim update + pack
+    const wCss = W / DPR;
+    const hCss = H / DPR;
+
+    let count = 0;
+    for (let i = 0; i < MAX; i++) {
+      if (!active[i]) continue;
+
+      px[i] += vx[i] * dt;
+      py[i] += vy[i] * dt;
+      life[i] -= dt;
+
+      // slight drift wobble (gives "organic" Touhou-ish movement without heavy math)
+      // (optional tiny curvature)
+      const s = 0.0006;
+      const ox = -vy[i] * s;
+      const oy =  vx[i] * s;
+      vx[i] += ox;
+      vy[i] += oy;
+
+      const r = rad[i];
+      if (life[i] <= 0 ||
+          px[i] < -40 - r || px[i] > wCss + 40 + r ||
+          py[i] < -40 - r || py[i] > hCss + 40 + r) {
+        kill(i);
+        continue;
+      }
+
+      const bi = count++;
+      packPos[bi*2+0] = px[i] * DPR;
+      packPos[bi*2+1] = py[i] * DPR;
+      packR[bi] = r * DPR;
+      packCol[bi*4+0] = cr[i];
+      packCol[bi*4+1] = cg[i];
+      packCol[bi*4+2] = cb[i];
+      packCol[bi*4+3] = ca[i];
+    }
+
+    // draw
+    gl.useProgram(prog);
+    gl.uniform2f(uRes, W, H);
+
+    // "残像"っぽくしたいなら clear を弱める
+    // WebGLで残像は: 透明な黒を描く or 別FBO。ここは簡易に clear alpha を薄める。
+    // ただし additive blend のままだと蓄積して白飛びしやすいので、背景用途は控えめ。
+    gl.clearColor(0.0, 0.0, 0.0, 0.22);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.bindVertexArray(vao);
+
+    // upload instance buffers (only count portion)
+    gl.bindBuffer(gl.ARRAY_BUFFER, bPos);
+    gl.bufferData(gl.ARRAY_BUFFER, packPos.subarray(0, count * 2), gl.DYNAMIC_DRAW);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, bR);
+    gl.bufferData(gl.ARRAY_BUFFER, packR.subarray(0, count), gl.DYNAMIC_DRAW);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, bCol);
+    gl.bufferData(gl.ARRAY_BUFFER, packCol.subarray(0, count * 4), gl.DYNAMIC_DRAW);
+
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
+
+    gl.bindVertexArray(null);
+
+    requestAnimationFrame(step);
+  }
+
+  requestAnimationFrame(step);
+})();
+</script>
+</body>
+</html>
