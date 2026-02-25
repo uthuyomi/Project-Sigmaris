@@ -295,7 +295,7 @@
     "id": "suwako",
     "name": "洩矢 諏訪子",
     "title": "土着神の頂点",
-    "enabled": false,
+    "enabled": true,
     "world": {
       "map": "gensokyo",
       "location": "moriya_shrine"
@@ -314,7 +314,7 @@
     "id": "meiling",
     "name": "紅 美鈴",
     "title": "華人小娘",
-    "enabled": false,
+    "enabled": true,
     "world": {
       "map": "gensokyo",
       "location": "scarlet_mansion"
@@ -405,7 +405,7 @@
     "id": "reisen",
     "name": "鈴仙・優曇華院・イナバ",
     "title": "月の兎",
-    "enabled": false,
+    "enabled": true,
     "world": {
       "map": "gensokyo",
       "location": "eientei"
