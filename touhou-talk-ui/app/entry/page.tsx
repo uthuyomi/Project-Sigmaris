@@ -7,6 +7,7 @@ import {
   type CharacterDef,
 } from "@/data/characters";
 import { LOCATIONS, type LayerId } from "@/lib/map/locations";
+import EntryLocationAccordion, { type EntryLayerGroup } from "./EntryLocationAccordion";
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -25,21 +26,6 @@ function layerLabel(layer: LayerId) {
     case "higan":
       return "白玉楼";
   }
-}
-
-function buildNextPath(ch: CharacterDef) {
-  const layer = ch.world?.map ? String(ch.world.map) : "";
-  const loc = ch.world?.location ? String(ch.world.location) : "";
-  const sp = new URLSearchParams();
-  sp.set("char", ch.id);
-  if (layer) sp.set("layer", layer);
-  if (loc) sp.set("loc", loc);
-  return `/chat/session?${sp.toString()}`;
-}
-
-function locationNameById(layer: LayerId, locationId: string): string {
-  const loc = LOCATIONS.find((l) => l.layer === layer && l.id === locationId);
-  return loc?.name ?? locationId;
 }
 
 function groupLabelForCharacter(ch: CharacterDef): LayerId | null {
@@ -106,78 +92,31 @@ function charactersByLocationInLayer(layer: LayerId, chars: CharacterDef[]) {
   return { ordered, others };
 }
 
-function CharacterCard({ ch }: { ch: CharacterDef }) {
-  const selectable = isCharacterSelectable(ch);
-  const nextPath = buildNextPath(ch);
-  const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
-  const layer = (ch.world?.map ?? "") as LayerId;
-  const locId = typeof ch.world?.location === "string" ? ch.world.location : "";
-  const locName = layer && locId ? locationNameById(layer, locId) : "";
-
-  const content = (
-    <div className="relative aspect-[4/5] w-full">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {ch.ui?.avatar ? (
-        <img
-          src={ch.ui.avatar}
-          alt={ch.name}
-          className="absolute inset-0 h-full w-full object-cover opacity-95 transition-transform duration-300 group-hover:scale-[1.03]"
-          loading="lazy"
-        />
-      ) : (
-        <div className="absolute inset-0 bg-white/10" />
-      )}
-
-      {/* vignette */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/10 to-black/70" />
-
-      {/* top chips */}
-      <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-        <Chip>ロールプレイ</Chip>
-        {locName ? <Chip>{locName}</Chip> : null}
-        {!selectable ? <Chip>準備中</Chip> : null}
-      </div>
-
-      {/* bottom meta */}
-      <div className="absolute inset-x-0 bottom-0 p-4">
-        <div className="text-base font-semibold leading-tight drop-shadow">
-          {ch.name}
-        </div>
-        <div className="mt-1 line-clamp-2 text-xs text-white/70 drop-shadow">
-          {ch.title}
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Chip>チャット</Chip>
-          <Chip>ログイン必須</Chip>
-        </div>
-      </div>
-    </div>
-  );
-
-  const className = [
-    "group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-left text-white backdrop-blur transition-colors",
-    selectable ? "hover:bg-white/10" : "opacity-60",
-  ].join(" ");
-
-  if (!selectable) {
-    return (
-      <div aria-disabled className={className}>
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <Link href={href} className={className}>
-      {content}
-    </Link>
-  );
-}
-
 export default function EntryPage() {
   const byGroup = charactersByGroup();
   const layers: LayerId[] = ["gensokyo", "deep", "higan"];
+
+  const layerData: EntryLayerGroup[] = layers.map((layer) => {
+    const { ordered, others } = charactersByLocationInLayer(layer, byGroup[layer] ?? []);
+    const groups = [...ordered, ...others].map((g) => ({
+      id: g.id,
+      name: g.name,
+      count: g.characters.length,
+      characters: g.characters.map((ch) => ({
+        id: ch.id,
+        name: ch.name,
+        title: ch.title,
+        world: ch.world,
+        ui: ch.ui,
+      })),
+    }));
+
+    return {
+      layer,
+      label: layerLabel(layer),
+      locations: groups,
+    };
+  });
 
   return (
     <TopShell fog scroll>
@@ -223,51 +162,7 @@ export default function EntryPage() {
         </section>
 
         {/* Locations */}
-        <div id="locations" className="mt-8 space-y-8">
-          {layers.map((layer) => (
-            <section key={layer} className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-white/10" />
-                <div className="text-xs font-medium text-white/70">
-                  {layerLabel(layer)}
-                </div>
-                <div className="h-px flex-1 bg-white/10" />
-              </div>
-
-              <div className="space-y-12">
-                {(() => {
-                  const { ordered, others } = charactersByLocationInLayer(
-                    layer,
-                    byGroup[layer] ?? [],
-                  );
-
-                  const groups = [...ordered, ...others];
-                  if (groups.length === 0) {
-                    return (
-                      <div className="rounded-2xl border border-white/10 bg-black/25 p-6 text-sm text-white/70">
-                        このレイヤにはキャラクターがまだいないよ。
-                      </div>
-                    );
-                  }
-
-                  return groups.map((g) => (
-                    <div key={g.id} className="space-y-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-base font-semibold">{g.name}</div>
-                        <div className="text-xs text-white/50">{g.characters.length}人</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                        {g.characters.map((ch) => (
-                          <CharacterCard key={ch.id} ch={ch} />
-                        ))}
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </section>
-          ))}
-        </div>
+        <EntryLocationAccordion layers={layerData} />
       </div>
     </TopShell>
   );
