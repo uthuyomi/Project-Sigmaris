@@ -9,6 +9,8 @@ import EntryLocationAccordion, {
   type EntryLayerGroup,
 } from "./EntryLocationAccordion";
 import EntryTouhouBackground from "./EntryTouhouBackground";
+import InViewFade from "@/components/ui/entry/InViewFade";
+
 import styles from "./entry-theme.module.css";
 import EntryHeroSection from "@/components/entry/entryHero/EntryHeroSection";
 import EntryInfoSection from "@/components/entry/entryInfo/EntryInfoSection";
@@ -137,12 +139,17 @@ export default function EntryPage() {
       className={`${styles.entryTheme} bg-background text-foreground`}
     >
       <div className="w-full max-w-6xl">
-        <EntryHeroSection />
-        <EntryInfoSection />
+        <InViewFade>
+          <EntryHeroSection />
+        </InViewFade>
+        <InViewFade>
+          <EntryInfoSection />
+        </InViewFade>
         <EntryCharactersHeader />
-
         <EntryLocationAccordion layers={layerData} />
-        <EntryInstallSection />
+        <InViewFade>
+          <EntryInstallSection />
+        </InViewFade>
         <EntryFooter />
       </div>
     </TopShell>

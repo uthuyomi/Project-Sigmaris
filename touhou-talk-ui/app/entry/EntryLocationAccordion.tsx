@@ -182,7 +182,11 @@ function LayerSection({ layer }: { layer: EntryLayerGroup }) {
   );
 }
 
-export default function EntryLocationAccordion({ layers }) {
+export default function EntryLocationAccordion({
+  layers,
+}: {
+  layers: EntryLayerGroup[]
+}) {
   return (
     <div id="locations" className="mt-8 space-y-10">
       {layers.map((layer) => (

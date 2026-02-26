@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import InViewFade from "@/components/entry/entryHero/InViewFade";
 import style from "@/components/entry/entryHero/EntryHeroSection.module.scss";
 
 import {
@@ -108,7 +107,7 @@ export default function EntryHeroSection() {
   }, []);
 
   return (
-    <InViewFade>
+    
       <section
         id="entry-hero"
         data-entry-section="hero"
@@ -175,6 +174,5 @@ export default function EntryHeroSection() {
           </div>
         </div>
       </section>
-    </InViewFade>
   );
 }
