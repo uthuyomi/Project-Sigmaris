@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 type CharacterTtsConfig = {
   voice?: string;
@@ -68,14 +71,24 @@ function buildNextPath(ch: EntryCharacter) {
   return `/chat/session?${sp.toString()}`;
 }
 
-function CharacterCard({ ch }: { ch: EntryCharacter }) {
+function CharacterCard({
+  ch,
+  index,
+  visible,
+}: {
+  ch: EntryCharacter;
+  index: number;
+  visible: boolean;
+}) {
   const nextPath = buildNextPath(ch);
   const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
 
   return (
     <Link
       href={href}
-      className="group overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm transition-transform transition-colors hover:-translate-y-0.5 hover:bg-card/90"
+      className={`group overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm transition-transform transition-colors hover:-translate-y-0.5 hover:bg-card/90
+      ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}
+        `}
     >
       <div className="relative aspect-[4/5] w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -95,7 +108,9 @@ function CharacterCard({ ch }: { ch: EntryCharacter }) {
           <Chip>ロールプレイ</Chip>
         </div>
 
-        <div className="mt-3 text-lg font-semibold leading-tight">{ch.name}</div>
+        <div className="mt-3 text-lg font-semibold leading-tight">
+          {ch.name}
+        </div>
         <div className="mt-1 text-sm text-muted-foreground">{ch.title}</div>
 
         <div className="mt-3 text-xs leading-relaxed text-muted-foreground">
@@ -106,40 +121,66 @@ function CharacterCard({ ch }: { ch: EntryCharacter }) {
   );
 }
 
-export default function EntryLocationAccordion({
-  layers,
-}: {
-  layers: EntryLayerGroup[];
-}) {
+function LayerSection({ layer }: { layer: EntryLayerGroup[] }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!ref.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.intersectionRatio > 0.3) {
+          setVisible(true);
+        }
+      },
+      {
+        threshold: 0.3,
+      },
+    );
+
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <section ref={ref} className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-border" />
+        <div className="text-xs font-medium text-muted-foreground">
+          {layer.label}
+        </div>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      {layer.locations.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-sm">
+          このレイヤにはキャラクターがまだいません。
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
+          {layer.locations
+            .flatMap((loc) => loc.characters)
+            .map((ch, index) => (
+              <CharacterCard
+                key={ch.id}
+                ch={ch}
+                index={index}
+                visible={visible}
+                style={{transition: `${index * 200}ms`}}
+              />
+            ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function EntryLocationAccordion({ layers }) {
   return (
     <div id="locations" className="mt-8 space-y-10">
       {layers.map((layer) => (
-        <section
-          key={layer.layer}
-          id={`entry-layer-${layer.layer}`}
-          data-entry-section={layer.layer}
-          className="space-y-4"
-        >
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <div className="text-xs font-medium text-muted-foreground">{layer.label}</div>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          {layer.locations.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-sm">
-              このレイヤにはキャラクターがまだいません。
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
-              {layer.locations
-                .flatMap((loc) => loc.characters)
-                .map((ch) => (
-                  <CharacterCard key={ch.id} ch={ch} />
-                ))}
-            </div>
-          )}
-        </section>
+        <LayerSection key={layer.layer} layer={layer} />
       ))}
     </div>
   );

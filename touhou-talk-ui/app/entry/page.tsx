@@ -1,6 +1,3 @@
-import Link from "next/link";
-import Image from "next/image";
-
 import TopShell from "@/components/top/TopShell";
 import {
   CHARACTERS,
@@ -12,16 +9,12 @@ import EntryLocationAccordion, {
   type EntryLayerGroup,
 } from "./EntryLocationAccordion";
 import EntryTouhouBackground from "./EntryTouhouBackground";
-import PwaInstallButton from "@/components/pwa/PwaInstallButton";
 import styles from "./entry-theme.module.css";
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-border bg-secondary px-3 py-1 text-[11px] font-medium text-secondary-foreground">
-      {children}
-    </span>
-  );
-}
+import EntryHeroSection from "@/components/entry/entryHero/EntryHeroSection";
+import EntryInfoSection from "@/components/entry/entryInfo/EntryInfoSection";
+import EntryCharactersHeader from "@/components/entry/entryCharacters/EntryCharactersHeader";
+import EntryInstallSection from "@/components/entry/entryInstall/EntryInstallSection";
+import EntryFooter from "@/components/entry/entryFooter/EntryFooter";
 
 function layerLabel(layer: LayerId) {
   switch (layer) {
@@ -39,74 +32,6 @@ function groupLabelForCharacter(ch: CharacterDef): LayerId | null {
   if (layer === "gensokyo" || layer === "deep" || layer === "higan")
     return layer;
   return null;
-}
-
-function buildNextPathForCharacterId(characterId: string) {
-  const ch = CHARACTERS[characterId];
-  const layer = typeof ch?.world?.map === "string" ? ch.world.map : "";
-  const loc = typeof ch?.world?.location === "string" ? ch.world.location : "";
-  const sp = new URLSearchParams();
-  sp.set("char", characterId);
-  if (layer) sp.set("layer", layer);
-  if (loc) sp.set("loc", loc);
-  return `/chat/session?${sp.toString()}`;
-}
-
-function HeroCharacterButton({
-  characterId,
-  label,
-  verb = "話す",
-  className,
-  showAvatar = false,
-}: {
-  characterId: string;
-  label: string;
-  verb?: string;
-  className?: string;
-  showAvatar?: boolean;
-}) {
-  const ch = CHARACTERS[characterId];
-  const selectable = isCharacterSelectable(ch);
-  const nextPath = buildNextPathForCharacterId(characterId);
-  const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
-  const avatarSrc = typeof ch?.ui?.avatar === "string" ? ch.ui.avatar : "";
-
-  const content = (
-    <span className="flex w-full items-center justify-center gap-2">
-      {showAvatar && avatarSrc ? (
-        <span className="relative h-7 w-7 overflow-hidden rounded-full border border-border bg-secondary shadow-sm">
-          <Image src={avatarSrc} alt="" fill className="object-cover" />
-        </span>
-      ) : null}
-      <span className="text-center leading-tight">{label}と{verb}</span>
-    </span>
-  );
-
-  return selectable ? (
-    <Link
-      href={href}
-      className={
-        `inline-flex w-full items-center justify-center ${className ?? "rounded-xl border border-border bg-card/90 px-4 py-3 text-sm font-medium text-foreground shadow-sm backdrop-blur hover:bg-card"}`
-      }
-    >
-      {content}
-    </Link>
-  ) : (
-    <div
-      className={
-        `inline-flex w-full items-center justify-center ${className ?? "rounded-xl border border-border bg-muted/60 px-4 py-3 text-sm text-muted-foreground"}`
-      }
-    >
-      <span className="flex w-full items-center justify-center gap-2">
-        {showAvatar && avatarSrc ? (
-          <span className="relative h-7 w-7 overflow-hidden rounded-full border border-border bg-secondary">
-            <Image src={avatarSrc} alt="" fill className="object-cover opacity-60" />
-          </span>
-        ) : null}
-        <span className="whitespace-nowrap">{label}（準備中）</span>
-      </span>
-    </div>
-  );
 }
 
 function charactersByGroup(): Record<LayerId, CharacterDef[]> {
@@ -212,192 +137,13 @@ export default function EntryPage() {
       className={`${styles.entryTheme} bg-background text-foreground`}
     >
       <div className="w-full max-w-6xl">
-        {/* Hero image + CTA */}
-        <section
-          id="entry-hero"
-          data-entry-section="hero"
-          className="mx-auto w-full max-w-6xl overflow-hidden rounded-3xl bg-transparent"
-        >
-          <div className="relative aspect-[3/2] w-full">
-            <Image
-              src="/entry/hero.png"
-              alt="魔理沙・霊夢・アリス"
-              fill
-              priority
-              className="object-contain"
-            />
-
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-6 sm:px-10">
-              <div className="mx-auto grid w-full grid-cols-3 gap-2 sm:grid-cols-[1fr_minmax(0,14rem)_1fr_minmax(0,14rem)_1fr_minmax(0,14rem)_1fr] sm:gap-0">
-                <HeroCharacterButton
-                  characterId="marisa"
-                  label="魔理沙"
-                  verb="対話する"
-                  showAvatar
-                  className="w-full rounded-2xl border border-border bg-card/80 px-3 py-4 text-[12px] font-semibold text-card-foreground shadow-lg shadow-black/20 backdrop-blur hover:bg-card active:bg-card/90 sm:col-start-2 sm:px-4 sm:text-sm"
-                />
-                <HeroCharacterButton
-                  characterId="reimu"
-                  label="霊夢"
-                  verb="対話する"
-                  showAvatar
-                  className="w-full rounded-2xl border border-border bg-card/80 px-3 py-4 text-[12px] font-semibold text-card-foreground shadow-lg shadow-black/20 backdrop-blur hover:bg-card active:bg-card/90 sm:col-start-4 sm:px-4 sm:text-sm"
-                />
-                <HeroCharacterButton
-                  characterId="alice"
-                  label="アリス"
-                  verb="対話する"
-                  showAvatar
-                  className="w-full rounded-2xl border border-border bg-card/80 px-3 py-4 text-[12px] font-semibold text-card-foreground shadow-lg shadow-black/20 backdrop-blur hover:bg-card active:bg-card/90 sm:col-start-6 sm:px-4 sm:text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
-              <div className="rounded-2xl border border-border bg-card/85 p-5 shadow-sm">
-                <div className="text-xs font-medium text-muted-foreground">
-                  Touhou Talk
-                </div>
-                <h1 className="mt-2 font-gensou text-2xl tracking-wide sm:text-3xl">
-                  東方キャラと“ちゃんと会話できる”体験。
-                </h1>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  キャラクターを選択し、ログイン後すぐに会話を開始できます。
-                </p>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Chip>ロケーション別</Chip>
-                  <Chip>カードで選択</Chip>
-                  <Chip>ログイン後に開始</Chip>
-                </div>
-
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Info */}
-        <section
-          id="entry-info"
-          data-entry-section="info"
-          className="mx-auto mt-10 w-full max-w-6xl space-y-4"
-        >
-          <div className="space-y-1">
-            <h2 className="text-xl font-semibold tracking-wide">はじめに</h2>
-            <p className="text-sm text-muted-foreground">
-              迷わず開始できるよう、要点をまとめました。
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
-              <div className="text-sm font-semibold">遊び方</div>
-              <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <li>1. キャラクターを選択</li>
-                <li>2. ログイン</li>
-                <li>3. 会話を開始</li>
-              </ol>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
-              <div className="text-sm font-semibold">ロールプレイ方針</div>
-              <div className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                口調や雰囲気の再現を優先します。キャラクターごとに距離感やテンポが異なるため、相性の良い相手をお試しください。
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
-              <div className="text-sm font-semibold">推奨環境</div>
-              <div className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                PC / タブレット / スマートフォンに対応しています。Chrome / Safari の最新版を推奨します。
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
-              <div className="text-sm font-semibold">運営について</div>
-              <div className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                本サービスは個人の負担で運営しております。混雑状況により、一時的に提供を停止する場合がございます。あらかじめご了承ください。
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-10 w-full max-w-6xl">
-          <div className="flex items-end justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-xl font-semibold tracking-wide">キャラクター一覧</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                ロケーション別に一覧表示しています。気になるカードからお選びください。
-              </p>
-            </div>
-            <a
-              href="#entry-hero"
-              className="text-sm font-medium text-primary hover:opacity-80"
-            >
-              ページ上部へ
-            </a>
-          </div>
-        </section>
+        <EntryHeroSection />
+        <EntryInfoSection />
+        <EntryCharactersHeader />
 
         <EntryLocationAccordion layers={layerData} />
-
-        <section
-          id="entry-install"
-          data-entry-section="install"
-          className="mx-auto mt-10 w-full max-w-6xl space-y-3"
-        >
-          <h2 className="text-xl font-semibold tracking-wide">ホームに追加</h2>
-          <p className="text-sm text-muted-foreground">
-            スマートフォンやPCのホームに追加しておくと、次回からすぐに起動できます。
-          </p>
-          <PwaInstallButton />
-        </section>
-
-        <footer className="mx-auto mt-14 w-full max-w-6xl border-t border-border py-10 text-muted-foreground">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
-            <div>
-              <div className="text-sm font-semibold text-foreground">順次追加</div>
-              <div className="mt-3 text-sm leading-relaxed">
-                アバター画像と内部設定が揃い次第、選択できるキャラクターを順次追加します。
-              </div>
-            </div>
-
-            <div>
-              <div className="text-sm font-semibold text-foreground">不具合報告・要望</div>
-              <div className="mt-3 text-sm leading-relaxed">
-                不具合やご要望は GitHub Issues までお知らせください。チャット画面では{" "}
-                <span className="font-mono text-foreground/80">/dump</span> でログを書き出せます。
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <a
-                  href="https://github.com/uthuyomi/sigmaris-project/issues"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-secondary-foreground hover:bg-secondary/80"
-                >
-                  GitHub Issues
-                </a>
-                <Link
-                  href="/legal/terms"
-                  className="rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-secondary-foreground hover:bg-secondary/80"
-                >
-                  利用規約
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-10 flex flex-col gap-2 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <div>Copyright © {new Date().getFullYear()} Touhou Talk</div>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              <Link href="/legal/privacy" className="hover:text-foreground/80">
-                プライバシー
-              </Link>
-              <Link href="/legal/terms" className="hover:text-foreground/80">
-                利用規約
-              </Link>
-            </div>
-          </div>
-        </footer>
+        <EntryInstallSection />
+        <EntryFooter />
       </div>
     </TopShell>
   );
