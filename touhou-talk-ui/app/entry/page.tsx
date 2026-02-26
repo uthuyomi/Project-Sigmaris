@@ -139,15 +139,15 @@ export default function EntryPage() {
       className={`${styles.entryTheme} bg-background text-foreground`}
     >
       <div className="w-full max-w-6xl">
-        <InViewFade>
+        <InViewFade reverse={true}>
           <EntryHeroSection />
         </InViewFade>
-        <InViewFade>
+        <InViewFade reverse={false}>
           <EntryInfoSection />
         </InViewFade>
         <EntryCharactersHeader />
         <EntryLocationAccordion layers={layerData} />
-        <InViewFade>
+        <InViewFade reverse={false}>
           <EntryInstallSection />
         </InViewFade>
         <EntryFooter />
