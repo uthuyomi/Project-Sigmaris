@@ -73,11 +73,9 @@ function buildNextPath(ch: EntryCharacter) {
 
 function CharacterCard({
   ch,
-  index,
   visible,
 }: {
   ch: EntryCharacter;
-  index: number;
   visible: boolean;
 }) {
   const nextPath = buildNextPath(ch);
@@ -86,9 +84,10 @@ function CharacterCard({
   return (
     <Link
       href={href}
-      className={`group overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm transition-transform transition-colors hover:-translate-y-0.5 hover:bg-card/90
-      ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}
-        `}
+      className={`group overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm
+  transition-all duration-700 ease-out
+  ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}
+  hover:-translate-y-0.5 hover:bg-card/90`}
     >
       <div className="relative aspect-[4/5] w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -121,17 +120,24 @@ function CharacterCard({
   );
 }
 
-function LayerSection({ layer }: { layer: EntryLayerGroup[] }) {
+function LayerSection({ layer }: { layer: EntryLayerGroup }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [visible, setVisible] = useState(false);
+  const [visibleIndexs, setVisibleIndexs] = useState<number[]>([]);
 
   useEffect(() => {
     if (!ref.current) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.intersectionRatio > 0.3) {
-          setVisible(true);
+        if (entry.isIntersecting) {
+          const total = layer.locations.flatMap(loc => loc.characters).length;
+
+          for (let i = 0; i < total; i++){ 
+            setTimeout(() => {
+              setVisibleIndexs(prev => [...prev, i]);
+            }, i * 300);
+          }
+          observer.disconnect();
         }
       },
       {
@@ -141,7 +147,9 @@ function LayerSection({ layer }: { layer: EntryLayerGroup[] }) {
 
     observer.observe(ref.current);
     return () => observer.disconnect();
-  }, []);
+  }, [layer]);
+
+  const character = layer.locations.flatMap(loc => loc.characters);
 
   return (
     <section ref={ref} className="space-y-4">
@@ -165,9 +173,7 @@ function LayerSection({ layer }: { layer: EntryLayerGroup[] }) {
               <CharacterCard
                 key={ch.id}
                 ch={ch}
-                index={index}
-                visible={visible}
-                style={{transition: `${index * 200}ms`}}
+                visible={visibleIndexs.includes(index)}
               />
             ))}
         </div>
