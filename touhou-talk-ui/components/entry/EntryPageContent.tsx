@@ -18,6 +18,7 @@ import EntryInfoSection from "@/components/entry/entryInfo/EntryInfoSection";
 import EntryCharactersHeader from "@/components/entry/entryCharacters/EntryCharactersHeader";
 import EntryInstallSection from "@/components/entry/entryInstall/EntryInstallSection";
 import EntryFooter from "@/components/entry/entryFooter/EntryFooter";
+import EntrySelectionTracker from "@/components/entry/EntrySelectionTracker";
 
 function layerLabel(layer: LayerId) {
   switch (layer) {
@@ -147,7 +148,9 @@ export default function EntryPageContent() {
           <EntryInfoSection />
         </InViewFade>
         <EntryCharactersHeader />
-        <EntryLocationAccordion layers={layerData} />
+        <EntrySelectionTracker>
+          <EntryLocationAccordion layers={layerData} />
+        </EntrySelectionTracker>
         <InViewFade reverse={false}>
           <EntryInstallSection />
         </InViewFade>

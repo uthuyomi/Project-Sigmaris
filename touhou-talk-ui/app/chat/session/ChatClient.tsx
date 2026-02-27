@@ -314,15 +314,14 @@ export default function ChatClient() {
   }, [activeCharacterId]);
 
   /* =========================
-     Character filter (location)
+     Character filter
   ========================= */
 
   const visibleCharacters = useMemo(() => {
-    if (!currentLocationId) return [];
     return Object.values(CHARACTERS).filter(
-      (c) => isCharacterSelectable(c) && c.world?.location === currentLocationId,
+      (c) => isCharacterSelectable(c),
     );
-  }, [currentLocationId]);
+  }, []);
 
   /* =========================
      Group Context
@@ -385,8 +384,8 @@ export default function ChatClient() {
       const existing = sessions.find(
         (s) =>
           s.characterId === characterId &&
-          s.layer === currentLayer &&
-          s.location === currentLocationId,
+          (currentLayer ? s.layer === currentLayer : true) &&
+          (currentLocationId ? s.location === currentLocationId : true),
       );
       if (existing) {
         setActiveSessionId(existing.id);
@@ -1046,7 +1045,13 @@ export default function ChatClient() {
           characters: CHARACTERS,
         }}
       >
-        <SidebarProvider>
+        <SidebarProvider
+          style={
+            {
+              "--sidebar-width": "32rem",
+            } as React.CSSProperties
+          }
+        >
           <div className="flex h-full w-full min-h-0 overflow-hidden bg-background text-foreground transition-colors duration-300">
             <TouhouSidebar
               visibleCharacters={visibleCharacters}

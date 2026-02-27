@@ -44,5 +44,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(dest);
   }
 
-  return NextResponse.redirect(new URL(safeNext || "/map/session/gensokyo", url.origin));
+  // Mapページは導線から外す。nextが無い場合は /entry に戻してキャラ選択へ。
+  return NextResponse.redirect(new URL(safeNext || "/entry", url.origin));
 }

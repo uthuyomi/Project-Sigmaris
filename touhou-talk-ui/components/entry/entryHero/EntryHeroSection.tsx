@@ -10,6 +10,7 @@ import {
   isCharacterSelectable,
   type CharacterDef,
 } from "@/data/characters";
+import { setLastSelectedChatNext } from "@/components/entry/EntrySelectionTracker";
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -46,7 +47,7 @@ function HeroCharacterButton({
   const ch: CharacterDef | undefined = CHARACTERS[characterId];
   const selectable = isCharacterSelectable(ch);
   const nextPath = buildNextPathForCharacterId(characterId);
-  const href = `/entry/require-login?next=${encodeURIComponent(nextPath)}`;
+  const href = `/auth/login?next=${encodeURIComponent(nextPath)}`;
   const avatarSrc = typeof ch?.ui?.avatar === "string" ? ch.ui.avatar : "";
 
   const content = (
@@ -65,6 +66,7 @@ function HeroCharacterButton({
   return selectable ? (
     <Link
       href={href}
+      onClick={() => setLastSelectedChatNext(nextPath)}
       className={`inline-flex w-full items-center justify-center ${
         className ??
         "rounded-xl border border-border bg-card/90 px-4 py-3 text-sm font-medium text-foreground shadow-sm backdrop-blur hover:bg-card"

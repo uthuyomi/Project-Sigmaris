@@ -7,6 +7,7 @@ import TopShell from "@/components/top/TopShell";
 import { SiDiscord, SiGithub, SiGoogle } from "react-icons/si";
 import EntryTouhouBackground from "@/app/entry/EntryTouhouBackground";
 import styles from "@/app/entry/entry-theme.module.css";
+import { getLastSelectedChatNext } from "@/components/entry/EntrySelectionTracker";
 
 type Provider = "google" | "github" | "discord";
 
@@ -35,12 +36,31 @@ export default function LoginClient(props: { nextPath?: string | null }) {
   );
   const [error, setError] = React.useState<string | null>(null);
 
+  const nextSafe =
+    safeNextPath(props.nextPath) || safeNextPath(getLastSelectedChatNext());
+
+  // 既にログイン済みなら、この画面を出さずに next へ直行
+  React.useEffect(() => {
+    if (!nextSafe) return;
+    let canceled = false;
+    (async () => {
+      try {
+        const { data } = await supabaseBrowser().auth.getSession();
+        if (canceled) return;
+        if (data.session) router.replace(nextSafe);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [nextSafe, router]);
+
   async function signInWithOAuth(provider: Provider) {
     if (loadingProvider) return;
     setError(null);
     setLoadingProvider(provider);
-
-    const nextSafe = safeNextPath(props.nextPath);
 
     const options: Record<string, any> = {
       redirectTo: `${window.location.origin}/auth/callback${
@@ -83,7 +103,7 @@ export default function LoginClient(props: { nextPath?: string | null }) {
         <p className="mb-4 text-sm text-muted-foreground">
           Supabase Auth の OAuth でログインします。
         </p>
-        {props.nextPath ? (
+        {nextSafe ? (
           <p className="mb-4 text-xs text-muted-foreground">
             ログイン後、元のページに戻ります。
           </p>

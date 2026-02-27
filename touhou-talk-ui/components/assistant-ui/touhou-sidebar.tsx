@@ -1,15 +1,13 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Map as MapIcon, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarRail,
   useSidebar,
@@ -39,6 +37,7 @@ export function TouhouSidebar({
   ...props
 }: Props) {
   const { setOpen, setOpenMobile, isMobile } = useSidebar();
+  const [collapsedCharacters, setCollapsedCharacters] = React.useState(false);
 
   const handleClose = () => {
     if (isMobile) setOpenMobile(false);
@@ -48,16 +47,7 @@ export function TouhouSidebar({
   return (
     <Sidebar className={cn(className)} {...props}>
       <SidebarHeader className="border-b px-3 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <Link
-            href="/map/session/gensokyo"
-            onClick={handleClose}
-            className="flex items-center gap-2 rounded-md px-2 py-1 text-xs text-sidebar-foreground/80 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <MapIcon className="size-4" />
-            マップに戻る
-          </Link>
-
+        <div className="flex items-center justify-end gap-2">
           {isMobile && (
             <button
               type="button"
@@ -75,64 +65,115 @@ export function TouhouSidebar({
             Touhou Talk
           </h1>
           <p className="mt-1 text-xs text-sidebar-foreground/60">
-            キャラ選択と会話セッション
+            繧ｭ繝｣繝ｩ驕ｸ謚・/ 繧ｻ繝・す繝ｧ繝ｳ
           </p>
-        </div>
-
-        <div className="mt-4 px-1">
-          <div className="mb-2 text-xs text-sidebar-foreground/60">キャラ選択</div>
-          <div className="flex max-h-40 flex-col gap-2 overflow-auto pr-1">
-            {visibleCharacters.length === 0 && (
-              <div className="text-xs text-sidebar-foreground/50">
-                マップで場所を選ぶとキャラが表示されます
-              </div>
-            )}
-
-            {visibleCharacters.map((ch) => {
-              const active = ch.id === activeCharacterId;
-              return (
-                <button
-                  key={ch.id}
-                  type="button"
-                  onClick={() => onSelectCharacter(ch.id)}
-                  className={cn(
-                    "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition",
-                    active
-                      ? "border-sidebar-ring bg-sidebar-accent"
-                      : "border-sidebar-border hover:bg-sidebar-accent/60",
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-gensou text-sm text-sidebar-foreground">
-                      {ch.name}
-                    </div>
-                    <div className="truncate text-xs text-sidebar-foreground/60">
-                      {ch.title}
-                    </div>
-                  </div>
-
-                  <Avatar className="size-9 shrink-0">
-                    <AvatarImage src={ch.ui?.avatar} alt={ch.name} />
-                    <AvatarFallback className="text-xs">
-                      {String(ch.name ?? "?").slice(0, 1)}
-                    </AvatarFallback>
-                  </Avatar>
-                </button>
-              );
-            })}
-          </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-3 py-3">
-        <ThreadList />
+      <SidebarContent className="p-0">
+        <div className="flex h-full min-h-0">
+          {/* Characters (left / collapsible) */}
+          <div
+            className={cn(
+              "flex min-h-0 flex-col border-r border-sidebar-border transition-[width] duration-200",
+              collapsedCharacters ? "w-12" : "w-1/2",
+            )}
+          >
+            <div className="flex items-center justify-between gap-2 px-2 py-2">
+              {!collapsedCharacters ? (
+                <div className="flex items-center gap-2 text-xs text-sidebar-foreground/60">
+                  <Users className="size-4" />
+                  繧ｭ繝｣繝ｩ繧ｯ繧ｿ繝ｼ
+                </div>
+              ) : (
+                <div className="flex w-full justify-center text-sidebar-foreground/70">
+                  <Users className="size-4" />
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setCollapsedCharacters((v) => !v)}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-md transition hover:bg-sidebar-accent",
+                  collapsedCharacters && "mx-auto",
+                )}
+                aria-label={collapsedCharacters ? "Expand characters" : "Collapse characters"}
+              >
+                {collapsedCharacters ? (
+                  <ChevronRight className="size-4" />
+                ) : (
+                  <ChevronLeft className="size-4" />
+                )}
+              </button>
+            </div>
+
+            {!collapsedCharacters && (
+              <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
+                <div className="flex flex-col gap-2 pr-1">
+                  {visibleCharacters.length === 0 && (
+                    <div className="text-xs text-sidebar-foreground/50">
+                      陦ｨ遉ｺ縺ｧ縺阪ｋ繧ｭ繝｣繝ｩ繧ｯ繧ｿ繝ｼ縺後≠繧翫∪縺帙ｓ
+                    </div>
+                  )}
+
+                  {visibleCharacters.map((ch) => {
+                    const active = ch.id === activeCharacterId;
+                    return (
+                      <button
+                        key={ch.id}
+                        type="button"
+                        onClick={() => onSelectCharacter(ch.id)}
+                        className={cn(
+                          "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition",
+                          active
+                            ? "border-sidebar-ring bg-sidebar-accent"
+                            : "border-sidebar-border hover:bg-sidebar-accent/60",
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-gensou text-sm text-sidebar-foreground">
+                            {ch.name}
+                          </div>
+                          <div className="truncate text-xs text-sidebar-foreground/60">
+                            {ch.title}
+                          </div>
+                        </div>
+
+                        <Avatar className="size-9 shrink-0">
+                          <AvatarImage src={ch.ui?.avatar} alt={ch.name} />
+                          <AvatarFallback className="text-xs">
+                            {String(ch.name ?? "?").slice(0, 1)}
+                          </AvatarFallback>
+                        </Avatar>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Threads (right) */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="border-b border-sidebar-border px-3 py-2 text-xs text-sidebar-foreground/60">
+              繧ｻ繝・す繝ｧ繝ｳ
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
+              <ThreadList />
+            </div>
+
+            {/* Account status (right-aligned, same content width as thread area) */}
+            <div className="border-t border-sidebar-border p-3">
+              <div className="ml-auto w-full max-w-md">
+                <UserBlock />
+              </div>
+            </div>
+          </div>
+        </div>
       </SidebarContent>
 
       <SidebarRail />
-
-      <SidebarFooter className="border-t p-3">
-        <UserBlock className="bg-background" />
-      </SidebarFooter>
     </Sidebar>
   );
 }
