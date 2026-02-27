@@ -68,6 +68,8 @@ from persona_core.phase03.naturalness_controller import (
     self_assess_and_correct,
     update_params_on_user,
 )
+from persona_core.phase03.intent_layers import IntentLayers
+from persona_core.phase03.conversation_contract import build_conversation_contract, extract_explicit_goal, should_apply_contract
 from persona_core.phase03.roleplay_character_policy import get_roleplay_character_policy
 
 
@@ -196,6 +198,9 @@ class PersonaController:
         self._auto_recovery_prev_by_session: Dict[str, Dict[str, float]] = {}
         self._naturalness_by_session: Dict[str, NaturalnessState] = {}
         self._naturalness_lru: list[str] = []
+        # Explicit, user-labeled goal memory (conservative). Only set when the user explicitly states it.
+        self._explicit_goal_by_session: Dict[str, str] = {}
+        self._explicit_goal_lru: list[str] = []
         try:
             self._phase03_session_cap = int(os.getenv("SIGMARIS_PHASE03_SESSION_CAP", "1024") or "1024")
         except Exception:
@@ -243,6 +248,45 @@ class PersonaController:
 
         return st
 
+    def _explicit_goal_get(self, *, session_id: str) -> Optional[str]:
+        sid = str(session_id or "").strip()
+        if not sid:
+            return None
+        g = self._explicit_goal_by_session.get(sid)
+        if not isinstance(g, str) or not g.strip():
+            return None
+
+        # LRU touch + cap (best-effort)
+        try:
+            if sid in self._explicit_goal_lru:
+                self._explicit_goal_lru.remove(sid)
+            self._explicit_goal_lru.append(sid)
+            cap = int(self._phase03_session_cap or 1024)
+            if cap < 16:
+                cap = 16
+            if len(self._explicit_goal_lru) > cap:
+                drop = self._explicit_goal_lru[: max(0, len(self._explicit_goal_lru) - cap)]
+                self._explicit_goal_lru = self._explicit_goal_lru[len(drop) :]
+                for d in drop:
+                    self._explicit_goal_by_session.pop(d, None)
+        except Exception:
+            pass
+
+        return g.strip()
+
+    def _explicit_goal_set(self, *, session_id: str, goal: str) -> None:
+        sid = str(session_id or "").strip()
+        g = str(goal or "").strip()
+        if not sid or not g:
+            return
+        self._explicit_goal_by_session[sid] = g[:180]
+        try:
+            if sid in self._explicit_goal_lru:
+                self._explicit_goal_lru.remove(sid)
+            self._explicit_goal_lru.append(sid)
+        except Exception:
+            pass
+
     def _apply_naturalness_policy(
         self,
         *,
@@ -263,6 +307,21 @@ class PersonaController:
         user_text = str(getattr(req, "message", "") or "")
         allow_choices = bool(detect_user_wants_choices(user_text))
 
+        # Intent vector (explainable heuristics). This supports better first-time retention by shaping
+        # "how we answer" without psychoanalyzing the user.
+        intent_primary = "SMALL_TALK"
+        intent_conf = 0.0
+        try:
+            intent_res = IntentLayers().compute(message=user_text, metadata=md)
+            intent_primary = str(getattr(intent_res, "primary", intent_primary) or intent_primary)
+            intent_conf = float(getattr(intent_res, "confidence", 0.0) or 0.0)
+            md["_conv_intent_primary"] = intent_primary
+            md["_conv_intent_confidence"] = intent_conf
+            # Keep meta compact; do not dump regex/debug by default.
+            meta["conv_intent"] = {"primary": intent_primary, "confidence": intent_conf}
+        except Exception:
+            pass
+
         st = self._naturalness_get(session_id=session_id)
         st, upd = update_params_on_user(st, user_text=user_text)
 
@@ -271,6 +330,27 @@ class PersonaController:
         # Merge into external persona system (keep client persona intact, add as a late policy block).
         base = str(md.get("persona_system") or "").strip()
         merged = (base + "\n\n# Conversation Naturalness\n" + policy).strip() if base else policy
+
+        # Additional contract: only when external persona injection is active (avoid breaking other apps).
+        try:
+            if should_apply_contract(md):
+                goal = extract_explicit_goal(user_text)
+                if goal:
+                    self._explicit_goal_set(session_id=session_id, goal=goal)
+                else:
+                    goal = self._explicit_goal_get(session_id=session_id)
+                contract = build_conversation_contract(
+                    primary_intent=intent_primary,
+                    chat_mode=str(md.get("chat_mode") or "") if md.get("chat_mode") else None,
+                    character_id=str(md.get("character_id") or "") if md.get("character_id") else None,
+                    has_external_persona=bool(base),
+                    explicit_goal=goal,
+                )
+                merged = (merged + "\n\n" + contract).strip()
+                if goal:
+                    md["_explicit_goal"] = goal
+        except Exception:
+            pass
         md["persona_system"] = merged
 
         # Expose non-sensitive state (no full policy text in meta by default).
@@ -1289,6 +1369,11 @@ class PersonaController:
                 allow_choices=allow_choices,
                 max_questions=int(getattr(roleplay_policy, "max_questions_per_turn", 1) or 1),
                 remove_interview_prompts=bool(getattr(roleplay_policy, "remove_interview_prompts", True)),
+                user_text=str(getattr(req, "message", "") or ""),
+                client_history=(md.get("client_history") if isinstance(md, dict) else None),
+                character_id=(md.get("character_id") if isinstance(md, dict) else None),
+                chat_mode=(md.get("chat_mode") if isinstance(md, dict) else None),
+                apply_contract_scoped=bool(should_apply_contract(md)) if isinstance(md, dict) else False,
             )
             reply_text = cleaned
             nat = meta.get("naturalness") if isinstance(meta.get("naturalness"), dict) else None
@@ -2087,6 +2172,11 @@ class PersonaController:
                 allow_choices=allow_choices,
                 max_questions=int(getattr(roleplay_policy, "max_questions_per_turn", 1) or 1),
                 remove_interview_prompts=bool(getattr(roleplay_policy, "remove_interview_prompts", True)),
+                user_text=str(getattr(req, "message", "") or ""),
+                client_history=(md.get("client_history") if isinstance(md, dict) else None),
+                character_id=(md.get("character_id") if isinstance(md, dict) else None),
+                chat_mode=(md.get("chat_mode") if isinstance(md, dict) else None),
+                apply_contract_scoped=bool(should_apply_contract(md)) if isinstance(md, dict) else False,
             )
             reply_text = cleaned
             nat = meta.get("naturalness") if isinstance(meta.get("naturalness"), dict) else None

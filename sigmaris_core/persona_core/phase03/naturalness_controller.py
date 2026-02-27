@@ -366,6 +366,11 @@ def sanitize_reply_text(
     allow_choices: bool,
     max_questions: int = 1,
     remove_interview_prompts: bool = True,
+    user_text: str = "",
+    client_history: Any = None,
+    character_id: Any = None,
+    chat_mode: Any = None,
+    apply_contract_scoped: bool = False,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Hardening layer for the "forced rules".
@@ -442,4 +447,24 @@ def sanitize_reply_text(
         "max_questions": int(cap),
         "remove_interview_prompts": bool(remove_interview_prompts),
     }
+
+    # Additional postprocess (scoped to external persona injection to avoid breaking other apps).
+    if apply_contract_scoped:
+        try:
+            from persona_core.phase03.reply_postprocess import postprocess_reply_text
+
+            t2, pp_meta = postprocess_reply_text(
+                reply_text=t,
+                user_text=str(user_text or ""),
+                client_history=(client_history if isinstance(client_history, list) else None),
+                character_id=(str(character_id) if character_id is not None else None),
+                chat_mode=(str(chat_mode) if chat_mode is not None else None),
+            )
+            if t2 != t:
+                t = t2
+                meta["changed"] = True
+            meta["postprocess"] = pp_meta
+        except Exception as e:
+            meta["postprocess"] = {"error": str(e)}
+
     return t, meta
