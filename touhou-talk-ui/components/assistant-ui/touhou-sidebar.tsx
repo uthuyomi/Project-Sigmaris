@@ -44,8 +44,22 @@ export function TouhouSidebar({
     else setOpen(false);
   };
 
+  const sidebarWidth = !isMobile
+    ? collapsedCharacters
+      ? "19rem"
+      : "32rem"
+    : undefined;
+
   return (
-    <Sidebar className={cn(className)} {...props}>
+    <Sidebar
+      className={cn(className)}
+      style={
+        sidebarWidth
+          ? ({ "--sidebar-width": sidebarWidth } as React.CSSProperties)
+          : undefined
+      }
+      {...props}
+    >
       <SidebarHeader className="border-b px-3 py-3">
         <div className="flex items-center justify-end gap-2">
           {isMobile && (
