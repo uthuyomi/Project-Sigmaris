@@ -471,8 +471,8 @@ export default function ChatClient() {
     autoSelectDoneRef.current = false;
   }, [searchParams.get("char")]);
   /* =========================
-   Auto select character from URL (map 竊・chat)
-========================= */
+   Auto select character from URL (map → chat)
+ ========================= */
   useEffect(() => {
     if (!sessionsLoaded) return;
     if (autoSelectDoneRef.current) return;

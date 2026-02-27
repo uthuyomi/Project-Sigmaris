@@ -65,7 +65,7 @@ export function TouhouSidebar({
             Touhou Talk
           </h1>
           <p className="mt-1 text-xs text-sidebar-foreground/60">
-            繧ｭ繝｣繝ｩ驕ｸ謚・/ 繧ｻ繝・す繝ｧ繝ｳ
+            キャラ選択 / セッション
           </p>
         </div>
       </SidebarHeader>
@@ -83,7 +83,7 @@ export function TouhouSidebar({
               {!collapsedCharacters ? (
                 <div className="flex items-center gap-2 text-xs text-sidebar-foreground/60">
                   <Users className="size-4" />
-                  繧ｭ繝｣繝ｩ繧ｯ繧ｿ繝ｼ
+                  キャラクター
                 </div>
               ) : (
                 <div className="flex w-full justify-center text-sidebar-foreground/70">
@@ -113,7 +113,7 @@ export function TouhouSidebar({
                 <div className="flex flex-col gap-2 pr-1">
                   {visibleCharacters.length === 0 && (
                     <div className="text-xs text-sidebar-foreground/50">
-                      陦ｨ遉ｺ縺ｧ縺阪ｋ繧ｭ繝｣繝ｩ繧ｯ繧ｿ繝ｼ縺後≠繧翫∪縺帙ｓ
+                      表示できるキャラクターがありません
                     </div>
                   )}
 
@@ -157,7 +157,7 @@ export function TouhouSidebar({
           {/* Threads (right) */}
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="border-b border-sidebar-border px-3 py-2 text-xs text-sidebar-foreground/60">
-              繧ｻ繝・す繝ｧ繝ｳ
+              セッション
             </div>
             <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
               <ThreadList />
