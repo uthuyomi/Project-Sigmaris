@@ -8,37 +8,63 @@ type Props = {
   children: React.ReactNode;
   fog?: boolean;
   loading?: boolean;
+  scroll?: boolean;
+  backgroundVariant?: "top" | "none";
+  backgroundSlot?: React.ReactNode;
 };
 
 export default function TopShell({
   children,
   fog = false,
   loading = false,
+  scroll = false,
+  backgroundVariant = "top",
+  backgroundSlot,
 }: Props) {
+  const bgPos = scroll ? "fixed" : "absolute";
+
   return (
-    <main className="relative h-dvh w-full overflow-hidden">
+    <main
+      className={
+        scroll
+          ? "relative min-h-dvh w-full overflow-y-auto"
+          : "relative h-dvh w-full overflow-hidden"
+      }
+    >
       {/* 背景動画（PC） */}
-      <video
-        className="absolute inset-0 hidden h-full object-cover lg:block m-auto"
-        src="/top/top-pc.mp4"
-        autoPlay
-        muted
-        playsInline
-      />
+      {backgroundVariant === "top" ? (
+        <video
+          className={`${bgPos} inset-0 hidden h-full object-cover lg:block m-auto`}
+          src="/top/top-pc.mp4"
+          autoPlay
+          muted
+          playsInline
+        />
+      ) : null}
 
       {/* 背景イラスト（SP） */}
-      <div className="absolute inset-0 lg:hidden">
-        <Image
+      {backgroundVariant === "top" ? (
+        <div className={`${bgPos} inset-0 lg:hidden`}>
+          <Image
           src="/top/top-sp.png"
           alt="幻想郷"
           fill
           priority
           className="object-cover"
-        />
-      </div>
+          />
+        </div>
+      ) : null}
 
       {/* 中央コンテンツ */}
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6">
+      {backgroundSlot}
+
+      <div
+        className={
+          scroll
+            ? "relative z-10 flex min-h-dvh flex-col items-center justify-start px-6 py-10"
+            : "relative z-10 flex h-full flex-col items-center justify-center px-6"
+        }
+      >
         {children}
       </div>
 

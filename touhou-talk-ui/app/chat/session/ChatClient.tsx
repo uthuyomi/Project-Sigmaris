@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 
-import { CHARACTERS, getCharacterTtsConfig } from "@/data/characters";
+import { CHARACTERS, getCharacterTtsConfig, isCharacterSelectable } from "@/data/characters";
 import { getGroupsByLocation, canEnableGroup, GroupDef } from "@/data/group";
 import { getDefaultChatMode } from "@/lib/touhou-settings";
 
@@ -320,7 +320,7 @@ export default function ChatClient() {
   const visibleCharacters = useMemo(() => {
     if (!currentLocationId) return [];
     return Object.values(CHARACTERS).filter(
-      (c) => c.world?.location === currentLocationId,
+      (c) => isCharacterSelectable(c) && c.world?.location === currentLocationId,
     );
   }, [currentLocationId]);
 
@@ -342,7 +342,7 @@ export default function ChatClient() {
 
     const participants = panelGroupContext.group.participants
       .map((id) => CHARACTERS[id])
-      .filter(Boolean);
+      .filter((c) => isCharacterSelectable(c));
 
     const groupUi = panelGroupContext.group.ui as {
       chatBackground?: string | null;

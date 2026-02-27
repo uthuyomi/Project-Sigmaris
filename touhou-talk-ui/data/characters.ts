@@ -9,6 +9,7 @@ export type CharacterDef = {
   id: string;
   name: string;
   title: string;
+  enabled?: boolean; // true(default) / false(準備中: UIで選択不可)
   world?: {
     map: string; // gensokyo / deep / higan など
     location: string; // scarlet_mansion / chireiden など
@@ -31,6 +32,20 @@ export type CharacterDef = {
  */
 export const CHARACTERS = rawCharacters as Record<string, CharacterDef>;
 
+export function isCharacterEnabled(ch: CharacterDef | null | undefined): boolean {
+  if (!ch) return false;
+  return ch.enabled !== false;
+}
+
+export function hasCharacterAvatar(ch: CharacterDef | null | undefined): boolean {
+  const a = ch?.ui?.avatar;
+  return typeof a === "string" && a.trim().length > 0;
+}
+
+export function isCharacterSelectable(ch: CharacterDef | null | undefined): boolean {
+  return isCharacterEnabled(ch) && hasCharacterAvatar(ch);
+}
+
 function clampInt(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n | 0));
 }
@@ -50,7 +65,10 @@ export function getCharacterTtsConfig(characterId: string): { voice: string; spe
 
 export function getCharactersByLocation(map: string, locationId: string) {
   return Object.values(CHARACTERS).filter(
-    (ch) => ch.world?.map === map && ch.world?.location === locationId,
+    (ch) =>
+      isCharacterSelectable(ch) &&
+      ch.world?.map === map &&
+      ch.world?.location === locationId,
   );
 }
 

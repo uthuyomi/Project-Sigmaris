@@ -1,13 +1,13 @@
 import { Suspense } from "react";
-import LoginClient from "./LoginClient";
+import RequireLoginClient from "./RequireLoginClient";
 
 export const dynamic = "force-dynamic";
 
-export default function LoginPage(props: { searchParams?: { next?: string } }) {
+export default function RequireLoginPage(props: { searchParams?: { next?: string } }) {
   const nextPath = props.searchParams?.next ?? null;
   return (
     <Suspense fallback={null}>
-      <LoginClient nextPath={nextPath} />
+      <RequireLoginClient nextPath={nextPath} />
     </Suspense>
   );
 }

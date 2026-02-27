@@ -253,5 +253,371 @@
       "voice": "f2",
       "speed": 115
     }
+  },
+
+  "sanae": {
+    "id": "sanae",
+    "name": "東風谷 早苗",
+    "title": "現代の風祝",
+    "enabled": true,
+    "world": {
+      "map": "gensokyo",
+      "location": "moriya_shrine"
+    },
+    "color": {
+      "accent": "from-emerald-500/35 to-teal-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/sanae.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "kanako": {
+    "id": "kanako",
+    "name": "八坂 神奈子",
+    "title": "山坂と湖の権化",
+    "enabled": false,
+    "world": {
+      "map": "gensokyo",
+      "location": "moriya_shrine"
+    },
+    "color": {
+      "accent": "from-amber-500/35 to-orange-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/kanako.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "suwako": {
+    "id": "suwako",
+    "name": "洩矢 諏訪子",
+    "title": "土着神の頂点",
+    "enabled": true,
+    "world": {
+      "map": "gensokyo",
+      "location": "moriya_shrine"
+    },
+    "color": {
+      "accent": "from-lime-500/35 to-emerald-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/suwako.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+
+  "meiling": {
+    "id": "meiling",
+    "name": "紅 美鈴",
+    "title": "華人小娘",
+    "enabled": true,
+    "world": {
+      "map": "gensokyo",
+      "location": "scarlet_mansion"
+    },
+    "color": {
+      "accent": "from-red-500/35 to-rose-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/meiling.png",
+      "chatBackground": "/background/group_scarlet_mansion.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "patchouli": {
+    "id": "patchouli",
+    "name": "パチュリー・ノーレッジ",
+    "title": "知識と日陰の少女",
+    "enabled": true,
+    "world": {
+      "map": "gensokyo",
+      "location": "scarlet_mansion"
+    },
+    "color": {
+      "accent": "from-indigo-500/35 to-violet-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/patchouli.png",
+      "chatBackground": "/background/group_scarlet_mansion.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "koakuma": {
+    "id": "koakuma",
+    "name": "小悪魔",
+    "title": "紅魔館の司書補佐",
+    "enabled": false,
+    "world": {
+      "map": "gensokyo",
+      "location": "scarlet_mansion"
+    },
+    "color": {
+      "accent": "from-fuchsia-500/35 to-purple-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/koakuma.png",
+      "chatBackground": "/background/group_scarlet_mansion.png",
+      "placeholder": "話しかける"
+    }
+  },
+
+  "kaguya": {
+    "id": "kaguya",
+    "name": "蓬莱山 輝夜",
+    "title": "永遠の姫君",
+    "enabled": false,
+    "world": {
+      "map": "gensokyo",
+      "location": "eientei"
+    },
+    "color": {
+      "accent": "from-pink-500/35 to-rose-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/kaguya.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "eirin": {
+    "id": "eirin",
+    "name": "八意 永琳",
+    "title": "月の頭脳",
+    "enabled": false,
+    "world": {
+      "map": "gensokyo",
+      "location": "eientei"
+    },
+    "color": {
+      "accent": "from-slate-500/35 to-sky-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/eirin.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "reisen": {
+    "id": "reisen",
+    "name": "鈴仙・優曇華院・イナバ",
+    "title": "月の兎",
+    "enabled": true,
+    "world": {
+      "map": "gensokyo",
+      "location": "eientei"
+    },
+    "color": {
+      "accent": "from-cyan-500/35 to-sky-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/reisen.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "tewi": {
+    "id": "tewi",
+    "name": "因幡 てゐ",
+    "title": "幸運の白兎",
+    "enabled": false,
+    "world": {
+      "map": "gensokyo",
+      "location": "eientei"
+    },
+    "color": {
+      "accent": "from-zinc-200/30 to-stone-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/tewi.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+
+  "mokou": {
+    "id": "mokou",
+    "name": "藤原 妹紅",
+    "title": "不死の人間",
+    "enabled": false,
+    "world": {
+      "map": "gensokyo",
+      "location": "bamboo_forest"
+    },
+    "color": {
+      "accent": "from-orange-500/35 to-red-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/mokou.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "keine": {
+    "id": "keine",
+    "name": "上白沢 慧音",
+    "title": "歴史を喰らう半獣",
+    "enabled": false,
+    "world": {
+      "map": "gensokyo",
+      "location": "human_village"
+    },
+    "color": {
+      "accent": "from-amber-500/25 to-yellow-500/15"
+    },
+    "ui": {
+      "avatar": "/avatar/keine.png",
+      "chatBackground": "/maps/gensokyo-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+
+  "rin": {
+    "id": "rin",
+    "name": "火焔猫 燐",
+    "title": "お燐",
+    "enabled": true,
+    "world": {
+      "map": "deep",
+      "location": "chireiden"
+    },
+    "color": {
+      "accent": "from-orange-500/35 to-rose-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/rin.png",
+      "chatBackground": "/background/group_chireiden.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "okuu": {
+    "id": "okuu",
+    "name": "霊烏路 空",
+    "title": "地獄の太陽",
+    "enabled": true,
+    "world": {
+      "map": "deep",
+      "location": "chireiden"
+    },
+    "color": {
+      "accent": "from-yellow-500/35 to-orange-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/okuu.png",
+      "chatBackground": "/background/group_chireiden.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "yuugi": {
+    "id": "yuugi",
+    "name": "星熊 勇儀",
+    "title": "鬼の豪傑",
+    "enabled": false,
+    "world": {
+      "map": "deep",
+      "location": "old_capital"
+    },
+    "color": {
+      "accent": "from-red-500/35 to-amber-500/20"
+    },
+    "ui": {
+      "avatar": "/avatar/yuugi.png",
+      "chatBackground": "/maps/deep-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "parsee": {
+    "id": "parsee",
+    "name": "水橋 パルスィ",
+    "title": "嫉妬深い橋姫",
+    "enabled": false,
+    "world": {
+      "map": "deep",
+      "location": "mansion_and_bridge"
+    },
+    "color": {
+      "accent": "from-emerald-500/25 to-teal-500/15"
+    },
+    "ui": {
+      "avatar": "/avatar/parsee.png",
+      "chatBackground": "/maps/deep-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "yamame": {
+    "id": "yamame",
+    "name": "黒谷 ヤマメ",
+    "title": "土着の土蜘蛛",
+    "enabled": false,
+    "world": {
+      "map": "deep",
+      "location": "chireiden_entrance"
+    },
+    "color": {
+      "accent": "from-lime-500/25 to-emerald-500/15"
+    },
+    "ui": {
+      "avatar": "/avatar/yamame.png",
+      "chatBackground": "/maps/deep-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+
+  "yuyuko": {
+    "id": "yuyuko",
+    "name": "西行寺 幽々子",
+    "title": "華胥の亡霊",
+    "enabled": true,
+    "world": {
+      "map": "higan",
+      "location": "hakugyokurou"
+    },
+    "color": {
+      "accent": "from-pink-500/25 to-violet-500/15"
+    },
+    "ui": {
+      "avatar": "/avatar/yuyuko.png",
+      "chatBackground": "/maps/higan-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "komachi": {
+    "id": "komachi",
+    "name": "小野塚 小町",
+    "title": "三途の水先案内人",
+    "enabled": false,
+    "world": {
+      "map": "higan",
+      "location": "sanzu_river"
+    },
+    "color": {
+      "accent": "from-sky-500/25 to-cyan-500/15"
+    },
+    "ui": {
+      "avatar": "/avatar/komachi.png",
+      "chatBackground": "/maps/higan-pc.png",
+      "placeholder": "話しかける"
+    }
+  },
+  "eiki": {
+    "id": "eiki",
+    "name": "四季映姫・ヤマザナドゥ",
+    "title": "楽園の最高裁判長",
+    "enabled": false,
+    "world": {
+      "map": "higan",
+      "location": "shikieiki_office"
+    },
+    "color": {
+      "accent": "from-indigo-500/25 to-slate-500/15"
+    },
+    "ui": {
+      "avatar": "/avatar/eiki.png",
+      "chatBackground": "/maps/higan-pc.png",
+      "placeholder": "話しかける"
+    }
   }
 }

@@ -7,9 +7,19 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
+  const nextParam = url.searchParams.get("next");
   const oauthError = url.searchParams.get("error");
   const oauthErrorDescription =
     url.searchParams.get("error_description") || url.searchParams.get("error_code");
+
+  const safeNext = (() => {
+    const s = String(nextParam ?? "").trim();
+    if (!s) return "";
+    if (!s.startsWith("/")) return "";
+    if (s.startsWith("//")) return "";
+    if (s.includes("://")) return "";
+    return s.length > 2048 ? s.slice(0, 2048) : s;
+  })();
 
   if (oauthError) {
     const dest = new URL("/auth/login", url.origin);
@@ -34,5 +44,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(dest);
   }
 
-  return NextResponse.redirect(new URL("/map/session/gensokyo", url.origin));
+  return NextResponse.redirect(new URL(safeNext || "/map/session/gensokyo", url.origin));
 }
