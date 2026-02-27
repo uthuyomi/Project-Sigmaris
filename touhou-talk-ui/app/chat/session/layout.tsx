@@ -11,7 +11,7 @@ export default async function ChatLayout({
   const { data, error } = await supabase.auth.getUser();
 
   if (error || !data.user) {
-    redirect("/auth/login");
+    redirect("/auth/login?next=/chat/session");
   }
 
   return (

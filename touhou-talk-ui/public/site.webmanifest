@@ -1,7 +1,7 @@
 {
   "name": "Touhou Talk",
   "short_name": "Touhou Talk",
-  "start_url": "/entry",
+  "start_url": "/chat/session",
   "scope": "/",
   "display": "standalone",
   "background_color": "#05061a",
@@ -22,15 +22,15 @@
   ],
   "shortcuts": [
     {
-      "name": "キャラを選ぶ",
-      "short_name": "キャラ",
-      "url": "/entry",
+      "name": "チャットを開く",
+      "short_name": "チャット",
+      "url": "/chat/session",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "マップ",
-      "short_name": "マップ",
-      "url": "/map/session/gensokyo",
+      "name": "キャラ一覧",
+      "short_name": "キャラ",
+      "url": "/entry",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
