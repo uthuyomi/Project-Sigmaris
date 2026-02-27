@@ -117,7 +117,7 @@ export default function EntryHeroSection() {
           {/*imageのスペース*/}
         </div>
         <div
-          className={`absolute inset-0 lg:fixed ${style.page} ${visible ? style["page--visible"] : ""} lg:top-0 lg:aspect-[3/2] lg:w-full lg:max-w-6xl`}
+          className={`absolute inset-0 fixed ${style.page} ${visible ? style["page--visible"] : ""} top-0 aspect-[3/2] lg:w-full lg:max-w-6xl`}
         >
           <Image
             src="/entry/hero.png"
@@ -170,7 +170,7 @@ export default function EntryHeroSection() {
         </div>
 
         {/* SP/Tablet: move the text card under the hero image (no overlap) */}
-        <div className="mt-4 px-4 sm:px-6 lg:hidden">
+        <div className="lg:mt-4 -mt-4 px-4 sm:px-6 lg:hidden">
           <div className="rounded-2xl border border-border bg-card/90 p-5 shadow-sm">
             <div className="text-xs font-medium text-muted-foreground">
               Touhou Talk

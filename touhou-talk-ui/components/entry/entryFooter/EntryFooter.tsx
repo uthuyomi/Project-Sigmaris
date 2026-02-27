@@ -16,7 +16,7 @@ export default function EntryFooter() {
             不具合報告・要望
           </div>
           <div className="mt-3 text-sm leading-relaxed">
-            不具合やご要望は X または　GitHub Issues までお知らせください。
+            不具合やご要望は X(旧Twitter)　または　GitHub Issues までお知らせください。
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
