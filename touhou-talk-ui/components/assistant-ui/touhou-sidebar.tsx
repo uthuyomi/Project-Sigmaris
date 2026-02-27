@@ -27,39 +27,28 @@ type Props = React.ComponentProps<typeof Sidebar> & {
   visibleCharacters: Character[];
   activeCharacterId: string | null;
   onSelectCharacter: (id: string) => void;
+  charactersCollapsed: boolean;
+  onCharactersCollapsedChange: (next: boolean) => void;
 };
 
 export function TouhouSidebar({
   visibleCharacters,
   activeCharacterId,
   onSelectCharacter,
+  charactersCollapsed,
+  onCharactersCollapsedChange,
   className,
   ...props
 }: Props) {
   const { setOpen, setOpenMobile, isMobile } = useSidebar();
-  const [collapsedCharacters, setCollapsedCharacters] = React.useState(false);
 
   const handleClose = () => {
     if (isMobile) setOpenMobile(false);
     else setOpen(false);
   };
 
-  const sidebarWidth = !isMobile
-    ? collapsedCharacters
-      ? "19rem"
-      : "32rem"
-    : undefined;
-
   return (
-    <Sidebar
-      className={cn(className)}
-      style={
-        sidebarWidth
-          ? ({ "--sidebar-width": sidebarWidth } as React.CSSProperties)
-          : undefined
-      }
-      {...props}
-    >
+    <Sidebar className={cn(className)} {...props}>
       <SidebarHeader className="border-b px-3 py-3">
         <div className="flex items-center justify-end gap-2">
           {isMobile && (
@@ -90,11 +79,11 @@ export function TouhouSidebar({
           <div
             className={cn(
               "flex min-h-0 flex-col border-r border-sidebar-border transition-[width] duration-200",
-              collapsedCharacters ? "w-12" : "w-1/2",
+              charactersCollapsed ? "w-12" : "w-1/2",
             )}
           >
             <div className="flex items-center justify-between gap-2 px-2 py-2">
-              {!collapsedCharacters ? (
+              {!charactersCollapsed ? (
                 <div className="flex items-center gap-2 text-xs text-sidebar-foreground/60">
                   <Users className="size-4" />
                   キャラクター
@@ -107,14 +96,14 @@ export function TouhouSidebar({
 
               <button
                 type="button"
-                onClick={() => setCollapsedCharacters((v) => !v)}
+                onClick={() => onCharactersCollapsedChange(!charactersCollapsed)}
                 className={cn(
                   "flex size-8 items-center justify-center rounded-md transition hover:bg-sidebar-accent",
-                  collapsedCharacters && "mx-auto",
+                  charactersCollapsed && "mx-auto",
                 )}
-                aria-label={collapsedCharacters ? "Expand characters" : "Collapse characters"}
+                aria-label={charactersCollapsed ? "Expand characters" : "Collapse characters"}
               >
-                {collapsedCharacters ? (
+                {charactersCollapsed ? (
                   <ChevronRight className="size-4" />
                 ) : (
                   <ChevronLeft className="size-4" />
@@ -122,7 +111,7 @@ export function TouhouSidebar({
               </button>
             </div>
 
-            {!collapsedCharacters && (
+            {!charactersCollapsed && (
               <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
                 <div className="flex flex-col gap-2 pr-1">
                   {visibleCharacters.length === 0 && (
@@ -177,7 +166,6 @@ export function TouhouSidebar({
               <ThreadList />
             </div>
 
-            {/* Account status (right-aligned, same content width as thread area) */}
             <div className="border-t border-sidebar-border p-3">
               <div className="ml-auto w-full max-w-md">
                 <UserBlock />
