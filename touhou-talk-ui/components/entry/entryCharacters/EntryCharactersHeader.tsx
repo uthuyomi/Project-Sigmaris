@@ -8,12 +8,6 @@ export default function EntryCharactersHeader() {
             ロケーション別に一覧表示しています。気になるカードからお選びください。
           </p>
         </div>
-        <a
-          href="#entry-hero"
-          className="text-sm font-medium text-primary hover:opacity-80"
-        >
-          ページ上部へ
-        </a>
       </div>
     </section>
   );

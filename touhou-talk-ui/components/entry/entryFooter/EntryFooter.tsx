@@ -16,9 +16,7 @@ export default function EntryFooter() {
             不具合報告・要望
           </div>
           <div className="mt-3 text-sm leading-relaxed">
-            不具合やご要望は GitHub Issues までお知らせください。チャット画面では{" "}
-            <span className="font-mono text-foreground/80">/dump</span>{" "}
-            でログを書き出せます。
+            不具合やご要望は X または　GitHub Issues までお知らせください。
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
@@ -28,6 +26,14 @@ export default function EntryFooter() {
               className="rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-secondary-foreground hover:bg-secondary/80"
             >
               GitHub Issues
+            </a>
+            <a
+              href="https://x.com/Oyasu1999"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-secondary-foreground hover:bg-secondary/80"
+            >
+              X (旧Twitter)
             </a>
             <Link
               href="/legal/terms"

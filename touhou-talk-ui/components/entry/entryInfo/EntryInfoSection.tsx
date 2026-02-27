@@ -7,9 +7,6 @@ export default function EntryInfoSection() {
     >
       <div className="space-y-1">
         <h2 className="text-xl font-semibold tracking-wide">はじめに</h2>
-        <p className="text-sm text-muted-foreground">
-          迷わず開始できるよう、要点をまとめました。
-        </p>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">

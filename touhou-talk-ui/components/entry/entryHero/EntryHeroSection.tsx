@@ -111,13 +111,13 @@ export default function EntryHeroSection() {
       <section
         id="entry-hero"
         data-entry-section="hero"
-        className="mx-auto w-full max-w-6xl overflow-hidden rounded-3xl bg-transparent"
+        className="relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl bg-transparent"
       >
         <div className="relative aspect-[3/2] w-full">
           {/*imageのスペース*/}
         </div>
         <div
-          className={`fixed ${style.page} ${visible ? style["page--visible"] : ""} top-0 aspect-[3/2] w-full max-w-6xl`}
+          className={`absolute inset-0 lg:fixed ${style.page} ${visible ? style["page--visible"] : ""} lg:top-0 lg:aspect-[3/2] lg:w-full lg:max-w-6xl`}
         >
           <Image
             src="/entry/hero.png"
@@ -154,7 +154,7 @@ export default function EntryHeroSection() {
           </div>
 
           <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
-            <div className="rounded-2xl border border-border bg-card/85 p-5 shadow-sm">
+            <div className="hidden rounded-2xl border border-border bg-card/85 p-5 shadow-sm lg:block">
               <div className="text-xs font-medium text-muted-foreground">
                 Touhou Talk
               </div>
@@ -165,12 +165,22 @@ export default function EntryHeroSection() {
                 キャラクターを選択し、ログイン後すぐに会話を開始できます。
               </p>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <Chip>ロケーション別</Chip>
-                <Chip>カードで選択</Chip>
-                <Chip>ログイン後に開始</Chip>
-              </div>
             </div>
+          </div>
+        </div>
+
+        {/* SP/Tablet: move the text card under the hero image (no overlap) */}
+        <div className="mt-4 px-4 sm:px-6 lg:hidden">
+          <div className="rounded-2xl border border-border bg-card/90 p-5 shadow-sm">
+            <div className="text-xs font-medium text-muted-foreground">
+              Touhou Talk
+            </div>
+            <h1 className="mt-2 font-gensou text-2xl tracking-wide">
+              東方キャラと“ちゃんと会話できる”体験。
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              キャラクターを選択し、ログイン後すぐに会話を開始できます。
+            </p>
           </div>
         </div>
       </section>

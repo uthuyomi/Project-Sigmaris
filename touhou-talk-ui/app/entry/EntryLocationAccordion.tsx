@@ -127,6 +127,13 @@ function LayerSection({ layer }: { layer: EntryLayerGroup }) {
   useEffect(() => {
     if (!ref.current) return;
 
+    const threshold =
+      window.innerWidth <= 767
+        ? 0.05
+        : window.innerWidth <= 1023
+          ? 0.1
+          : 0.3;
+    
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -134,14 +141,16 @@ function LayerSection({ layer }: { layer: EntryLayerGroup }) {
 
           for (let i = 0; i < total; i++){ 
             setTimeout(() => {
-              setVisibleIndexs(prev => [...prev, i]);
+              setVisibleIndexs(prev =>
+                prev.includes(i) ? prev : [...prev, i]
+              )
             }, i * 300);
           }
           observer.disconnect();
         }
       },
       {
-        threshold: 0.3,
+        threshold
       },
     );
 
