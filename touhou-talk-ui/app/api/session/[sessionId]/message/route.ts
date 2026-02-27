@@ -103,27 +103,30 @@ function sanitizeReplyByContext(params: {
     "",
   );
 
-  // 2) Koishi: “みつけた” should not be injected mid-conversation without context
+  // 2) Koishi: “みつけた / やっほー” are strong openers; don't inject without context
   if (params.chatMode === "roleplay" && params.characterId === "koishi") {
     const allowMitsuketa =
       isFirstAssistantTurn(params.history) ||
       /みつけ|見つけ|探|かくれんぼ|どこ|いる|気づ/i.test(lowerRecentUser);
 
     if (!allowMitsuketa) {
-      // Replace sentence-start “みつけた” (with optional punctuation) with softer, non-jarring opener.
-      out = out.replace(/(^|\n)\s*みつけた[。！!…]*\s*/g, "$1ふふ。");
+      // Remove sentence-start “みつけた” (no replacement; avoid extra filler).
+      out = out.replace(/(^|\n)\s*みつけた[。！!…]*\s*/g, "$1");
     }
 
     const allowYahho =
       isFirstAssistantTurn(params.history) ||
       /やっほ|こんにちは|こんちは|はじめまして|雑談|話そ|話す/i.test(lowerRecentUser);
     if (!allowYahho) {
-      out = out.replace(/(^|\n)\s*…{2,}やっほー[。！!…]*\s*/g, "$1ねえねえ。");
-      out = out.replace(/(^|\n)\s*やっほー[。！!…]*\s*/g, "$1ねえねえ。");
+      // Remove sentence-start “やっほー” (no replacement; avoid extra filler).
+      out = out.replace(/(^|\n)\s*…{2,}やっほー[。！!…]*\s*/g, "$1");
+      out = out.replace(/(^|\n)\s*やっほー[。！!…]*\s*/g, "$1");
     }
   }
 
-  return out.trim() ? out : String(params.reply ?? "");
+  // Collapse excessive blank lines produced by removals.
+  out = out.replace(/\n{3,}/g, "\n\n").trim();
+  return out ? out : String(params.reply ?? "");
 }
 
 async function loadCoreHistory(params: {
