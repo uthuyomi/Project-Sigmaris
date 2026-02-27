@@ -3,11 +3,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import {
   AssistantIf,
-  useThreadListItem,
-  useThreadListItemRuntime,
   ThreadListItemMorePrimitive,
   ThreadListItemPrimitive,
   ThreadListPrimitive,
+  useThreadListItem,
+  useThreadListItemRuntime,
 } from "@assistant-ui/react";
 import {
   CogIcon,
@@ -93,9 +93,7 @@ export const UserBlock: FC<{ className?: string }> = ({ className }) => {
         </Avatar>
 
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-sm">
-            {displayName || "User"}
-          </div>
+          <div className="truncate font-medium text-sm">{displayName || "User"}</div>
           <div className="truncate text-muted-foreground text-xs">{email}</div>
         </div>
       </div>
@@ -206,7 +204,7 @@ const ThreadListItemMore: FC = () => {
       <ThreadListItemMorePrimitive.Content
         side="bottom"
         align="start"
-          className="aui-thread-list-item-more-content z-50 min-w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+        className="aui-thread-list-item-more-content z-50 min-w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
       >
         <ThreadListItemMorePrimitive.Item
           className="aui-thread-list-item-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"

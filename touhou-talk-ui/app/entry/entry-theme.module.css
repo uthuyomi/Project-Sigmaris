@@ -1,0 +1,50 @@
+.entryTheme {
+  /* /entry だけ暗めの“サイト”寄り（目に優しい・眩しすぎない） */
+  color-scheme: dark;
+
+  --radius: 0.9rem;
+
+  /* B: pale indigo night */
+  --background: oklch(0.20 0.04 265);
+  --foreground: oklch(0.985 0 0);
+
+  --card: oklch(0.24 0.03 265 / 0.75);
+  --card-foreground: var(--foreground);
+
+  --popover: oklch(0.24 0.03 265);
+  --popover-foreground: var(--foreground);
+
+  /* Cyan primary (kekkai vibe) */
+  --primary: oklch(0.78 0.12 220);
+  --primary-foreground: oklch(0.18 0.02 265);
+
+  --secondary: oklch(0.26 0.02 265 / 0.65);
+  --secondary-foreground: var(--foreground);
+
+  --muted: oklch(0.26 0.02 265 / 0.55);
+  --muted-foreground: oklch(0.78 0.01 265);
+
+  --accent: oklch(0.30 0.03 220 / 0.55);
+  --accent-foreground: var(--foreground);
+
+  /* Shrine red for CTA/destructive */
+  --destructive: oklch(0.62 0.22 28);
+
+  --border: oklch(0.45 0.03 265 / 45%);
+  --input: var(--border);
+  --ring: color-mix(in oklab, var(--primary) 50%, transparent);
+
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--muted);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  /* 背景色もここで決める（TopShellのmainに直接付与する想定） */
+  background: var(--background);
+
+  --entry-danmaku-opacity: 0.1;
+}

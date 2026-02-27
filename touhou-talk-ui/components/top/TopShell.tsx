@@ -11,6 +11,7 @@ type Props = {
   scroll?: boolean;
   backgroundVariant?: "top" | "none";
   backgroundSlot?: React.ReactNode;
+  className?: string;
 };
 
 export default function TopShell({
@@ -20,15 +21,16 @@ export default function TopShell({
   scroll = false,
   backgroundVariant = "top",
   backgroundSlot,
+  className,
 }: Props) {
   const bgPos = scroll ? "fixed" : "absolute";
 
   return (
     <main
       className={
-        scroll
+        (scroll
           ? "relative min-h-dvh w-full overflow-y-auto"
-          : "relative h-dvh w-full overflow-hidden"
+          : "relative h-dvh w-full overflow-hidden") + (className ? ` ${className}` : "")
       }
     >
       {/* 背景動画（PC） */}

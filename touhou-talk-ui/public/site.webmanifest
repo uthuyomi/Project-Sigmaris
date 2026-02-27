@@ -1,15 +1,37 @@
 {
   "name": "Touhou Talk",
   "short_name": "Touhou Talk",
-  "start_url": "/",
+  "start_url": "/entry",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0b0f14",
-  "theme_color": "#0b0f14",
+  "background_color": "#05061a",
+  "theme_color": "#05061a",
   "icons": [
     {
-      "src": "/icons/icon.png",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "キャラを選ぶ",
+      "short_name": "キャラ",
+      "url": "/entry",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "マップ",
+      "short_name": "マップ",
+      "url": "/map/session/gensokyo",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
