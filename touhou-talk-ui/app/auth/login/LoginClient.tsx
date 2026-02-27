@@ -39,7 +39,7 @@ export default function LoginClient(props: { nextPath?: string | null }) {
   const nextSafe =
     safeNextPath(props.nextPath) || safeNextPath(getLastSelectedChatNext());
 
-  // 既にログイン済みなら、この画面を出さずに next へ直行
+  // 既にログイン済みなら、次の遷移先（next）へ自動で移動
   React.useEffect(() => {
     if (!nextSafe) return;
     let canceled = false;
@@ -105,13 +105,11 @@ export default function LoginClient(props: { nextPath?: string | null }) {
         </p>
         {nextSafe ? (
           <p className="mb-4 text-xs text-muted-foreground">
-            ログイン後、元のページに戻ります。
+            ログイン後、指定のページへ移動します。
           </p>
         ) : null}
 
-        {error && (
-          <p className="mb-2 text-sm text-destructive">{error}</p>
-        )}
+        {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
 
         <div className="grid gap-2">
           {providers.map(({ id, label }) => {
