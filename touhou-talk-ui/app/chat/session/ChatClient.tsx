@@ -289,6 +289,7 @@ export default function ChatClient() {
 
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [hasSelectedOnce, setHasSelectedOnce] = useState(false);
+  const [charactersCollapsed, setCharactersCollapsed] = useState(false);
 
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -1048,7 +1049,7 @@ export default function ChatClient() {
         <SidebarProvider
           style={
             {
-              "--sidebar-width": "32rem",
+              "--sidebar-width": charactersCollapsed ? "19rem" : "32rem",
             } as React.CSSProperties
           }
         >
@@ -1057,6 +1058,8 @@ export default function ChatClient() {
               visibleCharacters={visibleCharacters}
               activeCharacterId={activeCharacterId}
               onSelectCharacter={selectCharacter}
+              charactersCollapsed={charactersCollapsed}
+              onCharactersCollapsedChange={setCharactersCollapsed}
             />
 
             <SidebarInset className="relative flex min-h-0 flex-col overflow-hidden">
