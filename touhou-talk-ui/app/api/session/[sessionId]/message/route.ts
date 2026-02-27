@@ -57,6 +57,78 @@ function toSse(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
+/* =========================================================
+ * Contextual phrase guards
+ * - Prevent “決め台詞の脈絡なし注入” across characters
+ * - Apply minimal, conservative replacements to avoid breaking meaning
+ * ========================================================= */
+
+function isFirstAssistantTurn(history: Array<{ role: "user" | "assistant"; content: string }>) {
+  return !history.some((m) => m.role === "assistant" && String(m.content ?? "").trim());
+}
+
+function buildRecentUserText(params: {
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+  currentUserText: string;
+}) {
+  const parts: string[] = [];
+  const recentUsers = params.history
+    .filter((m) => m.role === "user")
+    .slice(-3)
+    .map((m) => String(m.content ?? ""));
+  parts.push(...recentUsers);
+  parts.push(String(params.currentUserText ?? ""));
+  return parts.join("\n").toLowerCase();
+}
+
+function sanitizeReplyByContext(params: {
+  characterId: string;
+  chatMode: TouhouChatMode;
+  reply: string;
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+  currentUserText: string;
+}) {
+  let out = String(params.reply ?? "");
+  if (!out.trim()) return out;
+
+  const lowerRecentUser = buildRecentUserText({
+    history: params.history,
+    currentUserText: params.currentUserText,
+  });
+
+  // 1) Generic: avoid “ユーザー発話の分類説明” (AI臭)
+  // Example: 「元気？」は、あいさつ。それともちゃんと調子チェック。
+  out = out.replace(
+    /「[^」]{1,40}」は、?\s*(?:あいさつ|挨拶|調子チェック)[^。\n]*[。\n]?/g,
+    "",
+  );
+
+  // 2) Koishi: “みつけた / やっほー” are strong openers; don't inject without context
+  if (params.chatMode === "roleplay" && params.characterId === "koishi") {
+    const allowMitsuketa =
+      isFirstAssistantTurn(params.history) ||
+      /みつけ|見つけ|探|かくれんぼ|どこ|いる|気づ/i.test(lowerRecentUser);
+
+    if (!allowMitsuketa) {
+      // Remove sentence-start “みつけた” (no replacement; avoid extra filler).
+      out = out.replace(/(^|\n)\s*みつけた[。！!…]*\s*/g, "$1");
+    }
+
+    const allowYahho =
+      isFirstAssistantTurn(params.history) ||
+      /やっほ|こんにちは|こんちは|はじめまして|雑談|話そ|話す/i.test(lowerRecentUser);
+    if (!allowYahho) {
+      // Remove sentence-start “やっほー” (no replacement; avoid extra filler).
+      out = out.replace(/(^|\n)\s*…{2,}やっほー[。！!…]*\s*/g, "$1");
+      out = out.replace(/(^|\n)\s*やっほー[。！!…]*\s*/g, "$1");
+    }
+  }
+
+  // Collapse excessive blank lines produced by removals.
+  out = out.replace(/\n{3,}/g, "\n\n").trim();
+  return out ? out : String(params.reply ?? "");
+}
+
 async function loadCoreHistory(params: {
   supabase: Awaited<ReturnType<typeof supabaseServer>>;
   sessionId: string;
@@ -781,6 +853,14 @@ export async function POST(
         ? data.reply
         : "（応答生成が一時的に利用できません。）";
 
+    const replyGuarded = sanitizeReplyByContext({
+      characterId,
+      chatMode,
+      reply: replySafe,
+      history: coreHistory,
+      currentUserText: text,
+    });
+
     const { error: aiInsertError } = await supabase
       .from("common_messages")
       .insert({
@@ -788,7 +868,7 @@ export async function POST(
         user_id: userId,
         app: "touhou",
         role: "ai",
-        content: replySafe,
+        content: replyGuarded,
         speaker_id: characterId,
         meta: data.meta ?? null,
       });
@@ -817,7 +897,7 @@ export async function POST(
 
     return NextResponse.json({
       role: "ai",
-      content: replySafe,
+      content: replyGuarded,
       meta: data.meta ?? null,
     });
   }
@@ -904,8 +984,16 @@ export async function POST(
 
                 finalMeta =
                   isRecord(parsed) && isRecord(parsed.meta) ? parsed.meta : null;
-                replyAcc = reply;
-                await writer.write(toSse("done", { reply, meta: finalMeta }));
+                const replyGuarded = sanitizeReplyByContext({
+                  characterId,
+                  chatMode,
+                  reply,
+                  history: coreHistory,
+                  currentUserText: text,
+                });
+
+                replyAcc = replyGuarded;
+                await writer.write(toSse("done", { reply: replyGuarded, meta: finalMeta }));
               } catch {
                 await writer.write(`event: done\ndata: ${dataRaw}\n\n`);
               }
@@ -926,12 +1014,20 @@ export async function POST(
             ? replyAcc
             : "（応答生成が一時的に利用できません。）";
 
+        const replyGuarded = sanitizeReplyByContext({
+          characterId,
+          chatMode,
+          reply: replySafe,
+          history: coreHistory,
+          currentUserText: text,
+        });
+
         await supabase.from("common_messages").insert({
           session_id: sessionId,
           user_id: userId,
           app: "touhou",
           role: "ai",
-          content: replySafe,
+          content: replyGuarded,
           speaker_id: characterId,
           meta: finalMeta ?? null,
         });
