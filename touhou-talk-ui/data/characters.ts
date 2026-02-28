@@ -19,7 +19,10 @@ export type CharacterDef = {
   };
   ui: {
     avatar?: string;
-    chatBackground: string;
+    /** Backward-compatible fallback. Prefer chatBackgroundPC/SP in UI. */
+    chatBackground?: string;
+    chatBackgroundPC?: string;
+    chatBackgroundSP?: string;
     placeholder: string;
   };
   tts?: CharacterTtsConfig;

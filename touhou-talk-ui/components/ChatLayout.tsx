@@ -23,6 +23,8 @@ type Character = {
   title: string;
   ui: {
     chatBackground?: string | null;
+    chatBackgroundPC?: string | null;
+    chatBackgroundSP?: string | null;
     placeholder: string;
   };
   color?: {
@@ -146,13 +148,14 @@ export default function ChatPane({
   /* ========================= */
 
   return (
-    <main className="relative z-10 flex flex-1 flex-col overflow-hidden">
+      <main className="relative z-10 flex flex-1 flex-col overflow-hidden">
       {/* 背景（単体のみ） */}
-      {mode === "single" && character.ui.chatBackground && (
+      {mode === "single" &&
+        (character.ui.chatBackgroundPC || character.ui.chatBackground) && (
         <div
           className="absolute inset-0 -z-10 bg-cover bg-center"
           style={{
-            backgroundImage: `url(${character.ui.chatBackground})`,
+            backgroundImage: `url(${character.ui.chatBackgroundPC || character.ui.chatBackground})`,
             filter: "blur(1px) brightness(1.0)",
           }}
         />
