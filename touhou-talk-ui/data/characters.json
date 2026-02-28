@@ -241,7 +241,7 @@
     },
     "ui": {
       "avatar": "/avatar/sanae.png",
-      "chatBackground": "/maps/sanae.png",
+      "chatBackground": "/background/sanae.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/sanae-pc.png",
       "chatBackgroundSP": "/background/sanae-sp.png"
@@ -261,7 +261,7 @@
     },
     "ui": {
       "avatar": "/avatar/kanako.png",
-      "chatBackground": "/maps/kanako-pc.png",
+      "chatBackground": "/background/kanako-pc.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/kanako-pc.png",
       "chatBackgroundSP": "/background/kanako-sp.png"
@@ -281,7 +281,7 @@
     },
     "ui": {
       "avatar": "/avatar/suwako.png",
-      "chatBackground": "/maps/suwako.png",
+      "chatBackground": "/background/suwako.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/suwako-pc.png",
       "chatBackgroundSP": "/background/suwako-sp.png"
@@ -361,7 +361,7 @@
     },
     "ui": {
       "avatar": "/avatar/kaguya.png",
-      "chatBackground": "/maps/gensokyo-pc.png",
+      "chatBackground": "/background/gensokyo-pc.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/gensokyo-pc.png",
       "chatBackgroundSP": "/background/gensokyo-sp.png"
@@ -381,7 +381,7 @@
     },
     "ui": {
       "avatar": "/avatar/eirin.png",
-      "chatBackground": "/maps/kaguya.png",
+      "chatBackground": "/background/kaguya.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/kaguya-sp.png",
       "chatBackgroundSP": "/background/kaguya-pc.png"
@@ -401,7 +401,7 @@
     },
     "ui": {
       "avatar": "/avatar/reisen.png",
-      "chatBackground": "/maps/reisen.png",
+      "chatBackground": "/background/reisen.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/reisen-pc.png",
       "chatBackgroundSP": "/background/reisen-sp.png"
@@ -421,7 +421,7 @@
     },
     "ui": {
       "avatar": "/avatar/tewi.png",
-      "chatBackground": "/maps/tewi.png",
+      "chatBackground": "/background/tewi.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/tewi-pc.png",
       "chatBackgroundSP": "/background/tewi-sp.png"
@@ -441,7 +441,7 @@
     },
     "ui": {
       "avatar": "/avatar/mokou.png",
-      "chatBackground": "/maps/mokou.png",
+      "chatBackground": "/background/mokou.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/mokou-pc.png",
       "chatBackgroundSP": "/background/mokou-sp.png"
@@ -461,7 +461,7 @@
     },
     "ui": {
       "avatar": "/avatar/keine.png",
-      "chatBackground": "/maps/keine.png",
+      "chatBackground": "/background/keine.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/keine-pc.png",
       "chatBackgroundSP": "/background/keine-sp.png"
@@ -521,7 +521,7 @@
     },
     "ui": {
       "avatar": "/avatar/yuugi.png",
-      "chatBackground": "/maps/yuugi.png",
+      "chatBackground": "/background/yuugi.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/yuugi-pc.png",
       "chatBackgroundSP": "/background/yuugi-sp.png"
@@ -541,7 +541,7 @@
     },
     "ui": {
       "avatar": "/avatar/parsee.png",
-      "chatBackground": "/maps/parsee.png",
+      "chatBackground": "/background/parsee.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/parsee-pc.png",
       "chatBackgroundSP": "/background/parsee-sp.png"
@@ -561,7 +561,7 @@
     },
     "ui": {
       "avatar": "/avatar/yamame.png",
-      "chatBackground": "/maps/yamame.png",
+      "chatBackground": "/background/yamame.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/yamame-pc.png",
       "chatBackgroundSP": "/background/yamame-sp.png"
@@ -581,7 +581,7 @@
     },
     "ui": {
       "avatar": "/avatar/yuyuko.png",
-      "chatBackground": "/maps/yuyuk.png",
+      "chatBackground": "/background/yuyuk.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/yuyuk-pc.png",
       "chatBackgroundSP": "/background/yuyuk-sp.png"
@@ -601,7 +601,7 @@
     },
     "ui": {
       "avatar": "/avatar/komachi.png",
-      "chatBackground": "/maps/komachi.png",
+      "chatBackground": "/background/komachi.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/komachi-pc.png",
       "chatBackgroundSP": "/background/komachi-sp.png"
@@ -621,7 +621,7 @@
     },
     "ui": {
       "avatar": "/avatar/eiki.png",
-      "chatBackground": "/maps/eiki.png",
+      "chatBackground": "/background/eiki.png",
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/eiki-pc.png",
       "chatBackgroundSP": "/background/eiki-sp.png"
