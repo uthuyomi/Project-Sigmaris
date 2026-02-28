@@ -43,6 +43,8 @@ type Character = {
   title: string;
   ui: {
     chatBackground?: string | null;
+    chatBackgroundPC?: string | null;
+    chatBackgroundSP?: string | null;
     placeholder: string;
   };
 };
@@ -286,7 +288,7 @@ export default function ChatPane({
   const backgroundImage =
     mode === "group"
       ? groupContext?.ui?.chatBackground
-      : character.ui.chatBackground;
+      : character.ui.chatBackgroundPC || character.ui.chatBackground;
   /* =========================
      previewUrl 管理
   ========================= */

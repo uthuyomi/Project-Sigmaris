@@ -314,6 +314,23 @@ export default function ChatClient() {
     return CHARACTERS[activeCharacterId] ?? null;
   }, [activeCharacterId]);
 
+  const effectiveChatBackground = useMemo(() => {
+    const ui = activeCharacter?.ui;
+    if (!ui) return null;
+    const pc = typeof ui.chatBackgroundPC === "string" ? ui.chatBackgroundPC.trim() : "";
+    const sp = typeof ui.chatBackgroundSP === "string" ? ui.chatBackgroundSP.trim() : "";
+    const legacy = typeof ui.chatBackground === "string" ? ui.chatBackground.trim() : "";
+
+    // Prefer explicit PC/SP backgrounds when either is present.
+    // Only fall back to legacy chatBackground when both are missing.
+    if (pc || sp) {
+      if (isMobile) return sp || pc || null;
+      return pc || sp || null;
+    }
+
+    return legacy || null;
+  }, [activeCharacter?.ui, isMobile]);
+
   /* =========================
      Character filter
   ========================= */
@@ -1067,8 +1084,8 @@ export default function ChatClient() {
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-70"
                 style={{
-                  backgroundImage: activeCharacter?.ui?.chatBackground
-                    ? `url('${activeCharacter.ui.chatBackground}')`
+                  backgroundImage: effectiveChatBackground
+                    ? `url('${effectiveChatBackground}')`
                     : undefined,
                   filter: "blur(1px) brightness(0.9)",
                 }}
