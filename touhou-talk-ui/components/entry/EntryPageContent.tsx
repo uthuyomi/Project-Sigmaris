@@ -120,7 +120,6 @@ export default function EntryPageContent() {
         layer,
         locationId: g.id,
         locationName: g.name,
-        tts: ch.tts,
         world: ch.world,
         ui: ch.ui,
       })),

@@ -1,18 +1,13 @@
 import rawCharacters from "./characters.json";
 
-export type CharacterTtsConfig = {
-  voice?: string; // "f1" | "f2" | "f3" (AquesTalk1)
-  speed?: number; // 50..300
-};
-
 export type CharacterDef = {
   id: string;
   name: string;
   title: string;
-  enabled?: boolean; // true(default) / false(準備中: UIで選択不可)
+  enabled?: boolean; // true(default) / false(貅門ｙ荳ｭ: UI縺ｧ驕ｸ謚樔ｸ榊庄)
   world?: {
-    map: string; // gensokyo / deep / higan など
-    location: string; // scarlet_mansion / chireiden など
+    map: string; // gensokyo / deep / higan 縺ｪ縺ｩ
+    location: string; // scarlet_mansion / chireiden 縺ｪ縺ｩ
   };
   color: {
     accent: string;
@@ -25,14 +20,12 @@ export type CharacterDef = {
     chatBackgroundSP?: string;
     placeholder: string;
   };
-  tts?: CharacterTtsConfig;
 };
 
 /**
- * キャラクター定義 (id + world)
+ * 繧ｭ繝｣繝ｩ繧ｯ繧ｿ繝ｼ螳夂ｾｩ (id + world)
  * ================================
- * UI 表示、場所/レイヤー、プロンプト、TTS などの基礎データ。
- */
+ * UI 陦ｨ遉ｺ縲∝ｴ謇/繝ｬ繧､繝､繝ｼ縲√・繝ｭ繝ｳ繝励ヨ縲ゝTS 縺ｪ縺ｩ縺ｮ蝓ｺ遉弱ョ繝ｼ繧ｿ縲・ */
 export const CHARACTERS = rawCharacters as Record<string, CharacterDef>;
 
 export function isCharacterEnabled(ch: CharacterDef | null | undefined): boolean {
@@ -49,21 +42,8 @@ export function isCharacterSelectable(ch: CharacterDef | null | undefined): bool
   return isCharacterEnabled(ch) && hasCharacterAvatar(ch);
 }
 
-function clampInt(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n | 0));
-}
-
-export function getCharacterTtsConfig(characterId: string): { voice: string; speed: number } {
-  const ch = CHARACTERS[characterId];
-  const voice =
-    typeof ch?.tts?.voice === "string" && ch.tts.voice.trim() ? ch.tts.voice.trim() : "f1";
-  const speedRaw = typeof ch?.tts?.speed === "number" ? ch.tts.speed : 100;
-  const speed = clampInt(speedRaw, 50, 300);
-  return { voice, speed };
-}
-
 /* =========================================================
- * セレクタ
+ * 繧ｻ繝ｬ繧ｯ繧ｿ
  * ========================================================= */
 
 export function getCharactersByLocation(map: string, locationId: string) {

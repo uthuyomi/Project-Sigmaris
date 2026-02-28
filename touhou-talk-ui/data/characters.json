@@ -73,10 +73,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/aya-pc.png",
       "chatBackgroundSP": "/background/aya-sp.png"
-    },
-    "tts": {
-      "voice": "f2",
-      "speed": 125
     }
   },
   "momiji": {
@@ -96,10 +92,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/momiji-pc.png",
       "chatBackgroundSP": "/background/momiji-sp.png"
-    },
-    "tts": {
-      "voice": "f3",
-      "speed": 90
     }
   },
   "nitori": {
@@ -119,10 +111,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/nitori-pc.png",
       "chatBackgroundSP": "/background/nitori-sp.png"
-    },
-    "tts": {
-      "voice": "f2",
-      "speed": 118
     }
   },
   "youmu": {
@@ -142,10 +130,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/youmu-pc.png",
       "chatBackgroundSP": "/background/youmu-sp.png"
-    },
-    "tts": {
-      "voice": "f3",
-      "speed": 100
     }
   },
   "remilia": {
@@ -165,10 +149,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/remilia-pc.png",
       "chatBackgroundSP": "/background/remilia-sp.png"
-    },
-    "tts": {
-      "voice": "f2",
-      "speed": 110
     }
   },
   "sakuya": {
@@ -188,10 +168,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/sakuya-pc.png",
       "chatBackgroundSP": "/background/sakuya-sp.png"
-    },
-    "tts": {
-      "voice": "f3",
-      "speed": 92
     }
   },
   "flandre": {
@@ -211,10 +187,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/flandre-pc.png",
       "chatBackgroundSP": "/background/flandre-sp.png"
-    },
-    "tts": {
-      "voice": "f2",
-      "speed": 130
     }
   },
   "satori": {
@@ -234,10 +206,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/satori-pc.png",
       "chatBackgroundSP": "/background/satori-sp.png"
-    },
-    "tts": {
-      "voice": "f3",
-      "speed": 88
     }
   },
   "koishi": {
@@ -257,10 +225,6 @@
       "placeholder": "話しかける",
       "chatBackgroundPC": "/background/koishi-pc.png",
       "chatBackgroundSP": "/background/koishi-sp.png"
-    },
-    "tts": {
-      "voice": "f2",
-      "speed": 115
     }
   },
   "sanae": {

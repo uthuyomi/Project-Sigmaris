@@ -38,10 +38,6 @@ function ensureEnvTemplate(envPath) {
     "# Backend Persona OS URL (FastAPI / sigmaris_core)",
     "SIGMARIS_CORE_URL=http://127.0.0.1:8000",
     "",
-    "# TTS (AquesTalk) — enable only for your account",
-    "TOUHOU_TTS_ENABLE=1",
-    "TOUHOU_TTS_ALLOWED_EMAILS=kaiseif4e@gmail.com",
-    "",
     "# Optional: force port",
     "TOUHOU_DESKTOP_PORT=3789",
     "",
@@ -123,31 +119,6 @@ function nextServerEntry() {
   return path.join(nextServerCwd(), "server.js");
 }
 
-function guessAquesExePath() {
-  const fromEnv = String(process.env.AQUESTALK_TTS_EXE_PATH ?? "").trim();
-  if (fromEnv) return fromEnv;
-
-  const bundled = path.join(bundleRoot(), "aquestalk_tts_cmd.exe");
-  if (fs.existsSync(bundled)) return bundled;
-
-  // dev fallback: repo tools path (if present)
-  const repoExe = path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "tools",
-    "aquestalk_tts_cmd",
-    "bin",
-    "x64",
-    "Release",
-    "aquestalk_tts_cmd.exe"
-  );
-  if (fs.existsSync(repoExe)) return repoExe;
-
-  return "";
-}
-
 let serverProc = null;
 
 async function startNextServer() {
@@ -163,7 +134,6 @@ async function startNextServer() {
 
   process.env.NODE_ENV = "production";
   process.env.PORT = String(port);
-  process.env.AQUESTALK_TTS_EXE_PATH = guessAquesExePath();
 
   serverProc = fork(entry, [], {
     cwd,

@@ -3,11 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-type CharacterTtsConfig = {
-  voice?: string;
-  speed?: number;
-};
-
 type EntryCharacter = {
   id: string;
   name: string;
@@ -15,7 +10,6 @@ type EntryCharacter = {
   layer: string;
   locationId: string;
   locationName: string;
-  tts?: CharacterTtsConfig;
   world?: {
     map: string;
     location: string;
