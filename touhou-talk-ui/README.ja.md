@@ -47,12 +47,6 @@ Project Sigmaris の「UIバリアント」として、次を組み合わせて�
 - `TOUHOU_LINK_ANALYSIS_ENABLED`（`0/1`）→ `/io/web/fetch`, `/io/web/search`, `/io/github/repos` を使ったリンク解析を有効化
 - `TOUHOU_AUTO_BROWSE_ENABLED`（`0/1`）→ リンク解析が無効のときに自動ブラウズ（best-effort）
 
-任意（AquesTalkローカルTTS）:
-
-- `TOUHOU_TTS_ENABLE`（`1`で強制有効。未設定時は Windows かつ helper exe がある場合のみ自動有効）
-- `TOUHOU_TTS_ALLOWED_EMAILS`（カンマ区切りの許可メール。これが空だと常に無効）
-- `AQUESTALK_TTS_EXE_PATH`（helper exe のパス上書き）
-
 ## 動かし方（local）
 
 ```bash
@@ -101,7 +95,6 @@ Supabase Dashboard で利用したい OAuth provider を有効化し、Redirect 
 その他:
 
 - `GET /api/io/attachment/[attachmentId]`（core の添付ダウンロードに中継）
-- `POST /api/tts`（任意：許可メールのみ。無効時は 404）
 - `POST /api/chat`（互換用：古いコンポーネント向け）
 
 ## デスクトップ版（Windows, 任意）

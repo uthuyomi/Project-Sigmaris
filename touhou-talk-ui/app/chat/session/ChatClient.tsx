@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 
-import { CHARACTERS, getCharacterTtsConfig, isCharacterSelectable } from "@/data/characters";
+ import { CHARACTERS, isCharacterSelectable } from "@/data/characters";
 import { getGroupsByLocation, canEnableGroup, GroupDef } from "@/data/group";
 import { getDefaultChatMode } from "@/lib/touhou-settings";
 
@@ -151,135 +151,6 @@ export default function ChatClient() {
   );
 
   const [mode] = useState<"single" | "group">("single");
-
-  /* =========================
-     Local TTS (AquesTalk via /api/tts)
-  ========================= */
-
-  const ttsEnabledRef = useRef(true);
-  const ttsQueueRef = useRef<string[]>([]);
-  const ttsPlayingRef = useRef(false);
-  const ttsBufferRef = useRef("");
-  const ttsGenerationRef = useRef(0);
-  const ttsCurrentAudioRef = useRef<HTMLAudioElement | null>(null);
-  const ttsConfigByGenRef = useRef(new Map<number, { voice: string; speed: number }>());
-
-  const enqueueTtsChunk = useCallback((chunk: string, gen: number) => {
-    const text = chunk.trim();
-    if (!text) return;
-    if (gen !== ttsGenerationRef.current) return;
-
-    ttsQueueRef.current.push(text);
-
-    if (ttsPlayingRef.current) return;
-    ttsPlayingRef.current = true;
-
-    (async () => {
-      try {
-        while (ttsQueueRef.current.length > 0) {
-          if (gen !== ttsGenerationRef.current) break;
-
-          const next = ttsQueueRef.current.shift();
-          if (!next) continue;
-
-          const cfg = ttsConfigByGenRef.current.get(gen) ?? { voice: "f1", speed: 100 };
-          const r = await fetch("/api/tts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: next, voice: cfg.voice, speed: cfg.speed }),
-          });
-          if (!r.ok) {
-            const detail = await r.text().catch(() => "");
-            console.warn("[tts] failed:", r.status, detail);
-            break;
-          }
-
-          const buf = await r.arrayBuffer();
-          if (gen !== ttsGenerationRef.current) break;
-
-          const blob = new Blob([buf], { type: "audio/wav" });
-          const url = URL.createObjectURL(blob);
-
-          try {
-            const audio = new Audio(url);
-            ttsCurrentAudioRef.current = audio;
-
-            await new Promise<void>((resolve, reject) => {
-              audio.onended = () => resolve();
-              audio.onerror = () => reject(new Error("audio error"));
-              audio
-                .play()
-                .then(() => {
-                  // ok
-                })
-                .catch((e) => reject(e));
-            });
-          } catch (e) {
-            console.warn("[tts] playback blocked/failed:", e);
-            break;
-          } finally {
-            ttsCurrentAudioRef.current = null;
-            URL.revokeObjectURL(url);
-          }
-        }
-      } finally {
-        ttsPlayingRef.current = false;
-        ttsQueueRef.current = [];
-        ttsBufferRef.current = "";
-      }
-    })();
-  }, []);
-
-  const pushTtsDelta = useCallback(
-    (delta: string, gen: number) => {
-      if (!ttsEnabledRef.current) return;
-      if (!delta) return;
-      if (gen !== ttsGenerationRef.current) return;
-
-      ttsBufferRef.current += delta;
-
-      const boundaryChars = ["。", "！", "？", "!", "?", "\n"];
-      const takeUntilBoundary = () => {
-        const s = ttsBufferRef.current;
-        let idx = -1;
-        for (let i = 0; i < s.length; i++) {
-          if (boundaryChars.includes(s[i] ?? "")) {
-            idx = i;
-            break;
-          }
-        }
-        if (idx === -1) return null;
-        const chunk = s.slice(0, idx + 1);
-        ttsBufferRef.current = s.slice(idx + 1);
-        return chunk;
-      };
-
-      while (true) {
-        const chunk = takeUntilBoundary();
-        if (!chunk) break;
-        enqueueTtsChunk(chunk, gen);
-      }
-
-      const maxBuf = 80;
-      if (ttsBufferRef.current.length >= maxBuf) {
-        const chunk = ttsBufferRef.current.slice(0, maxBuf);
-        ttsBufferRef.current = ttsBufferRef.current.slice(maxBuf);
-        enqueueTtsChunk(chunk, gen);
-      }
-    },
-    [enqueueTtsChunk],
-  );
-
-  const flushTts = useCallback(
-    (gen: number) => {
-      if (!ttsEnabledRef.current) return;
-      if (gen !== ttsGenerationRef.current) return;
-      const rest = ttsBufferRef.current.trim();
-      ttsBufferRef.current = "";
-      if (rest) enqueueTtsChunk(rest, gen);
-    },
-    [enqueueTtsChunk],
-  );
 
   const autoSelectDoneRef = useRef(false);
 
@@ -724,19 +595,6 @@ export default function ChatClient() {
       }));
 
       try {
-        const gen = ++ttsGenerationRef.current;
-        ttsQueueRef.current = [];
-        ttsBufferRef.current = "";
-        ttsConfigByGenRef.current.set(
-          gen,
-          getCharacterTtsConfig(activeCharacterId),
-        );
-        try {
-          ttsCurrentAudioRef.current?.pause();
-        } catch {
-          // ignore
-        }
-
         // user message
         appendMessage({
           id: crypto.randomUUID(),
@@ -788,7 +646,6 @@ export default function ChatClient() {
 
         const appendDelta = (delta: string) => {
           if (!delta) return;
-          pushTtsDelta(delta, gen);
           setMessagesBySession((prev) => {
             const list = prev[activeSessionId] ?? [];
             return {
@@ -863,7 +720,6 @@ export default function ChatClient() {
                       ? parsed.content
                       : "";
                 const meta = parsed?.meta ?? null;
-                flushTts(gen);
                 finalize(
                   reply && reply.trim().length > 0
                     ? reply
@@ -871,7 +727,6 @@ export default function ChatClient() {
                   meta,
                 );
               } catch {
-                flushTts(gen);
                 finalize("（応答生成が一時的に利用できません。）", null);
               }
               doneReceived = true;
@@ -892,8 +747,6 @@ export default function ChatClient() {
       activeSessionId,
       activeCharacterId,
       appendMessage,
-      flushTts,
-      pushTtsDelta,
       setMessagesBySession,
     ],
   );

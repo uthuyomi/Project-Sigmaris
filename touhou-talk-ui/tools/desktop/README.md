@@ -1,7 +1,6 @@
 # Touhou Talk Desktop (Windows)
 
 This is a **local-only** desktop wrapper for `touhou-talk-ui` using Electron.
-It exists mainly to run **AquesTalk TTS** on Windows (Vercel/Linux cannot run the `.exe`).
 
 ## Prerequisites
 
@@ -23,14 +22,11 @@ It exists mainly to run **AquesTalk TTS** on Windows (Vercel/Linux cannot run th
 
    - Launch the desktop app once (it will create a file):
      - `%APPDATA%/Touhou Talk/touhou-talk.env`
-   - Fill in at least:
-     - `NEXT_PUBLIC_SUPABASE_URL`
-     - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-     - `SUPABASE_SERVICE_ROLE_KEY`
-     - `SIGMARIS_CORE_URL`
-   - For TTS (allowlist is required):
-     - `TOUHOU_TTS_ENABLE=1`
-     - `TOUHOU_TTS_ALLOWED_EMAILS=<your email>`
+    - Fill in at least:
+      - `NEXT_PUBLIC_SUPABASE_URL`
+      - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+      - `SUPABASE_SERVICE_ROLE_KEY`
+      - `SIGMARIS_CORE_URL`
 
 4. Make sure Supabase redirect URLs include:
 
@@ -48,8 +44,3 @@ It exists mainly to run **AquesTalk TTS** on Windows (Vercel/Linux cannot run th
   - `npm run desktop:dist`
 
 ## Notes
-
-- TTS exe is intentionally **not tracked by git**.
-- The desktop bundle copies AquesTalk exe if it exists at:
-  - `tools/aquestalk_tts_cmd/bin/x64/Release/aquestalk_tts_cmd.exe`
-
