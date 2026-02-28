@@ -1,165 +1,130 @@
 **Languages:** English | [日本語](README.ja.md)
 
-# Touhou Character Chat UI (Variant UI)
+# Touhou Talk UI
 
-This repository contains a **fan-made prototype chat UI** inspired by  
-characters from **Touhou Project**.
+This directory contains an **unofficial fan-made** (derivative) character chat UI inspired by **Touhou Project**.
 
-It allows users to converse with different Touhou characters while
-preserving conversation history per character, and is designed to work
-smoothly on **desktop, tablet, and mobile devices**.
+It is a UI variant in **Project Sigmaris** and uses:
 
----
+- **Supabase Auth** (OAuth) for login
+- **Supabase DB** for session/message persistence
+- **Sigmaris Persona OS backend** (`sigmaris_core`) for response generation (`/persona/chat`, `/persona/chat/stream`)
 
-## Demo
+## What’s in here
 
-A live demo is available on Vercel:
+- Next.js App Router UI (`/entry`, `/chat/session`, `/auth/*`)
+- Session-based chat persistence in Supabase (`common_sessions`, `common_messages`)
+- Server-side API routes that proxy to `sigmaris_core` and optionally enrich messages (uploads / link analysis / web tools)
+- Optional PWA manifest (`public/site.webmanifest`) and service worker registration (`/sw.js`)
+- Optional Windows desktop packaging (Electron)
 
-https://touhou-chat.vercel.app/
+## Requirements
 
----
+- Node.js + npm
+- A Supabase project (URL / anon key / service role key)
+- A running `sigmaris_core` backend (default: `http://127.0.0.1:8000`)
 
-## Position in Project Sigmaris
+## Environment variables
 
-`touhou-talk-ui` is a **variant UI** for Project Sigmaris:
+Create `touhou-talk-ui/.env.local` (or use the repo root `.env` in this monorepo).
 
-- It uses `sigmaris-core` as the engine (`/persona/chat` + `/persona/chat/stream`)
-- It intentionally explores a different UX (character chat + assistant-ui components)
-- It exists to validate the engine’s generality (same core, different UI)
+Required:
 
-If you want the “reference UI” for the engine, see `sigmaris-os/`.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-side only)
+- `SIGMARIS_CORE_URL` (e.g. `http://127.0.0.1:8000`)
 
----
+Recommended (ops / hardening):
 
-## Features
+- `NEXT_PUBLIC_SITE_URL` (used for metadata, sitemap, robots; falls back to `VERCEL_URL` or `http://localhost:3000`)
+- `TOUHOU_ALLOWED_ORIGINS` (comma-separated; defaults to same-origin when unset)
+- `TOUHOU_RATE_LIMIT_MS` (best-effort per-user minimum interval; default `1200`)
 
-- Conversation history preserved per character
-- Seamless character switching without losing context
-- Mobile / tablet responsive UI
-- Built with Next.js App Router
-- Clear separation between UI and state management
-- Optional local TTS (AquesTalk) + voice input (Web Speech API) for hands-free chatting (dev/local)
+Optional (Phase04 features for `/api/session/[sessionId]/message`):
 
----
+- `TOUHOU_UPLOAD_ENABLED` (`0/1`) → enable file upload + parse via `sigmaris_core` (`/io/upload`, `/io/parse`)
+- `TOUHOU_LINK_ANALYSIS_ENABLED` (`0/1`) → enable link analysis via `sigmaris_core` (`/io/web/fetch`, `/io/web/search`, `/io/github/repos`)
+- `TOUHOU_AUTO_BROWSE_ENABLED` (`0/1`) → enable auto browse (best-effort) when link analysis is disabled
 
-## Tech Stack
+Optional (local TTS via AquesTalk helper):
 
-- Next.js (App Router)
-- TypeScript
-- Tailwind CSS
-- Supabase Auth (Google OAuth)
+- `TOUHOU_TTS_ENABLE` (`1` to force-enable; otherwise auto-enables only on Windows when the helper exe exists)
+- `TOUHOU_TTS_ALLOWED_EMAILS` (comma-separated allowlist; required to enable)
+- `AQUESTALK_TTS_EXE_PATH` (override helper exe path)
 
----
+## Run locally
 
-## Auth / Login
+From this repository root:
 
-This UI uses **Supabase Auth (OAuth login)** (same style as `sigmaris-os`).
+```bash
+cd touhou-talk-ui
+npm install
+npm run dev
+```
 
-Prerequisites:
-
-- Enable providers in Supabase Auth (Google / GitHub / Discord)
-- Add redirect URL(s) for local dev, e.g.:
-  - `http://localhost:3000/auth/callback` (or your port)
-
-Notes:
-
-- OAuth callback is handled by a **Route Handler** at `GET /auth/callback` (server-side exchange).
-- For production hardening, Phase04 features in the chat API can be toggled via env:
-  - `TOUHOU_UPLOAD_ENABLED`
-  - `TOUHOU_LINK_ANALYSIS_ENABLED`
-  - `TOUHOU_AUTO_BROWSE_ENABLED`
-
-## Local TTS / Voice Input (optional)
-
-This UI can optionally:
-
-- Read AI replies aloud via **AquesTalk** (local-only)
-- Dictate messages via the browser **Web Speech API** (Chrome/Edge)
+Then open `http://localhost:3000`.
 
 Notes:
 
-- `POST /api/tts` is **enabled in development** only. For production, it returns 404 unless `TOUHOU_TTS_ENABLE=1`.
-- AquesTalk SDK files should **not** be committed. Build the helper exe under `tools/aquestalk_tts_cmd/`.
-- Voice input uses the **Web Speech API** and auto-sends after ~1.2s of silence (hands-free). Browser support varies (Chrome/Edge recommended).
+- `npm run dev` loads environment variables from the **repo root** first (monorepo convenience), then Next.js loads `touhou-talk-ui/.env*` files.
+- The main chat route is `GET /chat/session` (and `/chat` redirects there).
 
----
+## Auth / OAuth
 
-## About This Fan Work (二次創作)
+- Login page: `GET /auth/login`
+- OAuth callback: `GET /auth/callback` (server-side code exchange via Supabase)
 
-This project is a **fan-made derivative work (二次創作)** based on  
-**Touhou Project**.
+In Supabase Dashboard, enable OAuth providers you want (the UI offers Google/GitHub/Discord by default) and add redirect URLs, e.g.:
 
-It is **not affiliated with, endorsed by, or related to** the original
-creator or rights holder.
+- `http://localhost:3000/auth/callback`
+- `https://<your-domain>/auth/callback`
 
-All Touhou-related characters, names, and settings are the property of:
+## Persistence model (Supabase)
 
-**Team Shanghai Alice (上海アリス幻樂団)**
+This UI stores data under `app = "touhou"` and uses:
 
----
+- `common_sessions` (chat sessions)
+- `common_messages` (chat messages)
+- `common_state_snapshots` (optional; stores core meta snapshots when available)
 
-## Project Purpose
+## Internal API routes (Next.js)
 
-This project was created as a **technical prototype** to explore:
+Main (used by `/chat/session`):
 
-- UI architecture
-- State management for character-based conversations
-- Frontend design patterns for chat-style applications
+- `GET /api/session` (list sessions; requires auth)
+- `POST /api/session` (create a session; requires auth)
+- `GET /api/session/[sessionId]/messages` (reload/restore; requires auth)
+- `POST /api/session/[sessionId]/message` (send a message; requires auth)
+  - Content-Type: `multipart/form-data`
+  - Proxies to `sigmaris_core` (`/persona/chat` or `/persona/chat/stream`)
+  - Injects character persona via `persona_system` (built in `lib/touhouPersona.ts`)
 
-It is **not intended for commercial use**, nor to cause confusion with
-the original Touhou Project works.
+Other:
 
----
-
-## License
-
-### Source Code License
-
-Copyright (c) 2025 uthuyomi
-
-This project is released under the **MIT License**.
-
-All source code, UI design, application structure, and implementation
-contained in this repository are original works created by the author
-and are licensed under the MIT License.
-
----
-
-### Copyright & Fan Work Notice
-
-This project is a **non-commercial fan-made derivative work** based on
-Touhou Project.
-
-All characters, names, and settings related to Touhou Project are
-copyright © Team Shanghai Alice.
-
-This repository is **unofficial** and has no association with
-Team Shanghai Alice.
-
----
-
-## Production checklist (Vercel)
-
-- Set Vercel env:
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-  - `SUPABASE_SERVICE_ROLE_KEY`
-  - `SIGMARIS_CORE_URL` (FastAPI backend)
-- Supabase Auth:
-  - Add your Vercel domain redirect URLs:
-    - `https://<your-app>.vercel.app/auth/callback`
-- Recommended:
-  - Set `TOUHOU_ALLOWED_ORIGINS` and `TOUHOU_RATE_LIMIT_MS`
-  - Keep Phase04 toggles OFF unless you add allowlists / limits in production
-
----
+- `GET /api/io/attachment/[attachmentId]` (proxy to `sigmaris_core` attachment download)
+- `POST /api/tts` (optional; allowlisted accounts only; returns 404 when disabled)
+- `POST /api/chat` (legacy; used by older components in this repo)
 
 ## Desktop build (Windows, optional)
 
-This app can be wrapped as a Windows desktop app (Electron).
-
-From `touhou-talk-ui/`:
-
 ```bash
+cd touhou-talk-ui
 npm run desktop:dist
 ```
+
+## Fan work notice
+
+This project is an **unofficial, non-commercial fan work** based on Touhou Project.
+
+It is **not affiliated with or endorsed by** the original creator or rights holder.
+
+Touhou-related characters, names, and settings are the property of:
+
+- Team Shanghai Alice (上海アリス幻樂団)
+
+## License
+
+This directory does not include a dedicated license file.
+
+Please follow the license policy of the repository and/or sibling packages (for example: `sigmaris-os/LICENSE`).
