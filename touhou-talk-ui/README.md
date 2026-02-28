@@ -47,12 +47,6 @@ Optional (Phase04 features for `/api/session/[sessionId]/message`):
 - `TOUHOU_LINK_ANALYSIS_ENABLED` (`0/1`) → enable link analysis via `sigmaris_core` (`/io/web/fetch`, `/io/web/search`, `/io/github/repos`)
 - `TOUHOU_AUTO_BROWSE_ENABLED` (`0/1`) → enable auto browse (best-effort) when link analysis is disabled
 
-Optional (local TTS via AquesTalk helper):
-
-- `TOUHOU_TTS_ENABLE` (`1` to force-enable; otherwise auto-enables only on Windows when the helper exe exists)
-- `TOUHOU_TTS_ALLOWED_EMAILS` (comma-separated allowlist; required to enable)
-- `AQUESTALK_TTS_EXE_PATH` (override helper exe path)
-
 ## Run locally
 
 From this repository root:
@@ -103,7 +97,6 @@ Main (used by `/chat/session`):
 Other:
 
 - `GET /api/io/attachment/[attachmentId]` (proxy to `sigmaris_core` attachment download)
-- `POST /api/tts` (optional; allowlisted accounts only; returns 404 when disabled)
 - `POST /api/chat` (legacy; used by older components in this repo)
 
 ## Desktop build (Windows, optional)

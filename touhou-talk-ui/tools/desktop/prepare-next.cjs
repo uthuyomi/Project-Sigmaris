@@ -45,22 +45,6 @@ async function main() {
   // And `public/` alongside server.js
   await copyDir(publicDir, path.join(outNext, "public"));
 
-  // Optional: include AquesTalk helper exe if present locally (not tracked by git)
-  const exeSrc = path.resolve(
-    projectRoot,
-    "..",
-    "tools",
-    "aquestalk_tts_cmd",
-    "bin",
-    "x64",
-    "Release",
-    "aquestalk_tts_cmd.exe"
-  );
-  const exeDst = path.join(bundleRoot, "aquestalk_tts_cmd.exe");
-  if (fs.existsSync(exeSrc)) {
-    await fsp.copyFile(exeSrc, exeDst);
-  }
-
   console.log(`[desktop] bundle ready: ${bundleRoot}`);
 }
 
@@ -68,4 +52,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-
