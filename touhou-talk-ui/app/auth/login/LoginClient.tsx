@@ -38,16 +38,17 @@ export default function LoginClient(props: { nextPath?: string | null }) {
 
   const nextSafe =
     safeNextPath(props.nextPath) || safeNextPath(getLastSelectedChatNext());
+  const nextOrChat = nextSafe || "/chat/session";
 
   // 既にログイン済みなら、次の遷移先（next）へ自動で移動
   React.useEffect(() => {
-    if (!nextSafe) return;
+    if (!nextOrChat) return;
     let canceled = false;
     (async () => {
       try {
         const { data } = await supabaseBrowser().auth.getSession();
         if (canceled) return;
-        if (data.session) router.replace(nextSafe);
+        if (data.session) router.replace(nextOrChat);
       } catch {
         // ignore
       }
@@ -63,9 +64,7 @@ export default function LoginClient(props: { nextPath?: string | null }) {
     setLoadingProvider(provider);
 
     const options: Record<string, any> = {
-      redirectTo: `${window.location.origin}/auth/callback${
-        nextSafe ? `?next=${encodeURIComponent(nextSafe)}` : ""
-      }`,
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextOrChat)}`,
     };
     if (provider === "google") {
       options.queryParams = {

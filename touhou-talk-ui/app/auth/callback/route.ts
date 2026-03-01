@@ -60,6 +60,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(dest);
   }
 
-  // next が無ければ /entry へ。/chat などの導線は next パラメータで明示する。
-  return NextResponse.redirect(new URL(safeNext || "/entry", origin));
+  // next が無ければ /chat/session へ。
+  // ここが入口（PWA起動など）になりやすく、未ログイン時は /chat/session 側でログインへ誘導する。
+  return NextResponse.redirect(new URL(safeNext || "/chat/session", origin));
 }
