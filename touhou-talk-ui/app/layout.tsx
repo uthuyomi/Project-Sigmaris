@@ -5,12 +5,34 @@ import { TouhouThemeInit } from "@/components/TouhouThemeInit";
 import { EnvGuard } from "@/components/EnvGuard";
 import PwaRegister from "@/components/pwa/PwaRegister";
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+function resolveSiteUrl(): string {
+  const raw = String(process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
+  if (raw) return raw;
+
+  const vercelUrl = String(process.env.VERCEL_URL ?? "").trim();
+  if (vercelUrl) return `https://${vercelUrl}`;
+
+  return "http://localhost:3000";
+}
+
+function resolveMetadataBase(): URL {
+  const raw = resolveSiteUrl();
+
+  // Support values like "example.com" by auto-prefixing scheme.
+  const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+
+  try {
+    return new URL(normalized);
+  } catch (e) {
+    // Avoid crashing the whole app on misconfigured env.
+    // This error should still show up in server logs for diagnosis.
+    console.error("[metadataBase] invalid NEXT_PUBLIC_SITE_URL", { raw, normalized, e });
+    return new URL("https://example.invalid");
+  }
+}
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: resolveMetadataBase(),
   title: {
     default: "Touhou Talk",
     template: "%s | Touhou Talk",
