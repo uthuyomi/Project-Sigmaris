@@ -115,7 +115,16 @@ export default function PwaInstallButton() {
     return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
   }, []);
 
-  if (installed) return null;
+  if (installed) {
+    return (
+      <div className="rounded-3xl border border-border bg-card p-6 text-card-foreground shadow-sm">
+        <div className="text-base font-semibold">この端末では追加済みです</div>
+        <div className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          すでにホーム画面（またはアプリ一覧）から起動できます。
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 text-card-foreground shadow-sm">
