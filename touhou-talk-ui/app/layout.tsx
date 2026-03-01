@@ -47,12 +47,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico", type: "image/x-icon" },
       { url: "/icons/icon-32.png", type: "image/png", sizes: "32x32" },
       { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
       { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
     ],
-    shortcut: [{ url: "/favicon.ico", type: "image/x-icon" }],
+    shortcut: [{ url: "/icons/icon-32.png", type: "image/png", sizes: "32x32" }],
     apple: [{ url: "/icons/apple-touch-icon.png", type: "image/png" }],
   },
   manifest: "/site.webmanifest",
