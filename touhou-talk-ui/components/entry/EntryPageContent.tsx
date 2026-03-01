@@ -19,6 +19,7 @@ import EntryCharactersHeader from "@/components/entry/entryCharacters/EntryChara
 import EntryInstallSection from "@/components/entry/entryInstall/EntryInstallSection";
 import EntryFooter from "@/components/entry/entryFooter/EntryFooter";
 import EntrySelectionTracker from "@/components/entry/EntrySelectionTracker";
+import EntryPwaLaunchRedirect from "@/components/entry/EntryPwaLaunchRedirect";
 
 function layerLabel(layer: LayerId) {
   switch (layer) {
@@ -139,6 +140,7 @@ export default function EntryPageContent() {
       backgroundSlot={<EntryTouhouBackground />}
       className={`${styles.entryTheme} bg-background text-foreground`}
     >
+      <EntryPwaLaunchRedirect />
       <div className="w-full max-w-6xl">
         <InViewFade reverse={true}>
           <EntryHeroSection />
