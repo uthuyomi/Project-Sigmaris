@@ -26,6 +26,7 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 
@@ -115,6 +116,42 @@ type VscodeState =
    Component
 ========================= */
 
+function AutoCloseSidebarOnSessionReady(props: {
+  pendingSessionId: string | null;
+  activeSessionId: string | null;
+  sessionReady: boolean;
+  onClosed: () => void;
+}) {
+  const { isMobile, setOpen, setOpenMobile } = useSidebar();
+
+  const { pendingSessionId, activeSessionId, sessionReady, onClosed } = props;
+
+  useEffect(() => {
+    if (!pendingSessionId) return;
+    if (!activeSessionId) return;
+    if (pendingSessionId !== activeSessionId) return;
+    if (!sessionReady) return;
+
+    const raf = requestAnimationFrame(() => {
+      if (isMobile) setOpenMobile(false);
+      else setOpen(false);
+      onClosed();
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [
+    pendingSessionId,
+    activeSessionId,
+    sessionReady,
+    onClosed,
+    isMobile,
+    setOpen,
+    setOpenMobile,
+  ]);
+
+  return null;
+}
+
 export default function ChatClient() {
   const searchParams = useSearchParams();
   const currentLayer = searchParams.get("layer");
@@ -161,16 +198,19 @@ export default function ChatClient() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [hasSelectedOnce, setHasSelectedOnce] = useState(false);
   const [charactersCollapsed, setCharactersCollapsed] = useState(false);
+  const [pendingAutoCloseSessionId, setPendingAutoCloseSessionId] = useState<
+    string | null
+  >(null);
 
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 1023px)").matches;
+    return window.matchMedia("(max-width: 1024px)").matches;
   });
 
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1023px)");
+    const mq = window.matchMedia("(max-width: 1024px)");
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
@@ -413,9 +453,9 @@ export default function ChatClient() {
       setActiveSessionId(s.id);
       setActiveCharacterId(s.characterId);
       setHasSelectedOnce(true);
-      setIsPanelOpen(false);
+      if (isMobile) setPendingAutoCloseSessionId(s.id);
     },
-    [sessions],
+    [sessions, isMobile],
   );
 
   const handleDeleteSession = useCallback(
@@ -464,7 +504,8 @@ export default function ChatClient() {
   useEffect(() => {
     if (!activeSessionId) return;
     if (!sessions.some((s) => s.id === activeSessionId)) return;
-    if (messagesBySession[activeSessionId]) return;
+    if (Object.prototype.hasOwnProperty.call(messagesBySession, activeSessionId))
+      return;
 
     (async () => {
       const res = await fetch(`/api/session/${activeSessionId}/messages`);
@@ -755,6 +796,14 @@ export default function ChatClient() {
      Render
   ========================= */
 
+  const activeSessionReady =
+    activeSessionId != null &&
+    Object.prototype.hasOwnProperty.call(messagesBySession, activeSessionId);
+
+  const clearPendingAutoClose = useCallback(() => {
+    setPendingAutoCloseSessionId(null);
+  }, []);
+
   const activeMessages =
     activeSessionId != null ? (messagesBySession[activeSessionId] ?? []) : [];
 
@@ -948,6 +997,12 @@ export default function ChatClient() {
             } as React.CSSProperties
           }
         >
+          <AutoCloseSidebarOnSessionReady
+            pendingSessionId={pendingAutoCloseSessionId}
+            activeSessionId={activeSessionId}
+            sessionReady={activeSessionReady}
+            onClosed={clearPendingAutoClose}
+          />
           <div className="flex h-full w-full min-h-0 overflow-hidden bg-background text-foreground transition-colors duration-300">
             <TouhouSidebar
               visibleCharacters={visibleCharacters}
