@@ -75,6 +75,14 @@ export function supabaseBrowser(): SupabaseClient {
         });
       },
     },
+    auth: {
+      // Keep users signed in across restarts (cookies/local storage depending on adapter).
+      persistSession: true,
+      autoRefreshToken: true,
+      // We handle OAuth code exchange server-side in /auth/callback.
+      detectSessionInUrl: false,
+      flowType: "pkce",
+    },
   });
 
   return _client;
