@@ -116,38 +116,18 @@ type VscodeState =
    Component
 ========================= */
 
-function AutoCloseSidebarOnSessionReady(props: {
-  pendingSessionId: string | null;
-  activeSessionId: string | null;
-  sessionReady: boolean;
-  onClosed: () => void;
-}) {
+function AutoCloseSidebarOnRequest(props: { requestId: number }) {
   const { isMobile, setOpen, setOpenMobile } = useSidebar();
-
-  const { pendingSessionId, activeSessionId, sessionReady, onClosed } = props;
+  const prevRequestIdRef = useRef(props.requestId);
 
   useEffect(() => {
-    if (!pendingSessionId) return;
-    if (!activeSessionId) return;
-    if (pendingSessionId !== activeSessionId) return;
-    if (!sessionReady) return;
+    if (prevRequestIdRef.current === props.requestId) return;
+    prevRequestIdRef.current = props.requestId;
 
-    const raf = requestAnimationFrame(() => {
-      if (isMobile) setOpenMobile(false);
-      else setOpen(false);
-      onClosed();
-    });
-
-    return () => cancelAnimationFrame(raf);
-  }, [
-    pendingSessionId,
-    activeSessionId,
-    sessionReady,
-    onClosed,
-    isMobile,
-    setOpen,
-    setOpenMobile,
-  ]);
+    // Close right away when user picks a session (mobile/tablet UX).
+    if (isMobile) setOpenMobile(false);
+    else setOpen(false);
+  }, [props.requestId, isMobile, setOpen, setOpenMobile]);
 
   return null;
 }
@@ -198,9 +178,7 @@ export default function ChatClient() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [hasSelectedOnce, setHasSelectedOnce] = useState(false);
   const [charactersCollapsed, setCharactersCollapsed] = useState(false);
-  const [pendingAutoCloseSessionId, setPendingAutoCloseSessionId] = useState<
-    string | null
-  >(null);
+  const [sidebarCloseRequestId, setSidebarCloseRequestId] = useState(0);
 
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -453,7 +431,7 @@ export default function ChatClient() {
       setActiveSessionId(s.id);
       setActiveCharacterId(s.characterId);
       setHasSelectedOnce(true);
-      if (isMobile) setPendingAutoCloseSessionId(s.id);
+      if (isMobile) setSidebarCloseRequestId((v) => v + 1);
     },
     [sessions, isMobile],
   );
@@ -796,14 +774,6 @@ export default function ChatClient() {
      Render
   ========================= */
 
-  const activeSessionReady =
-    activeSessionId != null &&
-    Object.prototype.hasOwnProperty.call(messagesBySession, activeSessionId);
-
-  const clearPendingAutoClose = useCallback(() => {
-    setPendingAutoCloseSessionId(null);
-  }, []);
-
   const activeMessages =
     activeSessionId != null ? (messagesBySession[activeSessionId] ?? []) : [];
 
@@ -997,12 +967,7 @@ export default function ChatClient() {
             } as React.CSSProperties
           }
         >
-          <AutoCloseSidebarOnSessionReady
-            pendingSessionId={pendingAutoCloseSessionId}
-            activeSessionId={activeSessionId}
-            sessionReady={activeSessionReady}
-            onClosed={clearPendingAutoClose}
-          />
+          <AutoCloseSidebarOnRequest requestId={sidebarCloseRequestId} />
           <div className="flex h-full w-full min-h-0 overflow-hidden bg-background text-foreground transition-colors duration-300">
             <TouhouSidebar
               visibleCharacters={visibleCharacters}
