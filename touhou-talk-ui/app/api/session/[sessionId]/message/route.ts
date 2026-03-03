@@ -10,6 +10,33 @@ import { buildTouhouPersonaSystem, genParamsFor, type TouhouChatMode } from "@/l
 
 type PersonaChatResponse = { reply: string; meta?: Record<string, unknown> };
 
+type PersonaIntentLabel =
+  | "banter"
+  | "chitchat"
+  | "advice"
+  | "task"
+  | "incident"
+  | "lore"
+  | "roleplay_scene"
+  | "meta"
+  | "safety"
+  | "unclear";
+
+type PersonaOutputStyle = "normal" | "bullet_3" | "choice_2";
+type PersonaUrgency = "low" | "normal" | "high";
+type PersonaSafetyRisk = "none" | "low" | "med" | "high";
+
+type PersonaIntentResponse = {
+  intent: PersonaIntentLabel;
+  confidence: number;
+  output_style: PersonaOutputStyle;
+  allowed_humor: boolean;
+  urgency: PersonaUrgency;
+  needs_clarify: boolean;
+  clarify_question: string;
+  safety_risk: PersonaSafetyRisk;
+};
+
 type Phase04Attachment = {
   type: "upload";
   attachment_id: string;
@@ -56,6 +83,272 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 function toSse(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function shouldUseDirectorOverlay(params: { characterId: string; chatMode: TouhouChatMode }) {
+  return params.chatMode === "roleplay" && params.characterId === "reimu";
+}
+
+async function fetchPersonaIntent(params: {
+  base: string;
+  accessToken: string | null;
+  sessionId: string;
+  characterId: string;
+  chatMode: TouhouChatMode;
+  message: string;
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+}): Promise<PersonaIntentResponse | null> {
+  try {
+    const r = await fetch(`${params.base}/persona/intent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(params.accessToken ? { Authorization: `Bearer ${params.accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        session_id: params.sessionId,
+        character_id: params.characterId,
+        chat_mode: params.chatMode,
+        message: params.message,
+        history: params.history.slice(-8).map((m) => ({ role: m.role, content: m.content })),
+      }),
+    });
+    if (!r.ok) return null;
+    const data = (await r.json()) as unknown;
+    if (!isRecord(data)) return null;
+    if (typeof data.intent !== "string" || typeof data.output_style !== "string") return null;
+    return data as PersonaIntentResponse;
+  } catch {
+    return null;
+  }
+}
+
+function effectiveOutputStyle(intent: PersonaIntentResponse): PersonaOutputStyle {
+  // Hard rule: if clarification is needed, force a single clarify question (paragraph style).
+  return intent.needs_clarify ? "normal" : intent.output_style;
+}
+
+function outputStyleBlock(style: PersonaOutputStyle, intent: PersonaIntentResponse): string {
+  if (intent.needs_clarify) {
+    return [
+      "# Output style (FORCED)",
+      "- このターンは「確認質問を1つだけ」出して止める（助言/煽り/賽銭/長文は禁止）。",
+      "- 文は短く、最後は必ず「？」で終える。",
+    ].join("\n");
+  }
+  if (style === "bullet_3") {
+    return [
+      "# Output style (FORCED)",
+      "- 返信は「- 」で始まる箇条書きちょうど3行のみ。",
+      "- 空行や4行目は禁止。各行は短く。",
+    ].join("\n");
+  }
+  if (style === "choice_2") {
+    return [
+      "# Output style (FORCED)",
+      "- 返信は2行のみ。",
+      "- 1行目は必ず「A)」で開始、2行目は必ず「B)」で開始。",
+      "- それ以外の行（前置き/後置き/空行）は禁止。",
+    ].join("\n");
+  }
+  return [
+    "# Output style (FORCED)",
+    "- 1〜10文（短め）。長文/解説は禁止。",
+    "- 最後は必ず質問1つで止める（「？」で終える）。",
+  ].join("\n");
+}
+
+function reimuDirectorOverlay(intent: PersonaIntentResponse): string {
+  const style = effectiveOutputStyle(intent);
+  const base: string[] = [
+    "# Director overlay (Reimu, per-turn)",
+    `- intent: ${intent.intent}`,
+    `- confidence: ${Number.isFinite(intent.confidence) ? intent.confidence.toFixed(2) : "0.00"}`,
+    `- urgency: ${intent.urgency}`,
+    `- allowed_humor: ${intent.allowed_humor ? "true" : "false"}`,
+    `- safety_risk: ${intent.safety_risk}`,
+    "",
+    outputStyleBlock(style, intent),
+    "",
+    "# Behavior (FORCED)",
+    "- ユーザーの精神状態を推測/分析して断定しない（心理分析っぽい説明は禁止）。",
+    "- 余計な一言（決め台詞の暴発）を入れない。脈絡がある時だけ言う。",
+  ];
+
+  if (intent.intent === "meta") {
+    base.push(
+      "",
+      "# Meta handling (FORCED)",
+      "- AI/プロンプト/システム等の話題は短く拒否し、霊夢として会話に戻す。",
+      "- 説明や講義は禁止。短く切って質問で戻す。",
+    );
+  } else if (intent.intent === "safety") {
+    base.push(
+      "",
+      "# Safety handling (FORCED)",
+      "- 安全ポリシーに従い、危険な依頼は拒否する。",
+      "- 霊夢として短く受け、代替の安全な選択肢を最小限で提示して質問で止める。",
+    );
+  } else if (intent.intent === "incident") {
+    base.push(
+      "",
+      "# Incident handling",
+      "- 「また異変？」の低テンションから入って、最小3手で片付け方を出す。",
+      "- 断言しすぎない。足りない情報は質問1つで補う。",
+    );
+  } else if (intent.intent === "lore") {
+    base.push(
+      "",
+      "# Lore handling",
+      "- 知ってる範囲だけ。曖昧なら霊夢口調で濁す（捏造しない）。",
+      "- 1刺しまでの皮肉はOK。ただし講釈はしない。",
+    );
+  } else if (intent.intent === "roleplay_scene") {
+    base.push(
+      "",
+      "# Roleplay scene handling",
+      "- 情景は短く。地の文で長く語らない。",
+      "- 会話を前に進める質問で止める。",
+    );
+  } else if (intent.intent === "task" || intent.intent === "advice") {
+    base.push(
+      "",
+      "# Advice/task handling",
+      "- 実務的に。3手まで。感情の断定/心理分析/長文はしない。",
+    );
+  } else if (intent.intent === "banter") {
+    base.push(
+      "",
+      "# Banter handling",
+      "- 軽い皮肉はOK（1刺しまで）。追撃しない。粘着しない。",
+      "- 相手が不快になりそうなら即引く（allowed_humor=false の時は煽り禁止）。",
+    );
+  } else {
+    base.push(
+      "",
+      "# Default handling",
+      "- 受け→短い確認→必要なら最小3手→質問で止める。",
+    );
+  }
+
+  if (!intent.allowed_humor) {
+    base.push("", "# Humor gate (FORCED)", "- このターンは冗談/煽り/賽銭の小突きは入れない。");
+  }
+
+  if (intent.needs_clarify && (intent.clarify_question || "").trim()) {
+    base.push("", "# Clarify question (FORCED)", `- 出力する質問はこれ：${intent.clarify_question.trim()}`);
+  }
+
+  return base.join("\n").trim();
+}
+
+function lintOutputStyle(params: {
+  style: PersonaOutputStyle;
+  intent: PersonaIntentResponse | null;
+  reply: string;
+}): { ok: boolean; reason: string } {
+  const raw = String(params.reply ?? "").trim();
+  if (!raw) return { ok: false, reason: "empty" };
+
+  // Clarify mode: exactly one question, no extra content.
+  if (params.intent?.needs_clarify) {
+    const lines = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+    const joined = lines.join(" ");
+    const qCount = (joined.match(/[？?]/g) ?? []).length;
+    if (qCount !== 1) return { ok: false, reason: "clarify_question_count" };
+    if (!/[？?]\s*$/.test(joined)) return { ok: false, reason: "clarify_not_question_end" };
+    // discourage bullets/choices in clarify mode
+    if (lines.some((l) => l.startsWith("- ") || l.startsWith("A)") || l.startsWith("B)"))) {
+      return { ok: false, reason: "clarify_has_format" };
+    }
+    return { ok: true, reason: "" };
+  }
+
+  if (params.style === "bullet_3") {
+    const lines = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (lines.length !== 3) return { ok: false, reason: "bullet_line_count" };
+    if (!lines.every((l) => l.startsWith("- ") && l.length > 2)) return { ok: false, reason: "bullet_prefix" };
+    return { ok: true, reason: "" };
+  }
+
+  if (params.style === "choice_2") {
+    const lines = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (lines.length !== 2) return { ok: false, reason: "choice_line_count" };
+    if (!lines[0].startsWith("A)")) return { ok: false, reason: "choice_a" };
+    if (!lines[1].startsWith("B)")) return { ok: false, reason: "choice_b" };
+    return { ok: true, reason: "" };
+  }
+
+  // normal
+  const lines = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+  if (lines.length > 10) return { ok: false, reason: "normal_too_long" };
+  const joined = lines.join(" ");
+  if (!/[？?]\s*$/.test(joined)) return { ok: false, reason: "normal_no_question_end" };
+  return { ok: true, reason: "" };
+}
+
+async function rewriteToForcedStyle(params: {
+  base: string;
+  accessToken: string | null;
+  userId: string;
+  sessionId: string;
+  characterId: string;
+  chatMode: TouhouChatMode;
+  personaSystem: string;
+  gen: Record<string, unknown>;
+  attachments: Record<string, unknown>[];
+  history: Array<{ role: "user" | "assistant"; content: string }>;
+  originalUserText: string;
+  draftReply: string;
+  intent: PersonaIntentResponse;
+}): Promise<PersonaChatResponse | null> {
+  const style = effectiveOutputStyle(params.intent);
+  const fix = [
+    "# Output style fix (FORCED, internal)",
+    "- The previous reply violated the forced output style.",
+    "- Rewrite the DRAFT to match the forced style exactly.",
+    "- Preserve meaning as much as possible; do not add new facts.",
+    "- Do NOT mention rewriting, DRAFT, or internal rules.",
+    "- Output only the final reply text.",
+    "",
+    outputStyleBlock(style, params.intent),
+  ].join("\n");
+
+  const rewriteMessage = [
+    "【内部】次のDRAFTを、指示に従って書き換えてください。",
+    "ユーザーの発話（参考）:",
+    clampText(params.originalUserText, 600),
+    "",
+    "DRAFT:",
+    clampText(params.draftReply, 1500),
+  ].join("\n");
+
+  try {
+    const r = await fetch(`${params.base}/persona/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(params.accessToken ? { Authorization: `Bearer ${params.accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        user_id: params.userId,
+        session_id: params.sessionId,
+        message: rewriteMessage,
+        history: params.history,
+        character_id: params.characterId,
+        chat_mode: params.chatMode,
+        persona_system: `${params.personaSystem}\n\n${fix}`,
+        gen: params.gen,
+        attachments: params.attachments,
+      }),
+    });
+    if (!r.ok) return null;
+    const data = (await r.json()) as PersonaChatResponse;
+    if (!data || typeof data.reply !== "string") return null;
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 /* =========================================================
@@ -788,6 +1081,28 @@ export async function POST(
 
   const coreHistory = await loadCoreHistory({ supabase, sessionId, userId, limit: 16 });
   const base = coreBaseUrl();
+
+  const chatModeRaw =
+    conv && typeof (conv as Record<string, unknown>).chat_mode === "string"
+      ? String((conv as Record<string, unknown>).chat_mode)
+      : null;
+  const chatMode: TouhouChatMode =
+    chatModeRaw === "roleplay" || chatModeRaw === "coach" ? chatModeRaw : "partner";
+
+  const intentPromise: Promise<PersonaIntentResponse | null> = shouldUseDirectorOverlay({
+    characterId,
+    chatMode,
+  })
+    ? fetchPersonaIntent({
+        base,
+        accessToken,
+        sessionId,
+        characterId,
+        chatMode,
+        message: text.trim(),
+        history: coreHistory,
+      })
+    : Promise.resolve(null);
   const isProd = process.env.NODE_ENV === "production";
   const uploadsEnabled = envFlag("TOUHOU_UPLOAD_ENABLED", !isProd);
   const linkAnalysisEnabled = envFlag("TOUHOU_LINK_ANALYSIS_ENABLED", !isProd);
@@ -841,14 +1156,8 @@ export async function POST(
     );
   }
 
-  const chatModeRaw =
-    conv && typeof (conv as Record<string, unknown>).chat_mode === "string"
-      ? String((conv as Record<string, unknown>).chat_mode)
-      : null;
-  const chatMode: TouhouChatMode =
-    chatModeRaw === "roleplay" || chatModeRaw === "coach" ? chatModeRaw : "partner";
-
   const isSeedTurn = isFirstAssistantTurn(coreHistory);
+  const intent = await intentPromise;
   const personaSystemBase = buildTouhouPersonaSystem(characterId, {
     chatMode,
     includeExamples: isSeedTurn,
@@ -874,10 +1183,11 @@ export async function POST(
       turnTuningLines.push("- 賽銭/寄付ネタは最大1文まで（連発しない）。");
     }
   }
-  const personaSystem =
-    turnTuningLines.length > 0
-      ? `${personaSystemBase}\n\n# Turn constraints\n${turnTuningLines.join("\n")}`
-      : personaSystemBase;
+
+  const directorOverlay = intent ? reimuDirectorOverlay(intent) : "";
+  const personaSystem = [personaSystemBase, turnTuningLines.length > 0 ? `# Turn constraints\n${turnTuningLines.join("\n")}` : null, directorOverlay || null]
+    .filter(Boolean)
+    .join("\n\n");
   const retrievalHint = retrievalSystemHint({ linkAnalyses: phase04Links });
   const personaSystemWithRetrieval = retrievalHint ? `${personaSystem}\n\n# Retrieval\n${retrievalHint}` : personaSystem;
   const personaSystemSha256 = sha256Hex(personaSystemWithRetrieval);
@@ -924,11 +1234,76 @@ export async function POST(
       currentUserText: text,
     });
 
+    let replyFinal = replyGuarded;
+    let forcedStylePassed = true;
+    let forcedStyleRetry = false;
+    let forcedStyleReason = "";
+
+    if (intent) {
+      const style = effectiveOutputStyle(intent);
+      const lint1 = lintOutputStyle({ style, intent, reply: replyFinal });
+      if (!lint1.ok) {
+        forcedStylePassed = false;
+        forcedStyleReason = lint1.reason;
+
+        const rewritten = await rewriteToForcedStyle({
+          base,
+          accessToken,
+          userId,
+          sessionId,
+          characterId,
+          chatMode,
+          personaSystem: personaSystemWithRetrieval,
+          gen,
+          attachments: coreAttachments,
+          history: coreHistory,
+          originalUserText: text,
+          draftReply: replyFinal,
+          intent,
+        });
+
+        if (rewritten && typeof rewritten.reply === "string" && rewritten.reply.trim()) {
+          const rewrittenGuarded = sanitizeReplyByContext({
+            characterId,
+            chatMode,
+            reply: rewritten.reply,
+            history: coreHistory,
+            currentUserText: text,
+          });
+          const lint2 = lintOutputStyle({ style, intent, reply: rewrittenGuarded });
+          forcedStyleRetry = true;
+          if (lint2.ok) {
+            forcedStylePassed = true;
+            forcedStyleReason = "";
+            replyFinal = rewrittenGuarded;
+          } else {
+            forcedStyleReason = `rewrite_${lint2.reason}`;
+          }
+        }
+      }
+    }
+
     const mergedMeta = mergeMeta(data.meta ?? null, {
       persona_system_sha256: personaSystemSha256,
       chat_mode: chatMode,
       character_id: characterId,
       seed_turn: isSeedTurn,
+      ...(intent
+        ? {
+            director_overlay: true,
+            intent: intent.intent,
+            intent_confidence: intent.confidence,
+            intent_output_style: intent.output_style,
+            intent_effective_output_style: effectiveOutputStyle(intent),
+            intent_allowed_humor: intent.allowed_humor,
+            intent_urgency: intent.urgency,
+            intent_needs_clarify: intent.needs_clarify,
+            intent_safety_risk: intent.safety_risk,
+            forced_output_style_passed: forcedStylePassed,
+            forced_output_style_retry: forcedStyleRetry,
+            forced_output_style_reason: forcedStyleReason,
+          }
+        : { director_overlay: false }),
     });
 
     const { error: aiInsertError } = await supabase
@@ -938,7 +1313,7 @@ export async function POST(
         user_id: userId,
         app: "touhou",
         role: "ai",
-        content: replyGuarded,
+        content: replyFinal,
         speaker_id: characterId,
         meta: mergedMeta,
       });
@@ -967,7 +1342,7 @@ export async function POST(
 
     return NextResponse.json({
       role: "ai",
-      content: replyGuarded,
+      content: replyFinal,
       meta: mergedMeta,
     });
   }
@@ -1011,6 +1386,19 @@ export async function POST(
     character_id: characterId,
     persona_system_sha256: personaSystemSha256,
     seed_turn: isSeedTurn,
+    ...(intent
+      ? {
+          director_overlay: true,
+          intent: intent.intent,
+          intent_confidence: intent.confidence,
+          intent_output_style: intent.output_style,
+          intent_effective_output_style: effectiveOutputStyle(intent),
+          intent_allowed_humor: intent.allowed_humor,
+          intent_urgency: intent.urgency,
+          intent_needs_clarify: intent.needs_clarify,
+          intent_safety_risk: intent.safety_risk,
+        }
+      : { director_overlay: false }),
   };
 
   let replyAcc = "";
@@ -1071,8 +1459,63 @@ export async function POST(
                   currentUserText: text,
                 });
 
-                replyAcc = replyGuarded;
-                await writer.write(toSse("done", { reply: replyGuarded, meta: finalMeta }));
+                let replyFinal = replyGuarded;
+                let forcedStylePassed = true;
+                let forcedStyleRetry = false;
+                let forcedStyleReason = "";
+
+                if (intent) {
+                  const style = effectiveOutputStyle(intent);
+                  const lint1 = lintOutputStyle({ style, intent, reply: replyFinal });
+                  if (!lint1.ok) {
+                    forcedStylePassed = false;
+                    forcedStyleReason = lint1.reason;
+
+                    const rewritten = await rewriteToForcedStyle({
+                      base,
+                      accessToken,
+                      userId,
+                      sessionId,
+                      characterId,
+                      chatMode,
+                      personaSystem: personaSystemWithRetrieval,
+                      gen,
+                      attachments: coreAttachments,
+                      history: coreHistory,
+                      originalUserText: text,
+                      draftReply: replyFinal,
+                      intent,
+                    });
+
+                    if (rewritten && typeof rewritten.reply === "string" && rewritten.reply.trim()) {
+                      const rewrittenGuarded = sanitizeReplyByContext({
+                        characterId,
+                        chatMode,
+                        reply: rewritten.reply,
+                        history: coreHistory,
+                        currentUserText: text,
+                      });
+                      const lint2 = lintOutputStyle({ style, intent, reply: rewrittenGuarded });
+                      forcedStyleRetry = true;
+                      if (lint2.ok) {
+                        forcedStylePassed = true;
+                        forcedStyleReason = "";
+                        replyFinal = rewrittenGuarded;
+                      } else {
+                        forcedStyleReason = `rewrite_${lint2.reason}`;
+                      }
+                    }
+                  }
+
+                  finalMeta = mergeMeta(finalMeta, {
+                    forced_output_style_passed: forcedStylePassed,
+                    forced_output_style_retry: forcedStyleRetry,
+                    forced_output_style_reason: forcedStyleReason,
+                  });
+                }
+
+                replyAcc = replyFinal;
+                await writer.write(toSse("done", { reply: replyFinal, meta: finalMeta }));
               } catch {
                 await writer.write(`event: done\ndata: ${dataRaw}\n\n`);
               }
