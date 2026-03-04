@@ -41,23 +41,38 @@ export default function EntryInfoSection() {
         </div>
         <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
           <div className="text-sm font-semibold">プロンプト版の見方</div>
-          <div className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
+          <div className="mt-3 space-y-3 text-sm leading-relaxed text-muted-foreground">
             <p>
               キャラカードに表示される{" "}
               <code className="rounded bg-muted px-1 py-0.5">B-YYYYMMDD</code>{" "}
-              / <code className="rounded bg-muted px-1 py-0.5">β-YYYYMMDD</code>
-              は、ロールプレイ用プロンプトの調整版です。
+              /{" "}
+              <code className="rounded bg-muted px-1 py-0.5">beta-YYYYMMDD</code>
+              は、ロールプレイ用プロンプトの調整版です（現状は{" "}
+              <span className="font-medium text-foreground/80">2種類</span>）。
             </p>
+
+            <ul className="ml-4 list-disc space-y-1">
+              <li>
+                <code className="rounded bg-muted px-1 py-0.5">B-YYYYMMDD</code>
+                ：作り込み済み（再現度優先／会話の崩れを抑えるガード込み）。現在は{" "}
+                <span className="font-medium text-foreground/80">
+                  霊夢・魔理沙・アリス・こいし
+                </span>{" "}
+                が該当します。
+              </li>
+              <li>
+                <code className="rounded bg-muted px-1 py-0.5">
+                  beta-YYYYMMDD
+                </code>
+                ：調整途中のベータ表記です（今後内容が変わる場合があります）。
+              </li>
+            </ul>
+
             <p>
-              <span className="font-medium text-foreground/80">B</span> は調整方針、
               <span className="font-medium text-foreground/80">YYYYMMDD</span>{" "}
               は更新日です（例：{" "}
               <code className="rounded bg-muted px-1 py-0.5">B-20260305</code>
               ）。
-            </p>
-            <p>
-              <span className="font-medium text-foreground/80">β</span>{" "}
-              は調整中のベータ表記です（今後内容が変わる場合があります）。
             </p>
           </div>
         </div>
