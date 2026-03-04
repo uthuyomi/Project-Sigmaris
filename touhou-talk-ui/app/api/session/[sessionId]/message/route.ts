@@ -106,6 +106,12 @@ function normalizePersonaIntent(params: {
 }): PersonaIntentResponse {
   const out: PersonaIntentResponse = { ...params.intent };
 
+  const explicitChoice2 = /\bA\)|\bB\)|2択|二択|二つ|2つ|選んで|どちらか|どっちか/i.test(params.userText);
+  const explicitBullet3 = /(箇条書き|リスト|列挙).*(3つ|三つ|3個|三個|3点|三点|3項|三項|3行|三行)/i.test(params.userText);
+
+  if (out.output_style === "choice_2" && !explicitChoice2) out.output_style = "normal";
+  if (out.output_style === "bullet_3" && !explicitBullet3) out.output_style = "normal";
+
   // Reimu roleplay: if the user gives a vague-but-valid answer to a question, keep the flow.
   if (params.chatMode === "roleplay" && params.characterId === "reimu") {
     const lastA = lastAssistantContent(params.history);
@@ -514,6 +520,15 @@ function sanitizeReplyByContext(params: {
       out = out.replace(/\n{3,}/g, "\n\n").trim();
       if (!out) out = before;
     }
+  }
+
+  // 3.5) Reimu: don't open with “やっほー” (tone mismatch).
+  if (params.chatMode === "roleplay" && params.characterId === "reimu") {
+    const before = out;
+    out = out.replace(/(^|\n)\s*やっほー[。！!…]*\s*/g, "$1");
+    out = out.replace(/(^|\n)\s*やっほ[。！!…]*\s*/g, "$1");
+    out = out.replace(/\n{3,}/g, "\n\n").trim();
+    if (!out) out = before;
   }
 
   // 4) Reimu: avoid “心情の分類（二択）”質問がカウンセラーっぽくなるのを抑える

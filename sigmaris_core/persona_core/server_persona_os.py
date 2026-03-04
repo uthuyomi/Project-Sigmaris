@@ -840,6 +840,9 @@ _VAGUE_BUT_VALID_RE = re.compile(
 
 _SHORT_ACK_RE = re.compile(r"^(?:うん|そう|なるほど|はい|ええ|うーん|んー|ん|まぁ|まあ|ふーん)(?:[。．!！…]*)$")
 
+_EXPLICIT_CHOICE2_RE = re.compile(r"(?:\bA\)|\bB\)|2択|二択|二つ|2つ|選んで|どちらか|どっちか)")
+_EXPLICIT_BULLET3_RE = re.compile(r"(?:箇条書き|リスト|列挙).*(?:3つ|三つ|3個|三個|3点|三点|3項|三項|3行|三行)")
+
 
 def _looks_like_question(text: str) -> bool:
     s = (text or "").strip()
@@ -1166,6 +1169,13 @@ async def persona_intent(req: PersonaIntentRequest, auth: Optional[AuthContext] 
 
         last_a = _last_assistant_content(history)
         msg = (message or "").strip()
+
+        # Only use structured output styles when the user explicitly asks.
+        if getattr(parsed, "output_style", None) in ("choice_2", "bullet_3"):
+            if parsed.output_style == "choice_2" and not _EXPLICIT_CHOICE2_RE.search(msg or ""):
+                parsed.output_style = "normal"
+            if parsed.output_style == "bullet_3" and not _EXPLICIT_BULLET3_RE.search(msg or ""):
+                parsed.output_style = "normal"
 
         # If the assistant just asked a question and the user answered with a non-trivial message,
         # do not force clarify mode (even if the classifier got confused).
