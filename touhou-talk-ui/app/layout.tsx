@@ -4,6 +4,7 @@ import "./globals.css";
 import { TouhouThemeInit } from "@/components/TouhouThemeInit";
 import { EnvGuard } from "@/components/EnvGuard";
 import PwaRegister from "@/components/pwa/PwaRegister";
+import PwaBootRedirect from "@/components/pwa/PwaBootRedirect";
 
 function resolveSiteUrl(): string {
   const raw = String(process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
@@ -125,6 +126,7 @@ export default function RootLayout({
       <body className="min-h-svh bg-background text-foreground antialiased">
         <TouhouThemeInit />
         <PwaRegister />
+        <PwaBootRedirect />
         <EnvGuard>{children}</EnvGuard>
         <Analytics />
       </body>
