@@ -20,6 +20,7 @@ import {
 } from "@assistant-ui/react";
 
 import { Thread } from "@/components/assistant-ui/thread";
+import { ThreadSearch } from "@/components/assistant-ui/thread-search";
 import { TouhouSidebar } from "@/components/assistant-ui/touhou-sidebar";
 import { TouhouUiProvider } from "@/components/assistant-ui/touhou-ui-context";
 import {
@@ -1159,14 +1160,16 @@ export default function ChatClient() {
 
                 <SidebarTrigger />
                 <Separator orientation="vertical" className="mr-2 h-4" />
-                <div className="min-w-0">
-                  <div className="truncate font-gensou text-sm">
-                    {activeCharacter?.name ?? "キャラを選択"}
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {activeSessionId ? "セッション: " + activeSessionId : "—"}
-                  </div>
-                </div>
+               <div className="min-w-0">
+                 <div className="truncate font-gensou text-sm">
+                   {activeCharacter?.name ?? "キャラを選択"}
+                 </div>
+                 <div className="truncate text-xs text-muted-foreground">
+                   {activeSessionId ? "セッション: " + activeSessionId : "—"}
+                 </div>
+               </div>
+
+                <ThreadSearch activeSessionId={activeSessionId} />
               </header>
 
               {/* Chat */}
