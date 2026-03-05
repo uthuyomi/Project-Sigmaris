@@ -39,8 +39,38 @@ export default function EntryInfoSection() {
             本サービスは個人の負担で運営しております。混雑状況により、一時的に提供を停止する場合がございます。あらかじめご了承ください。
           </div>
         </div>
+        <div className="rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm">
+          <div className="text-sm font-semibold">プロンプト版の見方</div>
+          <div className="mt-3 space-y-3 text-sm leading-relaxed text-muted-foreground">
+            <p>
+              キャラカードに表示される{" "}
+              <code className="rounded bg-muted px-1 py-0.5">B-YYYYMMDD</code>{" "}
+              /{" "}
+              <code className="rounded bg-muted px-1 py-0.5">beta</code>
+              は、ロールプレイ用プロンプトの調整状態を表します（現状は{" "}
+              <span className="font-medium text-foreground/80">2種類</span>）。
+            </p>
+
+            <ul className="ml-4 list-disc space-y-1">
+              <li>
+                <code className="rounded bg-muted px-1 py-0.5">B-YYYYMMDD</code>
+                ：作り込み済み（再現度優先／会話の崩れを抑えるガード込み）
+              </li>
+              <li>
+                <code className="rounded bg-muted px-1 py-0.5">beta</code>
+                ：調整中のベータ表記です（今後内容が変わる場合があります）
+              </li>
+            </ul>
+
+            <p>
+              <span className="font-medium text-foreground/80">YYYYMMDD</span>{" "}
+              は更新日です（例：{" "}
+              <code className="rounded bg-muted px-1 py-0.5">B-20260305</code>
+              ）。
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
-
