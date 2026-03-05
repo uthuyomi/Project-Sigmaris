@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon, SearchIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 type Hit = {
@@ -78,6 +77,10 @@ function flashHighlight(el: HTMLElement) {
 export function ThreadSearch(props: { activeSessionId: string | null }) {
   const { activeSessionId } = props;
 
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [hitCount, setHitCount] = useState(0);
   const [hitIndex, setHitIndex] = useState(0);
@@ -112,12 +115,21 @@ export function ThreadSearch(props: { activeSessionId: string | null }) {
     [hasSession],
   );
 
+  const resizeTextarea = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const max = 160;
+    el.style.height = Math.min(el.scrollHeight, max) + "px";
+  }, []);
+
   // Reset on session switch.
   useEffect(() => {
     setQuery("");
     hitsRef.current = [];
     setHitCount(0);
     setHitIndex(0);
+    setOpen(false);
   }, [activeSessionId]);
 
   // Debounced search
@@ -132,6 +144,26 @@ export function ThreadSearch(props: { activeSessionId: string | null }) {
     const handle = window.setTimeout(() => recomputeHits(query), 150);
     return () => window.clearTimeout(handle);
   }, [query, recomputeHits]);
+
+  // Auto-resize the textarea while open.
+  useEffect(() => {
+    if (!open) return;
+    resizeTextarea();
+  }, [open, query, resizeTextarea]);
+
+  // Click outside to close.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const root = rootRef.current;
+      if (!root) return;
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (!root.contains(target)) setOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open]);
 
   const goTo = useCallback((idx: number) => {
     const hits = hitsRef.current;
@@ -156,72 +188,115 @@ export function ThreadSearch(props: { activeSessionId: string | null }) {
   }, [goTo, hitCount, hitIndex]);
 
   return (
-    <div className="ml-auto flex min-w-0 items-center gap-2">
-      <div className="relative w-56 min-w-0 max-md:w-44 max-sm:w-36">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setQuery("");
-              e.currentTarget.blur();
-              return;
-            }
-            if (e.key === "Enter") {
-              e.preventDefault();
-              recomputeHits(query);
-              if (e.shiftKey) goPrev();
-              else goNext();
-            }
+    <div
+      ref={rootRef}
+      className="ml-auto flex items-center justify-end"
+      data-open={open ? "true" : "false"}
+    >
+      <div className="relative">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn(
+            "rounded-full",
+            open && "bg-muted-foreground/15 hover:bg-muted-foreground/20",
+          )}
+          onClick={() => {
+            if (!hasSession) return;
+            setOpen((v) => !v);
+            window.setTimeout(() => textareaRef.current?.focus(), 0);
           }}
-          placeholder={hasSession ? "スレッド内検索" : "検索（未選択）"}
           disabled={!hasSession}
-          className="h-9 pr-8 pl-8 text-sm"
-          aria-label="スレッド内検索"
-        />
-        {query ? (
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted/60"
-            aria-label="検索をクリア"
-          >
-            <XIcon className="size-4" />
-          </button>
-        ) : null}
-      </div>
+          aria-label="スレッド内検索を開く"
+        >
+          <SearchIcon className="size-4" />
+        </Button>
 
-      <div
-        className={cn(
-          "flex items-center gap-1 text-muted-foreground text-xs",
-          !query.trim() && "opacity-0 pointer-events-none max-sm:hidden",
-        )}
-        aria-hidden={!query.trim()}
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          onClick={goPrev}
-          disabled={hitCount <= 0}
-          aria-label="前の一致へ"
-        >
-          <ChevronUpIcon className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          onClick={goNext}
-          disabled={hitCount <= 0}
-          aria-label="次の一致へ"
-        >
-          <ChevronDownIcon className="size-4" />
-        </Button>
-        <div className="w-14 text-center tabular-nums">{counterLabel}</div>
+        {open ? (
+          <div className="absolute right-0 top-full z-50 mt-2 w-[min(520px,calc(100vw-2rem))] rounded-xl border bg-background/90 p-3 shadow-lg backdrop-blur">
+            <div className="flex items-start gap-2">
+              <div className="flex-1">
+                <textarea
+                  ref={textareaRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if ((e.nativeEvent as unknown as { isComposing?: boolean })?.isComposing) return;
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setOpen(false);
+                      return;
+                    }
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      recomputeHits(query);
+                      if (e.shiftKey) goPrev();
+                      else goNext();
+                    }
+                  }}
+                  placeholder="スレッド内検索（Enterで次 / Shift+Enterで前）"
+                  className={cn(
+                    "w-full resize-none rounded-lg border border-input bg-background/70 px-3 py-2 text-sm text-foreground shadow-xs outline-none",
+                    "placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  )}
+                  rows={1}
+                  aria-label="スレッド内検索"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <div className="text-muted-foreground text-xs tabular-nums">
+                    {query.trim() ? counterLabel : ""}
+                  </div>
+                  <div
+                    className={cn(
+                      "flex items-center gap-1",
+                      !query.trim() && "opacity-50",
+                    )}
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={goPrev}
+                      disabled={hitCount <= 0}
+                      aria-label="前の一致へ"
+                    >
+                      <ChevronUpIcon className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={goNext}
+                      disabled={hitCount <= 0}
+                      aria-label="次の一致へ"
+                    >
+                      <ChevronDownIcon className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 rounded-full"
+                onClick={() => {
+                  setQuery("");
+                  setHitCount(0);
+                  setHitIndex(0);
+                  hitsRef.current = [];
+                  textareaRef.current?.focus();
+                }}
+                aria-label="検索をクリア"
+              >
+                <XIcon className="size-4" />
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
-
