@@ -174,7 +174,7 @@ export default function PwaInstallButton() {
 
         <OsButton
           icon={<FaWindows />}
-          label="Windows"
+          label="Windows（Electron）"
           description={
             deferred
               ? "ブラウザのインストール機能でデスクトップに追加できます。"

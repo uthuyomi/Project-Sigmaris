@@ -1,13 +1,4 @@
-import Link from "next/link";
-
 import PwaInstallButton from "@/components/pwa/PwaInstallButton";
-import { Button } from "@/components/ui/button";
-
-const DESKTOP_DOWNLOAD_URL =
-  process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL ??
-  "https://github.com/kawasironitori-developer/Project-Sigmaris/releases";
-const DESKTOP_DOWNLOAD_LABEL =
-  process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_LABEL ?? "Windows版（Electron）をダウンロード";
 
 export default function EntryInstallSection() {
   return (
@@ -20,19 +11,7 @@ export default function EntryInstallSection() {
       <p className="text-sm text-muted-foreground">
         スマートフォンやPCのホームに追加しておくと、次回からすぐに起動できます。
       </p>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <PwaInstallButton />
-        <Button asChild variant="secondary">
-          <Link href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noreferrer">
-            {DESKTOP_DOWNLOAD_LABEL}
-          </Link>
-        </Button>
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        PCアプリ上でVRM/TTSの追加・設定ができます。
-      </p>
+      <PwaInstallButton />
     </section>
   );
 }
