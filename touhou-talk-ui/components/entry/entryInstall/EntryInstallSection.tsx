@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 const DESKTOP_DOWNLOAD_URL =
   process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL ??
-  "https://github.com/uthuyomi/Project-Sigmaris/releases/tag/touhou-talk-desktop-v0.1.0";
+  "https://github.com/uthuyomi/Project-Sigmaris/releases/tag/touhou-talk-desktop-v0.1.1";
 const DESKTOP_DOWNLOAD_LABEL =
   process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_LABEL ?? "Windows版（Electron）をダウンロード";
 
