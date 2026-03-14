@@ -699,7 +699,16 @@ export default function VrmStage({
           // use it for expressions / lip-sync / look offsets only.
           void (async () => {
             try {
-              const res = await fetch("/api/motions", { cache: "no-store" });
+              let qs = "";
+              try {
+                const idMatch = normalizedUrl.match(/\/api\/vrm\/([^/?#]+)/);
+                const id = idMatch ? decodeURIComponent(idMatch[1] ?? "") : null;
+                if (id) qs = `?char=${encodeURIComponent(id)}`;
+              } catch {
+                qs = "";
+              }
+
+              const res = await fetch(`/api/motions${qs}`, { cache: "no-store" });
               const data = (await res.json()) as {
                 motions?: Array<{ name: string; kind: "idle" | "talk" | "gesture"; url: string }>;
               };
