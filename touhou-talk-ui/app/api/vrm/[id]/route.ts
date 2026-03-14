@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import {
+  characterRootDir,
+  characterVrmPath,
+  getDesktopUserDataDir,
+  isDesktopRuntimeEnabled,
+} from "@/lib/desktop/desktopPaths";
+import {
+  loadCharacterSettings,
+  safeJoinInside,
+  sanitizeCharacterId,
+} from "@/lib/desktop/desktopSettingsStore";
 
 function safeId(raw: string): string | null {
   const id = String(raw ?? "").trim();
@@ -11,6 +22,29 @@ function safeId(raw: string): string | null {
 
 function vrmPathForId(id: string) {
   return path.join(process.cwd(), "vrm-characters", `${id}.vrm`);
+}
+
+async function resolveVrmFilePath(id: string): Promise<string> {
+  if (isDesktopRuntimeEnabled()) {
+    const userData = getDesktopUserDataDir();
+    const char = sanitizeCharacterId(id);
+    if (userData && char) {
+      const s = await loadCharacterSettings(char);
+      if (s?.vrm?.enabled === false) {
+        throw Object.assign(new Error("VRM disabled"), { code: "DISABLED" });
+      }
+      const root = characterRootDir(userData, char);
+      const rel = typeof s?.vrm?.path === "string" && s.vrm.path ? s.vrm.path : "avatar.vrm";
+      const abs = s?.vrm?.enabled ? safeJoinInside(root, rel) : characterVrmPath(userData, char);
+      try {
+        const st = await fs.stat(abs);
+        if (st.isFile()) return abs;
+      } catch {
+        // ignore, fallback to bundled
+      }
+    }
+  }
+  return vrmPathForId(id);
 }
 
 async function unwrapParams(
@@ -35,8 +69,8 @@ export async function HEAD(
   const id = safeId(params?.id as string);
   if (!id) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const filePath = vrmPathForId(id);
   try {
+    const filePath = await resolveVrmFilePath(id);
     const st = await fs.stat(filePath);
     if (!st.isFile()) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -64,8 +98,8 @@ export async function GET(_req: Request, ctx: { params: unknown }) {
   const id = safeId(params?.id as string);
   if (!id) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const filePath = vrmPathForId(id);
   try {
+    const filePath = await resolveVrmFilePath(id);
     const buf = await fs.readFile(filePath);
     return new NextResponse(buf, {
       status: 200,
@@ -75,8 +109,11 @@ export async function GET(_req: Request, ctx: { params: unknown }) {
       },
     });
   } catch (e) {
-    const code = (e as { code?: unknown } | null)?.code;
-    if (code === "ENOENT") {
+    const errCode = (e as { code?: unknown } | null)?.code;
+    if (errCode === "DISABLED") {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (errCode === "ENOENT") {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

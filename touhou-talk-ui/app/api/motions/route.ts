@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import {
+  characterMotionLibraryDir,
+  characterRootDir,
+  getDesktopUserDataDir,
+  isDesktopRuntimeEnabled,
+} from "@/lib/desktop/desktopPaths";
+import {
+  loadCharacterSettings,
+  safeJoinInside,
+  sanitizeCharacterId,
+} from "@/lib/desktop/desktopSettingsStore";
+
+export const runtime = "nodejs";
 
 type MotionKind = "idle" | "talk" | "gesture";
 
@@ -37,12 +50,67 @@ function kindFromFilename(baseName: string): MotionKind {
   return "gesture";
 }
 
-export async function GET() {
-  const root = motionLibraryRoot();
+async function resolveMotionContext(req: Request): Promise<{
+  rootDir: string;
+  motionsJsonAbs: string;
+  urlQuery: string;
+  allowFallbackScan: boolean;
+  disabled: boolean;
+}> {
+  const u = new URL(req.url);
+  const char = sanitizeCharacterId(u.searchParams.get("char") ?? "");
+
+  if (char && isDesktopRuntimeEnabled()) {
+    const userData = getDesktopUserDataDir();
+    if (userData) {
+      const s = await loadCharacterSettings(char);
+      if (s?.motions?.enabled === false) {
+        // Explicitly disabled for this character => empty list.
+        return {
+          rootDir: characterMotionLibraryDir(userData, char),
+          motionsJsonAbs: path.join(characterMotionLibraryDir(userData, char), "motions.json"),
+          urlQuery: `?char=${encodeURIComponent(char)}`,
+          allowFallbackScan: false,
+          disabled: true,
+        };
+      }
+
+      const root = characterRootDir(userData, char);
+      const rel = typeof s?.motions?.indexPath === "string" && s.motions.indexPath ? s.motions.indexPath : null;
+      const motionsJsonAbs = rel ? safeJoinInside(root, rel) : path.join(characterMotionLibraryDir(userData, char), "motions.json");
+      return {
+        rootDir: path.dirname(motionsJsonAbs),
+        motionsJsonAbs,
+        urlQuery: `?char=${encodeURIComponent(char)}`,
+        allowFallbackScan: true,
+        disabled: false,
+      };
+    }
+  }
+
+  return {
+    rootDir: motionLibraryRoot(),
+    motionsJsonAbs: motionsJsonPath(),
+    urlQuery: "",
+    allowFallbackScan: true,
+    disabled: false,
+  };
+}
+
+export async function GET(req: Request) {
+  const ctx = await resolveMotionContext(req);
+  const root = ctx.rootDir;
+
+  if (ctx.disabled) {
+    return NextResponse.json(
+      { version: 1, motions: [] },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   let motions: MotionEntry[] = [];
   try {
-    const raw = await fs.readFile(motionsJsonPath(), "utf8");
+    const raw = await fs.readFile(ctx.motionsJsonAbs, "utf8");
     const parsed = JSON.parse(raw) as { motions?: unknown };
     const arr = Array.isArray(parsed?.motions) ? (parsed.motions as unknown[]) : [];
     motions = arr
@@ -63,9 +131,10 @@ export async function GET() {
   }
 
   // Fallback: if motions.json is empty/missing, auto-discover converted/glb/*.glb.
-  if (motions.length === 0) {
+  if (ctx.allowFallbackScan && motions.length === 0) {
     try {
-      const files = await fs.readdir(convertedGlbRoot(), { withFileTypes: true });
+      const scanDir = path.join(root, "converted", "glb");
+      const files = await fs.readdir(scanDir, { withFileTypes: true });
       motions = files
         .filter((d) => d.isFile() && d.name.toLowerCase().endsWith(".glb"))
         .map((d) => {
@@ -86,20 +155,20 @@ export async function GET() {
   // Validate that referenced files stay inside the motion-library root and exist.
   const visible: Array<{ name: string; kind: MotionKind; url: string; source?: string }> = [];
   for (const m of motions) {
-    try {
-      const abs = path.resolve(root, m.path);
-      if (!abs.startsWith(path.resolve(root) + path.sep)) continue;
-      const st = await fs.stat(abs);
-      if (!st.isFile()) continue;
-      visible.push({
-        name: m.name,
-        kind: m.kind,
-        url: `/api/motions/${encodeURIComponent(m.name)}`,
-        source: m.source,
-      });
-    } catch {
-      // ignore missing
-    }
+      try {
+        const abs = path.resolve(root, m.path);
+        if (!abs.startsWith(path.resolve(root) + path.sep)) continue;
+        const st = await fs.stat(abs);
+        if (!st.isFile()) continue;
+        visible.push({
+          name: m.name,
+          kind: m.kind,
+          url: `/api/motions/${encodeURIComponent(m.name)}${ctx.urlQuery}`,
+          source: m.source,
+        });
+      } catch {
+        // ignore missing
+      }
   }
 
   return NextResponse.json(

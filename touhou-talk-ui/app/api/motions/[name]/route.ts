@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import {
+  characterMotionLibraryDir,
+  characterRootDir,
+  getDesktopUserDataDir,
+  isDesktopRuntimeEnabled,
+} from "@/lib/desktop/desktopPaths";
+import {
+  loadCharacterSettings,
+  safeJoinInside,
+  sanitizeCharacterId,
+} from "@/lib/desktop/desktopSettingsStore";
+
+export const runtime = "nodejs";
 
 function safeName(raw: unknown): string | null {
   const name = String(raw ?? "").trim();
@@ -30,10 +43,30 @@ async function unwrapParams(
   }
 }
 
-async function resolvePathByName(name: string): Promise<string | null> {
-  // Primary source: motions.json mapping.
+async function resolveMotionContext(req: Request): Promise<{
+  rootDir: string;
+  motionsJsonAbs: string;
+}> {
+  const u = new URL(req.url);
+  const char = sanitizeCharacterId(u.searchParams.get("char") ?? "");
+  if (char && isDesktopRuntimeEnabled()) {
+    const userData = getDesktopUserDataDir();
+    if (userData) {
+      const s = await loadCharacterSettings(char);
+      const root = characterRootDir(userData, char);
+      const rel = typeof s?.motions?.indexPath === "string" && s.motions.indexPath ? s.motions.indexPath : null;
+      const motionsJsonAbs = rel
+        ? safeJoinInside(root, rel)
+        : path.join(characterMotionLibraryDir(userData, char), "motions.json");
+      return { rootDir: path.dirname(motionsJsonAbs), motionsJsonAbs };
+    }
+  }
+  return { rootDir: motionLibraryRoot(), motionsJsonAbs: motionsJsonPath() };
+}
+
+async function resolvePathByNameWithIndex(name: string, motionsJsonAbs: string): Promise<string | null> {
   try {
-    const raw = await fs.readFile(motionsJsonPath(), "utf8");
+    const raw = await fs.readFile(motionsJsonAbs, "utf8");
     const parsed = JSON.parse(raw) as { motions?: unknown };
     const arr = Array.isArray(parsed?.motions) ? (parsed.motions as unknown[]) : [];
     for (const m of arr) {
@@ -45,18 +78,17 @@ async function resolvePathByName(name: string): Promise<string | null> {
   } catch {
     // ignore
   }
-
-  // Fallback: converted/glb/{name}.glb
   return path.posix.join("converted", "glb", `${name}.glb`);
 }
 
-export async function GET(_req: Request, ctx: { params: unknown }) {
+export async function GET(req: Request, ctx: { params: unknown }) {
   const params = await unwrapParams(ctx);
   const name = safeName(params?.name as string);
   if (!name) return NextResponse.json({ error: "Invalid name" }, { status: 400 });
 
-  const root = motionLibraryRoot();
-  const rel = await resolvePathByName(name);
+  const motionCtx = await resolveMotionContext(req);
+  const root = motionCtx.rootDir;
+  const rel = await resolvePathByNameWithIndex(name, motionCtx.motionsJsonAbs);
   if (!rel) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const abs = path.resolve(root, rel);

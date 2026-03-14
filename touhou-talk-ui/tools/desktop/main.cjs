@@ -25,6 +25,91 @@ function readEnvFile(p) {
   }
 }
 
+function mergeDefaultsIntoEnvFile(envPath, defaults) {
+  if (!defaults) return false;
+
+  const current = readEnvFile(envPath) || {};
+
+  const getOrEmpty = (k) => String(current[k] ?? "").trim();
+  const setIfMissing = (k, v) => {
+    if (getOrEmpty(k)) return false;
+    if (!String(v ?? "").trim()) return false;
+    current[k] = String(v).trim();
+    return true;
+  };
+  const setIfEmptyOrTemplateDefault = (k, v, templateDefault) => {
+    const cur = getOrEmpty(k);
+    if (!cur || cur === String(templateDefault ?? "").trim()) {
+      if (!String(v ?? "").trim()) return false;
+      current[k] = String(v).trim();
+      return true;
+    }
+    return false;
+  };
+
+  let changed = false;
+
+  // Prefer NEXT_PUBLIC_* for browser client; also keep server aliases in sync.
+  const url =
+    String(defaults.NEXT_PUBLIC_SUPABASE_URL ?? defaults.SUPABASE_URL ?? "").trim();
+  const anon =
+    String(defaults.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? defaults.SUPABASE_ANON_KEY ?? "").trim();
+  const sigmarisCoreUrl =
+    String(defaults.SIGMARIS_CORE_URL ?? defaults.NEXT_PUBLIC_SIGMARIS_CORE ?? "").trim();
+  const autoBrowseEnabled =
+    String(defaults.TOUHOU_AUTO_BROWSE_ENABLED ?? "").trim();
+  const uploadEnabled =
+    String(defaults.TOUHOU_UPLOAD_ENABLED ?? "").trim();
+
+  changed = setIfMissing("NEXT_PUBLIC_SUPABASE_URL", url) || changed;
+  changed = setIfMissing("NEXT_PUBLIC_SUPABASE_ANON_KEY", anon) || changed;
+  changed = setIfMissing("SUPABASE_URL", url) || changed;
+  changed = setIfMissing("SUPABASE_ANON_KEY", anon) || changed;
+  changed =
+    setIfEmptyOrTemplateDefault(
+      "SIGMARIS_CORE_URL",
+      sigmarisCoreUrl,
+      "http://127.0.0.1:8000",
+    ) || changed;
+  changed =
+    setIfEmptyOrTemplateDefault(
+      "NEXT_PUBLIC_SIGMARIS_CORE",
+      sigmarisCoreUrl,
+      "",
+    ) || changed;
+  changed = setIfMissing("TOUHOU_AUTO_BROWSE_ENABLED", autoBrowseEnabled) || changed;
+  changed = setIfMissing("TOUHOU_UPLOAD_ENABLED", uploadEnabled) || changed;
+
+  if (!changed) return false;
+
+  const lines = [
+    "# Touhou Talk Desktop env (local only)",
+    "",
+    "# Supabase",
+    `NEXT_PUBLIC_SUPABASE_URL=${String(current.NEXT_PUBLIC_SUPABASE_URL ?? "")}`,
+    `NEXT_PUBLIC_SUPABASE_ANON_KEY=${String(current.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "")}`,
+    `SUPABASE_URL=${String(current.SUPABASE_URL ?? "")}`,
+    `SUPABASE_ANON_KEY=${String(current.SUPABASE_ANON_KEY ?? "")}`,
+    "SUPABASE_SERVICE_ROLE_KEY=",
+    "",
+    "# Backend Persona OS URL (FastAPI / sigmaris_core)",
+    `SIGMARIS_CORE_URL=${String(current.SIGMARIS_CORE_URL ?? "http://127.0.0.1:8000")}`,
+    `NEXT_PUBLIC_SIGMARIS_CORE=${String(current.NEXT_PUBLIC_SIGMARIS_CORE ?? "")}`,
+    "",
+    "# Optional: force port",
+    `TOUHOU_DESKTOP_PORT=${String(current.TOUHOU_DESKTOP_PORT ?? "3789")}`,
+    "",
+  ].join("\n");
+
+  try {
+    fs.mkdirSync(path.dirname(envPath), { recursive: true });
+    fs.writeFileSync(envPath, lines, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function ensureEnvTemplate(envPath) {
   if (fs.existsSync(envPath)) return;
   const tpl = [
@@ -86,6 +171,14 @@ function applyEnvFromDisk() {
 
   process.env.TOUHOU_DESKTOP_ENV_PATH = envPath;
   process.env.TOUHOU_DESKTOP_USERDATA_DIR = app.getPath("userData");
+
+  // Auto-fill public Supabase config from desktop bundle defaults (if available).
+  // This lets end users log in without manually editing the env file.
+  try {
+    const bundleDefault = path.join(bundleRoot(), "default.env");
+    const defaults = fs.existsSync(bundleDefault) ? readEnvFile(bundleDefault) : null;
+    mergeDefaultsIntoEnvFile(envPath, defaults);
+  } catch {}
 
   const vars = readEnvFile(envPath);
   if (!vars) return;
