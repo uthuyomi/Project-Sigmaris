@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Rgb = { r: number; g: number; b: number };
 
@@ -24,10 +24,30 @@ function rgba(c: Rgb, a: number) {
 }
 
 function useReducedMotion(): boolean {
-  return useMemo(() => {
-    if (typeof window === "undefined") return true;
-    return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+  // Avoid hydration mismatches by deferring `window` access to after mount.
+  const [reduced, setReduced] = useState(true);
+
+  useEffect(() => {
+    const mql = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(Boolean(mql?.matches));
+    update();
+
+    if (!mql) return;
+    try {
+      mql.addEventListener("change", update);
+      return () => mql.removeEventListener("change", update);
+    } catch {
+      // Safari old API
+      // eslint-disable-next-line deprecation/deprecation
+      mql.addListener?.(update);
+      return () => {
+        // eslint-disable-next-line deprecation/deprecation
+        mql.removeListener?.(update);
+      };
+    }
   }, []);
+
+  return reduced;
 }
 
 type Bullet = {
@@ -60,9 +80,9 @@ export default function EntryDanmakuCanvas() {
   const colorProbeRef = useRef<HTMLSpanElement | null>(null);
   const reducedMotion = useReducedMotion();
 
-  if (reducedMotion) return null;
-
   useEffect(() => {
+    if (reducedMotion) return;
+
     const canvasEl = canvasRef.current;
     if (!canvasEl) return;
     const canvas = canvasEl;
@@ -408,7 +428,9 @@ export default function EntryDanmakuCanvas() {
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [reducedMotion]);
+
+  if (reducedMotion) return null;
 
   return (
     <>

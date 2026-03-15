@@ -1064,12 +1064,39 @@ function enforceOrigin(req: NextRequest) {
   // If Origin header is missing, treat as same-origin (some clients / SSR fetches).
   if (!reqOrigin) return;
 
+  const isLoopbackHost = (host: string) =>
+    host === "localhost" || host === "127.0.0.1" || host === "::1";
+
+  const tryParse = (o: string) => {
+    try {
+      return new URL(o);
+    } catch {
+      return null;
+    }
+  };
+
+  // Electron can send `Origin: null` depending on how the window is loaded.
+  // Allow it only for Electron + loopback requests.
+  if (reqOrigin === "null") {
+    const ua = req.headers.get("user-agent") ?? "";
+    const same = tryParse(sameOrigin);
+    if (ua.includes("Electron") && same && isLoopbackHost(same.hostname)) return;
+  }
+
   const allowed = allowedRaw
     ? allowedRaw.split(",").map((s) => s.trim()).filter(Boolean)
     : [sameOrigin];
 
   if (!allowed.includes(reqOrigin)) {
-    throw new Error(`Origin not allowed: ${reqOrigin}`);
+    // In dev/desktop, localhost and 127.0.0.1 are effectively the same origin for our purposes.
+    // Next dev and Electron may disagree on which hostname they use, causing false 403s.
+    const reqU = tryParse(reqOrigin);
+    const sameU = tryParse(sameOrigin);
+    if (reqU && sameU && reqU.protocol === sameU.protocol && reqU.port === sameU.port) {
+      if (isLoopbackHost(reqU.hostname) && isLoopbackHost(sameU.hostname)) return;
+    }
+
+    throw new Error(`Origin not allowed: ${reqOrigin} (expected ${allowed.join(", ")})`);
   }
 }
 
@@ -1526,24 +1553,38 @@ export async function POST(
   }
 
   // ---- streaming: proxy SSE from Sigmaris core and persist on done ----
-  const upstream = await fetch(`${base}/persona/chat/stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify({
-      user_id: userId,
-      session_id: sessionId,
-      message: augmentedText,
-      history: coreHistory,
-      character_id: characterId,
-      chat_mode: chatMode,
-      persona_system: personaSystemWithRetrieval,
-      gen,
-      attachments: coreAttachments,
-    }),
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${base}/persona/chat/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        session_id: sessionId,
+        message: augmentedText,
+        history: coreHistory,
+        character_id: characterId,
+        chat_mode: chatMode,
+        persona_system: personaSystemWithRetrieval,
+        gen,
+        attachments: coreAttachments,
+      }),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[touhou] core stream fetch failed:", { base, msg });
+    return NextResponse.json(
+      {
+        error: "Persona core is unreachable",
+        base,
+        detail: msg,
+      },
+      { status: 502 },
+    );
+  }
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text().catch(() => "");

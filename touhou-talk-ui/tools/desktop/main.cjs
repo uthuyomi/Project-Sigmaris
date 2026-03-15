@@ -5,6 +5,14 @@ const path = require("node:path");
 
 const isDev = !app.isPackaged;
 
+// Allow dev/pro users to force userData dir (also enables desktop runtime in Next dev).
+const requestedUserDataDir = String(process.env.TOUHOU_DESKTOP_USERDATA_DIR ?? "").trim();
+if (requestedUserDataDir) {
+  try {
+    app.setPath("userData", requestedUserDataDir);
+  } catch {}
+}
+
 function readEnvFile(p) {
   try {
     const txt = fs.readFileSync(p, "utf8");
@@ -172,19 +180,42 @@ function applyEnvFromDisk() {
   process.env.TOUHOU_DESKTOP_ENV_PATH = envPath;
   process.env.TOUHOU_DESKTOP_USERDATA_DIR = app.getPath("userData");
 
-  // Auto-fill public Supabase config from desktop bundle defaults (if available).
-  // This lets end users log in without manually editing the env file.
+  // Load bundled defaults FIRST and treat them as highest priority.
+  // User env file will only fill in missing values (so defaults always win).
+  // Safety: never load service role keys from defaults.
+  let defaultVars = null;
   try {
     const bundleDefault = path.join(bundleRoot(), "default.env");
-    const defaults = fs.existsSync(bundleDefault) ? readEnvFile(bundleDefault) : null;
-    mergeDefaultsIntoEnvFile(envPath, defaults);
+    defaultVars = fs.existsSync(bundleDefault) ? readEnvFile(bundleDefault) : null;
+  } catch {
+    defaultVars = null;
+  }
+
+  if (defaultVars) {
+    try {
+      delete defaultVars.SUPABASE_SERVICE_ROLE_KEY;
+    } catch {}
+
+    for (const [k, v] of Object.entries(defaultVars)) {
+      const next = String(v ?? "").trim();
+      if (!next) continue;
+      process.env[k] = next;
+    }
+  }
+
+  // Still auto-fill the user env template for visibility (but it won't override defaults).
+  try {
+    mergeDefaultsIntoEnvFile(envPath, defaultVars);
   } catch {}
 
   const vars = readEnvFile(envPath);
   if (!vars) return;
   for (const [k, v] of Object.entries(vars)) {
-    if (typeof process.env[k] === "string" && process.env[k] !== "") continue;
-    process.env[k] = String(v);
+    // Do not let user env override bundled defaults.
+    if (typeof process.env[k] === "string" && String(process.env[k]).trim() !== "") continue;
+    const next = String(v ?? "").trim();
+    if (!next) continue;
+    process.env[k] = next;
   }
 }
 

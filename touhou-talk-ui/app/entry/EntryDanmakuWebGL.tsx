@@ -1,14 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function useReducedMotion(): boolean {
-  return useMemo(() => {
-    if (typeof window === "undefined") return true;
-    return (
-      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false
-    );
+  // Avoid hydration mismatches:
+  // - Server render has no `window`, so we must not decide "render vs null" based on it.
+  // - Start with `true` (render nothing) and compute after mount.
+  const [reduced, setReduced] = useState(true);
+
+  useEffect(() => {
+    const mql = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(Boolean(mql?.matches));
+    update();
+
+    if (!mql) return;
+    try {
+      mql.addEventListener("change", update);
+      return () => mql.removeEventListener("change", update);
+    } catch {
+      // Safari old API
+      // eslint-disable-next-line deprecation/deprecation
+      mql.addListener?.(update);
+      return () => {
+        // eslint-disable-next-line deprecation/deprecation
+        mql.removeListener?.(update);
+      };
+    }
   }, []);
+
+  return reduced;
 }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -59,9 +79,9 @@ export default function EntryDanmakuWebGL() {
   const colorProbeRef = useRef<HTMLSpanElement | null>(null);
   const reducedMotion = useReducedMotion();
 
-  if (reducedMotion) return null;
-
   useEffect(() => {
+    if (reducedMotion) return;
+
     const canvasEl = canvasRef.current;
     if (!canvasEl) return;
     const canvas = canvasEl;
@@ -510,7 +530,9 @@ export default function EntryDanmakuWebGL() {
       glCtx.deleteBuffer(bCol);
       glCtx.deleteVertexArray(vao);
     };
-  }, []);
+  }, [reducedMotion]);
+
+  if (reducedMotion) return null;
 
   return (
     <>

@@ -279,7 +279,71 @@ export default function VrmStage({
       let mixer: AnimationMixer | null = null;
       let actions: Record<string, AnimationAction> = {};
 
-      const frameModelForStage = (root: Object3D) => {
+      const frameModelForStage = (v: any) => {
+        const root = v?.scene as Object3D | null;
+        if (!root) return;
+
+        // Reset transform so our measurements stay stable.
+        try {
+          root.position.set(0, 0, 0);
+          root.rotation.set(0, 0, 0);
+          root.scale.setScalar(1);
+          root.updateMatrixWorld(true);
+        } catch {
+          // ignore
+        }
+
+        const humanoid = v?.humanoid as any;
+        const getBone = (name: string): Object3D | null => {
+          try {
+            return (
+              humanoid?.getNormalizedBoneNode?.(name) ??
+              humanoid?.getRawBoneNode?.(name) ??
+              null
+            );
+          } catch {
+            return null;
+          }
+        };
+
+        // Prefer humanoid-derived framing (robust against huge bounding boxes).
+        const hips = getBone("hips");
+        const head = getBone("head");
+        const leftFoot = getBone("leftFoot");
+        const rightFoot = getBone("rightFoot");
+
+        if (hips && head && (leftFoot || rightFoot)) {
+          const vHips = new THREE.Vector3();
+          const vHead = new THREE.Vector3();
+          const vLf = new THREE.Vector3();
+          const vRf = new THREE.Vector3();
+          hips.getWorldPosition(vHips);
+          head.getWorldPosition(vHead);
+          if (leftFoot) leftFoot.getWorldPosition(vLf);
+          if (rightFoot) rightFoot.getWorldPosition(vRf);
+
+          const minFootY = Math.min(
+            leftFoot ? vLf.y : Number.POSITIVE_INFINITY,
+            rightFoot ? vRf.y : Number.POSITIVE_INFINITY,
+          );
+          const height = vHead.y - minFootY;
+          if (Number.isFinite(height) && height > 0.2) {
+            const s = Math.max(0.05, Math.min(20, 1.6 / height));
+            root.scale.setScalar(s);
+
+            // Center on hips X/Z; put feet on ground.
+            root.position.x = -vHips.x * s;
+            root.position.z = -vHips.z * s;
+            root.position.y = -minFootY * s;
+
+            // Default "full body" framing; user can orbit/zoom/pan via mouse.
+            camera.position.set(0, 1.05, 2.15);
+            camera.lookAt(0, 0.88, 0);
+            return;
+          }
+        }
+
+        // Fallback: bounding-box framing.
         const box = new THREE.Box3().setFromObject(root);
         const size = box.getSize(new THREE.Vector3());
         const height = Math.max(0.0001, size.y);
@@ -293,7 +357,6 @@ export default function VrmStage({
         root.position.z -= center.z;
         root.position.y -= minY;
 
-        // Default "full body" framing; user can orbit/zoom/pan via mouse.
         camera.position.set(0, 1.05, 2.15);
         camera.lookAt(0, 0.88, 0);
       };
@@ -547,7 +610,7 @@ export default function VrmStage({
 
           vrm = v;
           scene.add(vrm.scene);
-          frameModelForStage(vrm.scene);
+          frameModelForStage(v);
 
           try {
             motion = new MotionManager(v as unknown as VRM);

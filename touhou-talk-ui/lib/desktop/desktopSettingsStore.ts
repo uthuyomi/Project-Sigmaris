@@ -42,6 +42,28 @@ function normalizeCharacterSettings(
 ): DesktopCharacterSettings {
   const base = defaultCharacterSettings(characterId);
   const aqIn = (j.tts as any)?.aquestalk ?? {};
+
+  const vrmEnabledRaw =
+    typeof (j as any)?.vrm?.enabled === "boolean" ? (j as any).vrm.enabled : base.vrm.enabled;
+  const vrmPathRaw =
+    typeof (j as any)?.vrm?.path === "string" || (j as any)?.vrm?.path == null
+      ? ((j as any).vrm?.path ?? base.vrm.path)
+      : base.vrm.path;
+  // If a VRM path is not set, treat it as disabled even if the flag is true.
+  const vrmEnabled = Boolean(vrmEnabledRaw && typeof vrmPathRaw === "string" && vrmPathRaw.trim());
+
+  const motionsEnabledRaw =
+    typeof (j as any)?.motions?.enabled === "boolean"
+      ? (j as any).motions.enabled
+      : base.motions.enabled;
+  const motionsIndexRaw =
+    typeof (j as any)?.motions?.indexPath === "string" || (j as any)?.motions?.indexPath == null
+      ? ((j as any).motions?.indexPath ?? base.motions.indexPath)
+      : base.motions.indexPath;
+  const motionsEnabled = Boolean(
+    motionsEnabledRaw && typeof motionsIndexRaw === "string" && motionsIndexRaw.trim(),
+  );
+
   return {
     ...base,
     ...j,
@@ -49,8 +71,8 @@ function normalizeCharacterSettings(
     vrm: {
       ...base.vrm,
       ...(j.vrm ?? {}),
-      enabled: typeof (j as any)?.vrm?.enabled === "boolean" ? (j as any).vrm.enabled : base.vrm.enabled,
-      path: typeof (j as any)?.vrm?.path === "string" || (j as any)?.vrm?.path == null ? (j as any).vrm?.path ?? base.vrm.path : base.vrm.path,
+      enabled: vrmEnabled,
+      path: vrmEnabled ? String(vrmPathRaw).trim() : null,
     },
     tts: {
       ...base.tts,
@@ -70,11 +92,9 @@ function normalizeCharacterSettings(
     motions: {
       ...base.motions,
       ...(j.motions ?? {}),
-      enabled: typeof (j as any)?.motions?.enabled === "boolean" ? (j as any).motions.enabled : base.motions.enabled,
+      enabled: motionsEnabled,
       indexPath:
-        typeof (j as any)?.motions?.indexPath === "string" || (j as any)?.motions?.indexPath == null
-          ? (j as any).motions?.indexPath ?? base.motions.indexPath
-          : base.motions.indexPath,
+        motionsEnabled ? String(motionsIndexRaw).trim() : null,
     },
     updatedAt: typeof (j as any)?.updatedAt === "string" ? (j as any).updatedAt : base.updatedAt,
   };

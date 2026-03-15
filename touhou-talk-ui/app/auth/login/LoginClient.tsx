@@ -29,12 +29,20 @@ function safeNextPath(raw: string | null | undefined): string {
   return s.length > 2048 ? s.slice(0, 2048) : s;
 }
 
-export default function LoginClient(props: { nextPath?: string | null }) {
+export default function LoginClient(props: {
+  nextPath?: string | null;
+  initialError?: string | null;
+  initialErrorDescription?: string | null;
+}) {
   const router = useRouter();
   const [loadingProvider, setLoadingProvider] = React.useState<Provider | null>(
     null,
   );
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(
+    props.initialError
+      ? `${props.initialError}${props.initialErrorDescription ? `: ${props.initialErrorDescription}` : ""}`
+      : null,
+  );
 
   const nextSafe =
     safeNextPath(props.nextPath) || safeNextPath(getLastSelectedChatNext());

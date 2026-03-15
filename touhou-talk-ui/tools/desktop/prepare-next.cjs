@@ -35,7 +35,36 @@ function parseEnvText(txt) {
   return out;
 }
 
+function scrubSecretEnvKeys(txt) {
+  const lines = String(txt ?? "").split(/\r?\n/);
+  return lines
+    .map((line) => {
+      const trimmed = line.trimStart();
+      if (trimmed.startsWith("SUPABASE_SERVICE_ROLE_KEY=")) {
+        return "SUPABASE_SERVICE_ROLE_KEY=";
+      }
+      return line;
+    })
+    .join("\n");
+}
+
 async function writeDefaultEnv(bundleRoot, repoRoot) {
+  // If a tracked default.env exists, prefer it (end-user friendly and reproducible).
+  // We still scrub secrets like SUPABASE_SERVICE_ROLE_KEY to avoid accidental leakage.
+  const trackedDefaultEnvPath = path.join(__dirname, "default.env");
+  if (fs.existsSync(trackedDefaultEnvPath)) {
+    const rawTracked = await fsp.readFile(trackedDefaultEnvPath, "utf8").catch(() => "");
+    if (rawTracked.trim()) {
+      await fsp.mkdir(bundleRoot, { recursive: true });
+      await fsp.writeFile(
+        path.join(bundleRoot, "default.env"),
+        scrubSecretEnvKeys(rawTracked),
+        "utf8",
+      );
+      return true;
+    }
+  }
+
   // Extract only public Supabase values from repo root `.env` and embed into the desktop bundle.
   // NOTE: Do NOT embed SUPABASE_SERVICE_ROLE_KEY or any other secrets.
   const envPath = path.join(repoRoot, ".env");

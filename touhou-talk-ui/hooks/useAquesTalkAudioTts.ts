@@ -4,8 +4,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 type SpeakParams = {
   text: string;
-  speed?: number;
-  voice?: string;
+  characterId?: string | null;
+  speed?: number | null;
+  voice?: string | null;
 };
 
 type SpeakResult = { ok: true } | { ok: false; reason: string };
@@ -271,8 +272,11 @@ export function useAquesTalkAudioTts() {
       const text = String(params.text ?? "").trim();
       if (!text) return { ok: false, reason: "Empty text" };
 
-      const speed = clampInt(Number(params.speed ?? 120), 50, 300);
-      const voice = String(params.voice ?? "f1").trim();
+      const characterId = String(params.characterId ?? "").trim();
+      const hasSpeed = typeof params.speed === "number" && Number.isFinite(params.speed);
+      const hasVoice = typeof params.voice === "string" && String(params.voice).trim() !== "";
+      const speed = hasSpeed ? clampInt(Number(params.speed), 50, 300) : null;
+      const voice = hasVoice ? String(params.voice).trim() : null;
 
       cancel();
       setLastError(null);
@@ -290,10 +294,15 @@ export function useAquesTalkAudioTts() {
 
       let j: { b64?: unknown; koe?: unknown } | null = null;
       try {
-        const res = await fetch("/api/tts/aquestalk1?format=json", {
+        const url = `/api/tts/aquestalk1?format=json${characterId ? `&char=${encodeURIComponent(characterId)}` : ""}`;
+        const body: Record<string, unknown> = { text };
+        if (speed != null) body.speed = speed;
+        if (voice != null) body.voice = voice;
+
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ text, speed, voice }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) {
           const ej = await res.json().catch(() => null);
