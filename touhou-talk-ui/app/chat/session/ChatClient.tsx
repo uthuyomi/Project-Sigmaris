@@ -35,6 +35,7 @@ import { Separator } from "@/components/ui/separator";
 import { getGroupsByLocation, canEnableGroup, GroupDef } from "@/data/group";
 import { getDefaultChatMode } from "@/lib/touhou-settings";
 import { buildRunJsonlFromMessages, parseArtifactText } from "@/lib/artifact/artifact-io";
+import DesktopLiveAvatar from "@/components/desktop/DesktopLiveAvatar";
 
 import {
   extractTextFromThreadMessageContent,
@@ -770,6 +771,7 @@ export default function ChatClient() {
         [activeSessionId]: true,
       }));
 
+      let aiId = "";
       try {
         // user message
         appendMessage({
@@ -793,7 +795,7 @@ export default function ChatClient() {
         }
 
         // AI placeholder (stream target)
-        const aiId = crypto.randomUUID();
+        aiId = crypto.randomUUID();
         appendMessage({
           id: aiId,
           role: "ai",
@@ -802,23 +804,6 @@ export default function ChatClient() {
           attachments: [],
           meta: null,
         });
-
-        const res = await fetch(`${endpoint}?stream=1`, {
-          method: "POST",
-          headers: {
-            Accept: "text/event-stream",
-          },
-          body: form,
-        });
-
-        if (!res.ok || !res.body) return;
-
-        const reader = res.body.getReader();
-
-        // ai message
-        const decoder = new TextDecoder();
-        let buf = "";
-        let doneReceived = false;
 
         const appendDelta = (delta: string) => {
           if (!delta) return;
@@ -856,6 +841,39 @@ export default function ChatClient() {
             };
           });
         };
+
+        const res = await fetch(`${endpoint}?stream=1`, {
+          method: "POST",
+          headers: {
+            Accept: "text/event-stream",
+          },
+          body: form,
+        });
+
+        if (!res.ok || !res.body) {
+          let detail = `HTTP ${res.status}`;
+          try {
+            const body = (await res.json().catch(() => null)) as
+              | { error?: unknown; detail?: unknown }
+              | null;
+            const msg = String(body?.error ?? body?.detail ?? "").trim();
+            if (msg) detail = msg;
+          } catch {
+            // ignore
+          }
+          finalize(`（応答エラー: ${detail}）`, {
+            status: res.status,
+            source: "chat_stream_request",
+          });
+          return;
+        }
+
+        const reader = res.body.getReader();
+
+        // ai message
+        const decoder = new TextDecoder();
+        let buf = "";
+        let doneReceived = false;
 
         while (!doneReceived) {
           const { value, done } = await reader.read();
@@ -912,6 +930,26 @@ export default function ChatClient() {
             }
           }
         }
+      } catch (e) {
+        const message =
+          e instanceof Error && e.message.trim()
+            ? e.message.trim()
+            : "stream transport failed";
+        setMessagesBySession((prev) => {
+          const list = prev[activeSessionId] ?? [];
+          return {
+            ...prev,
+            [activeSessionId]: list.map((m) =>
+              aiId && m.id === aiId
+                ? {
+                    ...m,
+                    content: `（接続エラー: ${message}）`,
+                    meta: { source: "chat_stream_transport" },
+                  }
+                : m,
+            ),
+          };
+        });
       } finally {
         setIsRunningBySession((prev) => ({
           ...prev,
@@ -1175,7 +1213,13 @@ export default function ChatClient() {
               {/* Chat */}
               <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
                 {activeSessionId ? (
-                  <Thread />
+                  <>
+                    <Thread />
+                    <DesktopLiveAvatar
+                      characterId={activeCharacterId}
+                      className="pointer-events-auto absolute right-4 top-20 hidden h-[420px] w-[340px] overflow-hidden rounded-2xl border bg-background/30 shadow-xl backdrop-blur lg:block"
+                    />
+                  </>
                 ) : (
                   <div className="flex h-full items-center justify-center text-muted-foreground">
                     左のサイドバーからキャラを選択してください

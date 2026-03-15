@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -18,6 +18,62 @@ import {
 import { CHARACTER_CATALOG } from "@/lib/touhouPersona/characterCatalog";
 import type { DesktopCharacterSettings, DesktopTtsMode } from "@/lib/desktop/desktopSettingsTypes";
 
+function ThemeButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-xl border px-4 py-3 text-left transition",
+        active ? "border-ring bg-accent/70" : "border-border hover:bg-accent/40",
+      ].join(" ")}
+    >
+      <div className="font-medium text-sm">{label}</div>
+      <div className="text-muted-foreground text-xs">{active ? "選択中" : " "}</div>
+    </button>
+  );
+}
+
+function FileStatus({
+  label,
+  value,
+}: {
+  label: string;
+  value: { kind: "none" } | { kind: "file"; name: string } | { kind: "files"; names: string[] };
+}) {
+  const body =
+    value.kind === "none" ? (
+      <span className="text-muted-foreground">選択なし</span>
+    ) : value.kind === "file" ? (
+      <span className="font-mono">{value.name}</span>
+    ) : (
+      <span className="font-mono">
+        {value.names.length}件{" "}
+        {value.names.length ? (
+          <span className="text-muted-foreground">
+            （{value.names.slice(0, 2).join(", ")}
+            {value.names.length > 2 ? "…" : ""}）
+          </span>
+        ) : null}
+      </span>
+    );
+
+  return (
+    <div className="text-xs">
+      <span className="text-muted-foreground">{label}: </span>
+      {body}
+    </div>
+  );
+}
+
 export default function SettingsClient() {
   const [skipMap, setSkipMapState] = useState(false);
   const [theme, setThemeState] = useState<TouhouTheme>("dark");
@@ -29,6 +85,14 @@ export default function SettingsClient() {
   const [charLoading, setCharLoading] = useState<boolean>(false);
   const [charError, setCharError] = useState<string | null>(null);
   const [charInfo, setCharInfo] = useState<string | null>(null);
+
+  const vrmInputRef = useRef<HTMLInputElement | null>(null);
+  const motionsJsonRef = useRef<HTMLInputElement | null>(null);
+  const motionsGlbsRef = useRef<HTMLInputElement | null>(null);
+
+  const [pendingVrmFile, setPendingVrmFile] = useState<File | null>(null);
+  const [pendingMotionsJson, setPendingMotionsJson] = useState<File | null>(null);
+  const [pendingMotionGlbs, setPendingMotionGlbs] = useState<File[]>([]);
 
   useEffect(() => {
     setSkipMapState(getSkipMapOnStart());
@@ -42,7 +106,21 @@ export default function SettingsClient() {
     applyThemeClass(t);
   };
 
-  const title = useMemo(() => "設定", []);
+  const title = useMemo(() => "設定（Electron）", []);
+
+  const notifyDesktopUpdated = () => {
+    try {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("touhou-desktop:vrm-updated", {
+            detail: { characterId: selectedChar, rev: String(Date.now()) },
+          }),
+        );
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const loadCharSettings = async (charId: string) => {
     setCharLoading(true);
@@ -55,9 +133,7 @@ export default function SettingsClient() {
       const j = (await res.json().catch(() => null)) as
         | { ok: boolean; exists?: boolean; settings?: DesktopCharacterSettings | null; error?: string }
         | null;
-      if (!res.ok || !j?.ok) {
-        throw new Error(String(j?.error ?? `HTTP ${res.status}`));
-      }
+      if (!res.ok || !j?.ok) throw new Error(String(j?.error ?? `HTTP ${res.status}`));
       const exists = !!j.exists;
       setCharExists(exists);
       setCharSettings(exists ? (j.settings ?? null) : null);
@@ -76,6 +152,15 @@ export default function SettingsClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChar]);
 
+  useEffect(() => {
+    setPendingVrmFile(null);
+    setPendingMotionsJson(null);
+    setPendingMotionGlbs([]);
+    if (vrmInputRef.current) vrmInputRef.current.value = "";
+    if (motionsJsonRef.current) motionsJsonRef.current.value = "";
+    if (motionsGlbsRef.current) motionsGlbsRef.current.value = "";
+  }, [selectedChar]);
+
   const initCharSettings = async () => {
     setCharLoading(true);
     setCharError(null);
@@ -92,7 +177,7 @@ export default function SettingsClient() {
       if (!res.ok || !j?.ok || !j.settings) throw new Error(String(j?.error ?? `HTTP ${res.status}`));
       setCharExists(true);
       setCharSettings(j.settings);
-      setCharInfo("設定を作成したよ。");
+      setCharInfo("設定を作成したよ。次はVRM/TTS/モーションをセットして保存してね。");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setCharError(msg);
@@ -118,6 +203,7 @@ export default function SettingsClient() {
       if (!res.ok || !j?.ok || !j.settings) throw new Error(String(j?.error ?? `HTTP ${res.status}`));
       setCharSettings(j.settings);
       setCharInfo("保存したよ。");
+      notifyDesktopUpdated();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setCharError(msg);
@@ -139,12 +225,15 @@ export default function SettingsClient() {
       });
       const j = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!res.ok || !j?.ok) throw new Error(String(j?.error ?? `HTTP ${res.status}`));
-      setCharInfo("VRMを取り込んだよ。");
+      setCharInfo(`VRMを取り込んだよ（${file.name}）。`);
       await loadCharSettings(selectedChar);
+      notifyDesktopUpdated();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setCharError(msg);
     } finally {
+      setPendingVrmFile(null);
+      if (vrmInputRef.current) vrmInputRef.current.value = "";
       setCharLoading(false);
     }
   };
@@ -154,6 +243,7 @@ export default function SettingsClient() {
     setCharError(null);
     setCharInfo(null);
     try {
+      if (!motionsJson && glbs.length === 0) throw new Error("motions.json か GLB を選んでね。");
       const fd = new FormData();
       if (motionsJson) fd.set("motionsJson", motionsJson);
       for (const g of glbs) fd.append("glbs", g);
@@ -165,10 +255,15 @@ export default function SettingsClient() {
       if (!res.ok || !j?.ok) throw new Error(String(j?.error ?? `HTTP ${res.status}`));
       setCharInfo(`モーションを取り込んだよ（${String(j?.motionsCount ?? "?")}件）。`);
       await loadCharSettings(selectedChar);
+      notifyDesktopUpdated();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setCharError(msg);
     } finally {
+      setPendingMotionsJson(null);
+      setPendingMotionGlbs([]);
+      if (motionsJsonRef.current) motionsJsonRef.current.value = "";
+      if (motionsGlbsRef.current) motionsGlbsRef.current.value = "";
       setCharLoading(false);
     }
   };
@@ -179,11 +274,11 @@ export default function SettingsClient() {
         <div>
           <h1 className="font-gensou text-2xl">{title}</h1>
           <p className="text-muted-foreground text-sm">
-            見た目・起動時の挙動などを変更します。
+            Electron版の設定（キャラごとのVRM/TTS/モーションを含む）だよ。
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link href="/chat/session">チャットへ戻る</Link>
+          <Link href="/chat/session">チャットへ</Link>
         </Button>
       </div>
 
@@ -191,15 +286,13 @@ export default function SettingsClient() {
 
       <section className="rounded-2xl border bg-card/60 p-5">
         <h2 className="font-medium">起動</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          Touhou Talk を起動した時の挙動を設定します。
-        </p>
+        <p className="mt-1 text-muted-foreground text-sm">Touhou Talk を起動した時の挙動を設定します。</p>
 
         <div className="mt-4 flex items-center justify-between gap-4">
           <div>
             <div className="font-medium text-sm">マップをスキップ</div>
             <div className="text-muted-foreground text-xs">
-              起動後にマップを表示せず、チャット画面に直接移動します。
+              起動時にマップを表示せず、チャット画面に直接移動します。
             </div>
           </div>
 
@@ -221,9 +314,7 @@ export default function SettingsClient() {
 
       <section className="rounded-2xl border bg-card/60 p-5">
         <h2 className="font-medium">テーマ</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          見た目のテーマを切り替えます。
-        </p>
+        <p className="mt-1 text-muted-foreground text-sm">見た目のテーマを切り替えます。</p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <ThemeButton label="Light" active={theme === "light"} onClick={() => updateTheme("light")} />
@@ -239,9 +330,7 @@ export default function SettingsClient() {
 
       <section className="rounded-2xl border bg-card/60 p-5">
         <h2 className="font-medium">会話モード</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          応答のスタイル（雑談/ロールプレイ等）を切り替えます。
-        </p>
+        <p className="mt-1 text-muted-foreground text-sm">応答のスタイル（雑談/ロールプレイ等）を切り替えます。</p>
 
         <div className="mt-4">
           <select
@@ -249,15 +338,14 @@ export default function SettingsClient() {
             value={chatMode}
             onChange={(e) => {
               const v = e.currentTarget.value;
-              const next: TouhouChatMode =
-                v === "roleplay" ? "roleplay" : v === "coach" ? "coach" : "partner";
+              const next: TouhouChatMode = v === "roleplay" ? "roleplay" : v === "coach" ? "coach" : "partner";
               setChatMode(next);
               setDefaultChatMode(next);
             }}
           >
             <option value="partner">雑談（バランス）</option>
-            <option value="roleplay">ロールプレイ（世界観寄り）</option>
-            <option value="coach">コーチ（助言寄り）</option>
+            <option value="roleplay">ロールプレイ（キャラ口調）</option>
+            <option value="coach">コーチ（改善寄り）</option>
           </select>
         </div>
       </section>
@@ -280,7 +368,7 @@ export default function SettingsClient() {
             >
               {CHARACTER_CATALOG.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.label}（{c.id}）
+                  {c.label} ({c.id})
                 </option>
               ))}
             </select>
@@ -300,7 +388,7 @@ export default function SettingsClient() {
 
           {!charExists ? (
             <div className="rounded-xl border bg-background/40 px-4 py-4">
-              <div className="text-sm font-medium">このキャラの設定はまだ作成されてない</div>
+              <div className="text-sm font-medium">このキャラの設定がまだ作成されてない</div>
               <div className="mt-1 text-muted-foreground text-xs">
                 先に「設定を作成」してから、VRMやTTSを設定して保存してね。
               </div>
@@ -319,8 +407,15 @@ export default function SettingsClient() {
                   <div>
                     <div className="text-sm font-medium">VRM</div>
                     <div className="text-muted-foreground text-xs">
-                      現在: {charSettings.vrm.enabled ? "有効" : "無効"}
-                      {charSettings.vrm.path ? ` / ${charSettings.vrm.path}` : ""}
+                      現在（保存済み）:{" "}
+                      {charSettings.vrm.enabled ? (
+                        <>
+                          有効 / <span className="font-mono">{charSettings.vrm.path ?? "avatar.vrm"}</span>
+                        </>
+                      ) : (
+                        "無効"
+                      )}
+                      {charSettings.updatedAt ? <span className="ml-2 opacity-70">更新: {charSettings.updatedAt}</span> : null}
                     </div>
                   </div>
                   <label className="inline-flex items-center gap-2 text-sm">
@@ -338,25 +433,74 @@ export default function SettingsClient() {
                 </div>
 
                 <div className="mt-3 grid gap-2">
-                  <div className="text-xs text-muted-foreground">
-                    VRMファイルを選ぶ（取り込み後、保存は不要。内部で設定も更新する）
+                  <div className="rounded-xl border bg-background/60 px-3 py-2">
+                    <FileStatus
+                      label="選択中"
+                      value={pendingVrmFile ? { kind: "file", name: pendingVrmFile.name } : { kind: "none" }}
+                    />
                   </div>
-                  <input
-                    type="file"
-                    accept=".vrm"
-                    disabled={charLoading}
-                    onChange={(e) => {
-                      const f = e.currentTarget.files?.[0] ?? null;
-                      if (f) void uploadVrm(f);
-                      e.currentTarget.value = "";
-                    }}
-                  />
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      ref={vrmInputRef}
+                      type="file"
+                      accept=".vrm"
+                      className="hidden"
+                      disabled={charLoading}
+                      onChange={(e) => {
+                        const f = e.currentTarget.files?.[0] ?? null;
+                        setPendingVrmFile(f);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={charLoading}
+                      onClick={() => vrmInputRef.current?.click()}
+                    >
+                      VRMを選択…
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={charLoading || !pendingVrmFile}
+                      onClick={() => {
+                        setPendingVrmFile(null);
+                        if (vrmInputRef.current) vrmInputRef.current.value = "";
+                      }}
+                    >
+                      クリア
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={charLoading || !pendingVrmFile}
+                      onClick={() => {
+                        if (!pendingVrmFile) return;
+                        void uploadVrm(pendingVrmFile);
+                      }}
+                    >
+                      取り込む
+                    </Button>
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-xl border bg-background/40 px-4 py-4">
                 <div className="text-sm font-medium">TTS</div>
-                <div className="mt-2 grid gap-3">
+                <div className="mt-1 text-muted-foreground text-xs">
+                  現在（保存済み）:{" "}
+                  {charSettings.tts.mode === "none"
+                    ? "無効"
+                    : charSettings.tts.mode === "browser"
+                      ? "Browser（Web Speech API）"
+                      : `AquesTalk（${charSettings.tts.aquestalk.enabled ? "有効" : "無効"} / voice=${
+                          charSettings.tts.aquestalk.voice || "未設定"
+                        } / speed=${String(charSettings.tts.aquestalk.speed)}${
+                          charSettings.tts.aquestalk.rootDir ? ` / rootDir=${charSettings.tts.aquestalk.rootDir}` : ""
+                        }）`}
+                </div>
+
+                <div className="mt-3 grid gap-3">
                   <div className="grid gap-2">
                     <div className="text-xs text-muted-foreground">モード</div>
                     <select
@@ -374,7 +518,7 @@ export default function SettingsClient() {
                   </div>
 
                   {charSettings.tts.mode === "aquestalk" ? (
-                    <div className="grid gap-2">
+                    <div className="grid gap-3">
                       <label className="inline-flex items-center gap-2 text-sm">
                         <input
                           type="checkbox"
@@ -383,21 +527,16 @@ export default function SettingsClient() {
                             const v = e.currentTarget.checked;
                             setCharSettings({
                               ...charSettings,
-                              tts: {
-                                ...charSettings.tts,
-                                aquestalk: { ...charSettings.tts.aquestalk, enabled: v },
-                              },
+                              tts: { ...charSettings.tts, aquestalk: { ...charSettings.tts.aquestalk, enabled: v } },
                             });
                           }}
                           className="size-4"
                         />
-                        AquesTalkを有効化
+                        AquesTalkを有効にする
                       </label>
 
                       <label className="grid gap-1 text-sm">
-                        <span className="text-xs text-muted-foreground">
-                          AquesTalkフォルダ（任意・未指定なら既定パスを試す）
-                        </span>
+                        <span className="text-xs text-muted-foreground">AquesTalkフォルダ（未設定ならPATHを使う）</span>
                         <input
                           type="text"
                           value={charSettings.tts.aquestalk.rootDir ?? ""}
@@ -412,36 +551,17 @@ export default function SettingsClient() {
                               },
                             });
                           }}
-                          className="rounded-lg border bg-background/60 px-3 py-2 text-sm"
+                          className="w-full rounded-xl border bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-ring"
                         />
                       </label>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid gap-2 sm:grid-cols-2">
                         <label className="grid gap-1 text-sm">
-                          <span className="text-xs text-muted-foreground">Speed（50〜300）</span>
-                          <input
-                            type="number"
-                            min={50}
-                            max={300}
-                            value={charSettings.tts.aquestalk.speed}
-                            onChange={(e) => {
-                              const n = Number(e.currentTarget.value);
-                              setCharSettings({
-                                ...charSettings,
-                                tts: {
-                                  ...charSettings.tts,
-                                  aquestalk: { ...charSettings.tts.aquestalk, speed: n },
-                                },
-                              });
-                            }}
-                            className="rounded-lg border bg-background/60 px-3 py-2 text-sm"
-                          />
-                        </label>
-                        <label className="grid gap-1 text-sm">
-                          <span className="text-xs text-muted-foreground">Voice（例: f1）</span>
+                          <span className="text-xs text-muted-foreground">voice</span>
                           <input
                             type="text"
-                            value={charSettings.tts.aquestalk.voice}
+                            value={charSettings.tts.aquestalk.voice ?? ""}
+                            placeholder="例: f1"
                             onChange={(e) => {
                               const v = e.currentTarget.value;
                               setCharSettings({
@@ -452,7 +572,29 @@ export default function SettingsClient() {
                                 },
                               });
                             }}
-                            className="rounded-lg border bg-background/60 px-3 py-2 text-sm"
+                            className="w-full rounded-xl border bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-ring"
+                          />
+                        </label>
+
+                        <label className="grid gap-1 text-sm">
+                          <span className="text-xs text-muted-foreground">speed</span>
+                          <input
+                            type="number"
+                            min={50}
+                            max={300}
+                            step={1}
+                            value={Number.isFinite(charSettings.tts.aquestalk.speed) ? charSettings.tts.aquestalk.speed : 100}
+                            onChange={(e) => {
+                              const n = Number(e.currentTarget.value);
+                              setCharSettings({
+                                ...charSettings,
+                                tts: {
+                                  ...charSettings.tts,
+                                  aquestalk: { ...charSettings.tts.aquestalk, speed: Number.isFinite(n) ? n : 100 },
+                                },
+                              });
+                            }}
+                            className="w-full rounded-xl border bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-ring"
                           />
                         </label>
                       </div>
@@ -466,8 +608,14 @@ export default function SettingsClient() {
                   <div>
                     <div className="text-sm font-medium">モーション</div>
                     <div className="text-muted-foreground text-xs">
-                      現在: {charSettings.motions.enabled ? "有効" : "無効"}
-                      {charSettings.motions.indexPath ? ` / ${charSettings.motions.indexPath}` : ""}
+                      現在（保存済み）:{" "}
+                      {charSettings.motions.enabled ? (
+                        <>
+                          有効 / <span className="font-mono">{charSettings.motions.indexPath ?? "motion-library/motions.json"}</span>
+                        </>
+                      ) : (
+                        "無効"
+                      )}
                     </div>
                   </div>
                   <label className="inline-flex items-center gap-2 text-sm">
@@ -476,10 +624,7 @@ export default function SettingsClient() {
                       checked={!!charSettings.motions.enabled}
                       onChange={(e) => {
                         const v = e.currentTarget.checked;
-                        setCharSettings({
-                          ...charSettings,
-                          motions: { ...charSettings.motions, enabled: v },
-                        });
+                        setCharSettings({ ...charSettings, motions: { ...charSettings.motions, enabled: v } });
                       }}
                       className="size-4"
                     />
@@ -487,36 +632,108 @@ export default function SettingsClient() {
                   </label>
                 </div>
 
-                <div className="mt-3 grid gap-2">
-                  <div className="text-xs text-muted-foreground">
-                    motions.json（任意）と、GLB（複数）を選んで取り込み
+                <div className="mt-3 grid gap-3">
+                  <div className="rounded-xl border bg-background/60 px-3 py-2">
+                    <FileStatus
+                      label="motions.json"
+                      value={pendingMotionsJson ? { kind: "file", name: pendingMotionsJson.name } : { kind: "none" }}
+                    />
+                    <FileStatus
+                      label="GLB"
+                      value={
+                        pendingMotionGlbs.length
+                          ? { kind: "files", names: pendingMotionGlbs.map((f) => f.name) }
+                          : { kind: "none" }
+                      }
+                    />
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <input id="motions-json" type="file" accept="application/json,.json" disabled={charLoading} />
-                    <input id="motions-glbs" type="file" accept=".glb" multiple disabled={charLoading} />
+
+                  <div className="grid gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        ref={motionsJsonRef}
+                        type="file"
+                        accept="application/json,.json"
+                        className="hidden"
+                        disabled={charLoading}
+                        onChange={(e) => {
+                          const f = e.currentTarget.files?.[0] ?? null;
+                          setPendingMotionsJson(f);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={charLoading}
+                        onClick={() => motionsJsonRef.current?.click()}
+                      >
+                        motions.jsonを選択…
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={charLoading || !pendingMotionsJson}
+                        onClick={() => {
+                          setPendingMotionsJson(null);
+                          if (motionsJsonRef.current) motionsJsonRef.current.value = "";
+                        }}
+                      >
+                        クリア
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        ref={motionsGlbsRef}
+                        type="file"
+                        accept=".glb,model/gltf-binary"
+                        className="hidden"
+                        multiple
+                        disabled={charLoading}
+                        onChange={(e) => {
+                          const files = Array.from(e.currentTarget.files ?? []);
+                          setPendingMotionGlbs(files);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={charLoading}
+                        onClick={() => motionsGlbsRef.current?.click()}
+                      >
+                        GLBを選択…（複数可）
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={charLoading || pendingMotionGlbs.length === 0}
+                        onClick={() => {
+                          setPendingMotionGlbs([]);
+                          if (motionsGlbsRef.current) motionsGlbsRef.current.value = "";
+                        }}
+                      >
+                        クリア
+                      </Button>
+                    </div>
                   </div>
-                  <div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-muted-foreground text-xs">
+                      motions.jsonがなくても、GLBだけで最小のライブラリを自動生成できます。
+                    </div>
                     <Button
                       type="button"
-                      disabled={charLoading}
-                      onClick={() => {
-                        const jsonEl = document.getElementById("motions-json") as HTMLInputElement | null;
-                        const glbEl = document.getElementById("motions-glbs") as HTMLInputElement | null;
-                        const motionsJson = jsonEl?.files?.[0] ?? null;
-                        const glbs = Array.from(glbEl?.files ?? []);
-                        void uploadMotions(motionsJson, glbs);
-                        if (jsonEl) jsonEl.value = "";
-                        if (glbEl) glbEl.value = "";
-                      }}
+                      disabled={charLoading || (!pendingMotionsJson && pendingMotionGlbs.length === 0)}
+                      onClick={() => void uploadMotions(pendingMotionsJson, pendingMotionGlbs)}
                     >
-                      モーション取り込み
+                      取り込む
                     </Button>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3">
-                <Button type="button" variant="outline" disabled={charLoading} onClick={() => loadCharSettings(selectedChar)}>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button type="button" variant="outline" disabled={charLoading} onClick={() => void loadCharSettings(selectedChar)}>
                   再読み込み
                 </Button>
                 <Button type="button" disabled={charLoading} onClick={saveCharSettings}>
@@ -531,26 +748,3 @@ export default function SettingsClient() {
   );
 }
 
-function ThemeButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "rounded-xl border px-4 py-3 text-left transition",
-        active ? "border-ring bg-accent/70" : "border-border hover:bg-accent/40",
-      ].join(" ")}
-    >
-      <div className="font-medium text-sm">{label}</div>
-      <div className="text-muted-foreground text-xs">{active ? "選択中" : " "}</div>
-    </button>
-  );
-}

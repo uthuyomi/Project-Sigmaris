@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { FaAndroid, FaApple, FaWindows } from "react-icons/fa6";
 
 type BeforeInstallPromptEvent = Event & {
@@ -93,14 +93,20 @@ function OsButton({
 }
 
 export default function PwaInstallButton() {
+  const [mounted, setMounted] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [showIosHelp, setShowIosHelp] = useState(false);
 
-  const ios = useMemo(() => isIOS(), []);
-  const android = useMemo(() => isAndroid(), []);
-  const windows = useMemo(() => isWindows(), []);
-  const mac = useMemo(() => isMac(), []);
+  // Avoid hydration mismatches:
+  // OS/UA detection is client-only, so keep the first render stable (all false) and fill after mount.
+  const [os, setOs] = useState({ ios: false, android: false, windows: false, mac: false });
+  const { ios, android, windows, mac } = os;
+
+  useEffect(() => {
+    setMounted(true);
+    setOs({ ios: isIOS(), android: isAndroid(), windows: isWindows(), mac: isMac() });
+  }, []);
 
   useEffect(() => {
     setInstalled(isStandalone());
@@ -146,7 +152,7 @@ export default function PwaInstallButton() {
               : "このブラウザでは表示されない場合があります（メニューから追加してください）。"
           }
           disabled={!deferred}
-          active={android}
+          active={mounted && android}
           onClick={
             deferred
               ? async () => {
@@ -167,8 +173,8 @@ export default function PwaInstallButton() {
           icon={<FaApple />}
           label="iPhone / iPad"
           description="共有メニューから「ホーム画面に追加」で作成できます。"
-          disabled={!ios}
-          active={ios}
+          disabled={!mounted || !ios}
+          active={mounted && ios}
           onClick={() => setShowIosHelp((v) => !v)}
         />
 
@@ -181,7 +187,7 @@ export default function PwaInstallButton() {
               : "このブラウザでは表示されない場合があります（メニューから追加してください）。"
           }
           disabled={!deferred}
-          active={windows}
+          active={mounted && windows}
           onClick={
             deferred
               ? async () => {
@@ -207,7 +213,7 @@ export default function PwaInstallButton() {
               : "ブラウザによっては未対応です（対応ブラウザではインストールが表示されます）。"
           }
           disabled={!deferred}
-          active={mac}
+          active={mounted && mac}
           onClick={
             deferred
               ? async () => {
@@ -225,7 +231,7 @@ export default function PwaInstallButton() {
         />
       </div>
 
-      {ios && showIosHelp ? (
+      {mounted && ios && showIosHelp ? (
         <div className="mt-4 rounded-2xl border border-border bg-secondary/60 p-4 text-sm text-muted-foreground">
           <div className="font-semibold text-card-foreground">iPhone/iPad 手順</div>
           <ol className="mt-2 list-decimal space-y-1 pl-5">

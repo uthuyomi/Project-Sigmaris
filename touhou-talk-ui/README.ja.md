@@ -106,6 +106,9 @@ cd touhou-talk-ui
 npm run desktop:dev
 ```
 
+チャット中の発話（TTS）/口パク/モーションは、Electron版のチャット画面で **応答生成が完了したタイミング** で自動再生されます。
+（OS/ブラウザの都合で、初回だけ音声再生がブロックされる場合は、画面を一度クリックしてから再試行してください。）
+
 ```bash
 cd touhou-talk-ui
 npm run desktop:dist

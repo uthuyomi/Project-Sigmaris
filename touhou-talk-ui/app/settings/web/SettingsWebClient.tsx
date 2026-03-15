@@ -16,6 +16,30 @@ import {
   type TouhouTheme,
 } from "@/lib/touhou-settings";
 
+function ThemeButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-xl border px-4 py-3 text-left transition",
+        active ? "border-ring bg-accent/70" : "border-border hover:bg-accent/40",
+      ].join(" ")}
+    >
+      <div className="font-medium text-sm">{label}</div>
+      <div className="text-muted-foreground text-xs">{active ? "選択中" : " "}</div>
+    </button>
+  );
+}
+
 export default function SettingsWebClient() {
   const [skipMap, setSkipMapState] = useState(false);
   const [theme, setThemeState] = useState<TouhouTheme>("dark");
@@ -40,12 +64,10 @@ export default function SettingsWebClient() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="font-gensou text-2xl">{title}</h1>
-          <p className="text-muted-foreground text-sm">
-            見た目・起動時の挙動などを変更します（VRM/TTSはElectron側のみ）。
-          </p>
+          <p className="text-muted-foreground text-sm">基本設定のみ。VRM/TTSはElectron版の設定でやってね。</p>
         </div>
         <Button asChild variant="outline">
-          <Link href="/chat/session">チャットへ戻る</Link>
+          <Link href="/chat/session">チャットへ</Link>
         </Button>
       </div>
 
@@ -53,15 +75,13 @@ export default function SettingsWebClient() {
 
       <section className="rounded-2xl border bg-card/60 p-5">
         <h2 className="font-medium">起動</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          Touhou Talk を起動した時の挙動を設定します。
-        </p>
+        <p className="mt-1 text-muted-foreground text-sm">Touhou Talk を起動した時の挙動を設定します。</p>
 
         <div className="mt-4 flex items-center justify-between gap-4">
           <div>
             <div className="font-medium text-sm">マップをスキップ</div>
             <div className="text-muted-foreground text-xs">
-              起動後にマップを表示せず、チャット画面に直接移動します。
+              起動時にマップを表示せず、チャット画面に直接移動します。
             </div>
           </div>
 
@@ -83,9 +103,7 @@ export default function SettingsWebClient() {
 
       <section className="rounded-2xl border bg-card/60 p-5">
         <h2 className="font-medium">テーマ</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          見た目のテーマを切り替えます。
-        </p>
+        <p className="mt-1 text-muted-foreground text-sm">見た目のテーマを切り替えます。</p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <ThemeButton label="Light" active={theme === "light"} onClick={() => updateTheme("light")} />
@@ -101,9 +119,7 @@ export default function SettingsWebClient() {
 
       <section className="rounded-2xl border bg-card/60 p-5">
         <h2 className="font-medium">会話モード</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          応答のスタイル（雑談/ロールプレイ等）を切り替えます。
-        </p>
+        <p className="mt-1 text-muted-foreground text-sm">応答のスタイル（雑談/ロールプレイ等）を切り替えます。</p>
 
         <div className="mt-4">
           <select
@@ -111,43 +127,18 @@ export default function SettingsWebClient() {
             value={chatMode}
             onChange={(e) => {
               const v = e.currentTarget.value;
-              const next: TouhouChatMode =
-                v === "roleplay" ? "roleplay" : v === "coach" ? "coach" : "partner";
+              const next: TouhouChatMode = v === "roleplay" ? "roleplay" : v === "coach" ? "coach" : "partner";
               setChatMode(next);
               setDefaultChatMode(next);
             }}
           >
             <option value="partner">雑談（バランス）</option>
-            <option value="roleplay">ロールプレイ（世界観寄り）</option>
-            <option value="coach">コーチ（助言寄り）</option>
+            <option value="roleplay">ロールプレイ（キャラ口調）</option>
+            <option value="coach">コーチ（改善寄り）</option>
           </select>
         </div>
       </section>
     </div>
-  );
-}
-
-function ThemeButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "rounded-xl border px-4 py-3 text-left transition",
-        active ? "border-ring bg-accent/70" : "border-border hover:bg-accent/40",
-      ].join(" ")}
-    >
-      <div className="font-medium text-sm">{label}</div>
-      <div className="text-muted-foreground text-xs">{active ? "選択中" : " "}</div>
-    </button>
   );
 }
 
