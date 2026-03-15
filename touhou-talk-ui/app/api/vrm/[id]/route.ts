@@ -30,17 +30,20 @@ async function resolveVrmFilePath(id: string): Promise<string> {
     const char = sanitizeCharacterId(id);
     if (userData && char) {
       const s = await loadCharacterSettings(char);
-      if (s?.vrm?.enabled === false) {
+      // If desktop runtime is enabled, only serve VRM when explicitly configured.
+      // No implicit fallback to bundled VRM for desktop mode.
+      if (!s || !s.vrm?.enabled || !s.vrm?.path) {
         throw Object.assign(new Error("VRM disabled"), { code: "DISABLED" });
       }
       const root = characterRootDir(userData, char);
-      const rel = typeof s?.vrm?.path === "string" && s.vrm.path ? s.vrm.path : "avatar.vrm";
-      const abs = s?.vrm?.enabled ? safeJoinInside(root, rel) : characterVrmPath(userData, char);
+      const rel = String(s.vrm.path).trim();
+      const abs = safeJoinInside(root, rel);
       try {
         const st = await fs.stat(abs);
         if (st.isFile()) return abs;
       } catch {
-        // ignore, fallback to bundled
+        // If configured but missing on disk, treat as not found.
+        throw Object.assign(new Error("VRM missing"), { code: "ENOENT" });
       }
     }
   }

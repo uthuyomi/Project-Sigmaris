@@ -29,12 +29,14 @@ export function defaultCharacterSettings(characterId: string): DesktopCharacterS
   return {
     schemaVersion: 1,
     characterId,
-    vrm: { enabled: true, path: "avatar.vrm" },
+    // Treat unconfigured assets as absent by default.
+    // VRM/TTS/motions should not auto-enable unless explicitly set by the user.
+    vrm: { enabled: false, path: null },
     tts: {
-      mode: "aquestalk",
-      aquestalk: { enabled: true, rootDir: null, speed: 100, voice: "" },
+      mode: "none",
+      aquestalk: { enabled: false, rootDir: null, speed: 100, voice: "" },
     },
-    motions: { enabled: true, indexPath: "motion-library/motions.json" },
+    motions: { enabled: false, indexPath: null },
     updatedAt: new Date().toISOString(),
   };
 }

@@ -56,6 +56,7 @@ export default function DesktopLiveAvatar({
   const enabled = useMemo(() => isElectronUa(), []);
   const aques = useAquesTalkAudioTts();
   const [browserSpeaking, setBrowserSpeaking] = useState(false);
+  const [vrmConfigured, setVrmConfigured] = useState(false);
 
   const stopAll = () => {
     try {
@@ -141,8 +142,34 @@ export default function DesktopLiveAvatar({
     stopAll();
     lastSpokenIdRef.current = null;
     setVrmRev("");
+    setVrmConfigured(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterId]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!characterId) return;
+
+    let canceled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/desktop/character-settings?char=${encodeURIComponent(characterId)}`, {
+          cache: "no-store",
+        });
+        const j = (await res.json().catch(() => null)) as
+          | { ok?: boolean; exists?: boolean; settings?: { vrm?: { enabled?: boolean; path?: string | null } } | null }
+          | null;
+        const ok = Boolean(res.ok && j?.ok && j.exists && j.settings?.vrm?.enabled && j.settings?.vrm?.path);
+        if (!canceled) setVrmConfigured(ok);
+      } catch {
+        if (!canceled) setVrmConfigured(false);
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [enabled, characterId, vrmRev]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -180,10 +207,13 @@ export default function DesktopLiveAvatar({
   }, [isRunning, messages, characterId, speak]);
 
   if (!enabled || !characterId) return null;
+  if (!vrmConfigured) return null;
 
   const url = `/api/vrm/${encodeURIComponent(characterId)}${vrmRev ? `?rev=${encodeURIComponent(vrmRev)}` : ""}`;
-  const ttsSpeaking = aques.speaking || browserSpeaking;
-  const stageSpeaking = isRunning || ttsSpeaking;
+  // IMPORTANT:
+  // "speaking" should reflect actual audio playback.
+  // If TTS is disabled, we must NOT animate as if speaking just because a model run is in progress.
+  const stageSpeaking = aques.speaking || browserSpeaking;
   const getLipSyncFrame = aques.getLipSyncFrame;
 
   return (
