@@ -3,6 +3,16 @@ import path from "node:path";
 import { promises as fs } from "node:fs";
 import { parseGlbJson } from "@/lib/vrm/parse-glb";
 import { scanVrmGltfJson, type VrmScanResult } from "@/lib/vrm/scan-vrm";
+import {
+  characterRootDir,
+  getDesktopUserDataDir,
+  isDesktopRuntimeEnabled,
+} from "@/lib/desktop/desktopPaths";
+import {
+  loadCharacterSettings,
+  safeJoinInside,
+  sanitizeCharacterId,
+} from "@/lib/desktop/desktopSettingsStore";
 
 function safeId(raw: string): string | null {
   const id = String(raw ?? "").trim();
@@ -29,11 +39,40 @@ function vrmPathForId(id: string) {
 }
 
 function scanPathForId(id: string) {
+  if (isDesktopRuntimeEnabled()) {
+    const userData = getDesktopUserDataDir();
+    const char = sanitizeCharacterId(id);
+    if (userData && char) {
+      return path.join(characterRootDir(userData, char), "scan.json");
+    }
+  }
   return path.join(process.cwd(), "vrm-characters", `${id}.scan.json`);
 }
 
+async function resolveVrmPathForId(id: string) {
+  if (!isDesktopRuntimeEnabled()) return vrmPathForId(id);
+  const userData = getDesktopUserDataDir();
+  const char = sanitizeCharacterId(id);
+  if (!userData || !char) return vrmPathForId(id);
+
+  const s = await loadCharacterSettings(char);
+  if (s?.vrm?.enabled === false) {
+    throw Object.assign(new Error("VRM disabled"), { code: "DISABLED" });
+  }
+  const root = characterRootDir(userData, char);
+  const rel = typeof s?.vrm?.path === "string" && s.vrm.path ? s.vrm.path : "avatar.vrm";
+  const abs = safeJoinInside(root, rel);
+  try {
+    const st = await fs.stat(abs);
+    if (st.isFile()) return abs;
+  } catch {
+    // ignore
+  }
+  return vrmPathForId(id);
+}
+
 async function readVrmAndScan(id: string): Promise<VrmScanResult> {
-  const buf = await fs.readFile(vrmPathForId(id));
+  const buf = await fs.readFile(await resolveVrmPathForId(id));
   const json = parseGlbJson(
     buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
   );
@@ -51,6 +90,9 @@ export async function GET(_req: Request, ctx: { params: unknown }) {
     return NextResponse.json(JSON.parse(raw), { status: 200 });
   } catch (e) {
     const code = (e as { code?: unknown } | null)?.code;
+    if (code === "DISABLED") {
+      return NextResponse.json({ error: "Scan not found" }, { status: 404 });
+    }
     if (code === "ENOENT") {
       return NextResponse.json({ error: "Scan not found" }, { status: 404 });
     }
@@ -66,7 +108,8 @@ export async function POST(_req: Request, ctx: { params: unknown }) {
   try {
     const scan = await readVrmAndScan(id);
     const outPath = scanPathForId(id);
-    await fs.writeFile(outPath, JSON.stringify(scan, null, 2), "utf8");
+    await fs.mkdir(path.dirname(outPath), { recursive: true });
+    await fs.writeFile(outPath, JSON.stringify(scan, null, 2) + "\n", "utf8");
     console.log("[/api/vrm/:id/scan] saved:", outPath);
     return NextResponse.json(
       {

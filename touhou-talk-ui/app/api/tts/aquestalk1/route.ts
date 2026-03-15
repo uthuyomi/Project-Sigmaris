@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { isDesktopRuntimeEnabled } from "@/lib/desktop/desktopPaths";
+import { loadCharacterSettings, sanitizeCharacterId } from "@/lib/desktop/desktopSettingsStore";
 
 export const runtime = "nodejs";
 
@@ -111,15 +113,37 @@ export async function POST(req: Request) {
   const text = String(body?.text ?? "").trim();
   if (!text) return NextResponse.json({ error: "Missing text" }, { status: 400 });
 
-  const speed = clampInt(Number(body?.speed ?? 120), 50, 300);
-  const voice = safeVoice(body?.voice);
+  const u = new URL(req.url);
+  const char = sanitizeCharacterId(u.searchParams.get("char") ?? "");
+
+  let speedSrc: number | undefined = typeof body?.speed === "number" ? body.speed : undefined;
+  let voiceSrc: string | undefined = typeof body?.voice === "string" ? body.voice : undefined;
+  let aqRootOverride: string | null = null;
+
+  if (char && isDesktopRuntimeEnabled()) {
+    try {
+      const s = await loadCharacterSettings(char);
+      if (s?.tts?.mode === "aquestalk" && s.tts.aquestalk?.enabled) {
+        if (speedSrc == null) speedSrc = Number(s.tts.aquestalk.speed);
+        if (voiceSrc == null) voiceSrc = String(s.tts.aquestalk.voice ?? "");
+      }
+      if (typeof s?.tts?.aquestalk?.rootDir === "string" && s.tts.aquestalk.rootDir.trim()) {
+        aqRootOverride = s.tts.aquestalk.rootDir.trim();
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const speed = clampInt(Number(speedSrc ?? 120), 50, 300);
+  const voice = safeVoice(voiceSrc);
 
   // Repo layout assumption:
   //   Project-Sigmaris/
   //     aquestalk/
   //     touhou-talk-ui/  (this app)
   const repoRoot = path.resolve(process.cwd(), "..");
-  const aqRoot = path.join(repoRoot, "aquestalk");
+  const aqRoot = aqRootOverride ?? path.join(repoRoot, "aquestalk");
 
   const aqtk1 = path.join(aqRoot, "aqtk1_win_200", "aqtk1_win");
   const aqtk1DllDir = path.join(aqtk1, "lib64", voice);
