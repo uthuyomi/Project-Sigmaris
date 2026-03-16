@@ -1,39 +1,70 @@
 **Languages:** English | [日本語](README.ja.md)
 
-# gensokyo-persona-core (Sigmaris Persona OS Engine)
+# gensokyo-persona-core
 
-`sigmaris-core` is the **backend engine** of Project Sigmaris.
+FastAPI backend that implements the "Persona OS" control plane used by UIs in this monorepo.
 
-It exposes a small HTTP API (FastAPI) and implements the “Persona OS” control plane:
+It exposes:
 
-- Memory selection / reinjection
-- Identity continuity
-- Value / trait drift tracking
-- Dialogue state routing (Phase03)
-- Safety / guardrails
-- Observability (`trace_id` + structured `meta`)
+- Chat: `POST /persona/chat`
+- Streaming chat (SSE): `POST /persona/chat/stream`
+- External I/O tools (optional, Phase04): web fetch / web RAG / uploads, etc.
 
-This engine is consumed by:
+This service is consumed by `touhou-talk-ui/` (Next.js route handlers proxy requests to the core).
 
-- `touhou-talk-ui/` (variant UI)
+## Run locally
 
----
+### Requirements
+
+- Python 3.11+
+
+### Install
+
+```bash
+cd gensokyo-persona-core
+python -m venv .venv
+./.venv/Scripts/pip install -r requirements.txt
+```
+
+### Configure env
+
+For local dev this repo typically uses the repo root `.env` (see `persona_core/storage/env_loader.py`).
+Start from `.env.example` at the repo root and set at least:
+
+- `OPENAI_API_KEY`
+
+Optional but common (persistence / auth):
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` (server only)
+- `SIGMARIS_REQUIRE_AUTH=1` (recommended when exposed publicly)
+
+### Start
+
+```bash
+./.venv/Scripts/python -m uvicorn server:app --reload --host 127.0.0.1 --port 8000
+```
+
+Swagger / OpenAPI: `http://127.0.0.1:8000/docs`
+
+## Auth model (important)
+
+The core supports two authentication paths:
+
+1) Supabase JWT (typical for the UI)
+   - Provide `Authorization: Bearer <access_token>`
+   - The token is verified server-side (best-effort) via Supabase.
+
+2) Internal token bypass (local/dev service-to-service)
+   - Set `SIGMARIS_INTERNAL_TOKEN`
+   - Send header `X-Sigmaris-Internal-Token: <token>`
+   - Requests are treated as `SIGMARIS_DEFAULT_USER_ID` (default: `default-user`)
 
 ## API
 
-- `POST /persona/chat` → `{ reply, meta }`
-- `POST /persona/chat/stream` → SSE (`start` / `delta` / `done`)
+### `POST /persona/chat`
 
-
-- `POST /io/web/search` — web search (Serper)
-- `POST /io/web/fetch` — fetch + (optional) summarize (allowlist/SSRF-guarded)
-- `POST /io/web/rag` — search → bounded crawl → extract → rank → context (optional)
-
-Swagger:
-
-- `http://127.0.0.1:8000/docs`
-
-### Minimal request
+Minimal request:
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/persona/chat" \
@@ -41,7 +72,7 @@ curl -X POST "http://127.0.0.1:8000/persona/chat" \
   -d '{"user_id":"u_test_001","session_id":"s_test_001","message":"Hello. One sentence reply."}'
 ```
 
-### Streaming (SSE)
+### `POST /persona/chat/stream` (SSE)
 
 ```bash
 curl -N -X POST "http://127.0.0.1:8000/persona/chat/stream" \
@@ -49,102 +80,36 @@ curl -N -X POST "http://127.0.0.1:8000/persona/chat/stream" \
   -d '{"user_id":"u_test_001","session_id":"s_test_001","message":"Hello. Stream your reply."}'
 ```
 
----
+Notes:
 
-## Web RAG (optional)
+- If you deploy behind a reverse proxy, ensure SSE buffering is disabled.
+- UIs in this repo proxy this endpoint from Next.js route handlers.
 
-sigmaris-core can optionally enrich replies with **external web context** when it is explicitly requested or when time-sensitive hints are detected (configurable).
+## Web fetch / Web RAG (optional, Phase04)
 
-### Required (search provider)
+The core includes SSRF-guarded web fetching and a bounded "web RAG" pipeline.
 
-- `SERPER_API_KEY` (Serper)
+### Web fetch allowlist
 
-### Required (safety)
+Fetching is blocked unless you explicitly allow it:
 
-Fetching is blocked unless you set an allowlist:
+- `SIGMARIS_WEB_FETCH_ALLOW_DOMAINS` - comma-separated domains (e.g. `wikipedia.org, nhk.or.jp`)
+- `SIGMARIS_WEB_FETCH_ALLOW_ALL=1` - development only
 
-- `SIGMARIS_WEB_FETCH_ALLOW_DOMAINS` (comma-separated, e.g. `wikipedia.org, dic.nicovideo.jp, w.atwiki.jp, touhouwiki.net`)
+### Web RAG toggles
 
-### Enable
+- `SIGMARIS_WEB_RAG_ENABLED=1` - enable `/io/web/rag`
+- `SIGMARIS_WEB_RAG_AUTO=1` - optional auto-trigger (best-effort)
 
-- `SIGMARIS_WEB_RAG_ENABLED=1` (enable `/io/web/rag` and prompt injection)
-- `SIGMARIS_WEB_RAG_AUTO=1` (optional: auto-trigger on time-sensitive hints)
+Search providers (optional):
 
-### Tuning / policy
+- `SERPER_API_KEY` - Serper
 
-- `SIGMARIS_WEB_RAG_ALLOW_DOMAINS` / `SIGMARIS_WEB_RAG_DENY_DOMAINS` (additional allow/deny filters)
-- `SIGMARIS_WEB_RAG_MAX_PAGES` (default `20`)
-- `SIGMARIS_WEB_RAG_MAX_DEPTH` (default `1`)
-- `SIGMARIS_WEB_RAG_TOP_K` (default `6`)
-- `SIGMARIS_WEB_RAG_CRAWL_CROSS_DOMAIN=1` (default off; only crawl within the same host)
-- `SIGMARIS_WEB_RAG_LINKS_PER_PAGE` (default `120`)
-- `SIGMARIS_WEB_RAG_RECENCY_DAYS` (default `14` for time-sensitive turns)
+## Where to look in code (orientation)
 
-### Optional summarization (copyright-safe paraphrase)
+- API server: `persona_core/server_persona_os.py`
+- External I/O: `persona_core/phase04/io/`
+- Memory + stores: `persona_core/memory/`, `persona_core/storage/`
+- Safety: `persona_core/safety/`
+- State machine: `persona_core/state/`
 
-If enabled, each fetched page is summarized with a small model (paraphrase-only; avoids long quotes):
-
-- `SIGMARIS_WEB_FETCH_SUMMARIZE=1`
-- `SIGMARIS_WEB_FETCH_SUMMARY_MODEL` (default `gpt-5-mini`)
-- `SIGMARIS_WEB_FETCH_SUMMARY_TIMEOUT_SEC` (default `60`)
-
-### Copyright / ToS guidance
-
-- The core is instructed to **paraphrase** and avoid long verbatim quotes.
-- When a claim is based on web context, replies should include **source URLs**.
-
----
-
-## Quickstart (local)
-
-### Requirements
-
-- Python 3.11+ recommended
-
-### 1) Install
-
-```bash
-cd gensokyo-persona-core
-pip install -r requirements.txt
-```
-
-### 2) Configure env
-
-Minimum:
-
-- `OPENAI_API_KEY`
-
-Optional (persistence / uploads / storage integration):
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-### 3) Run
-
-```bash
-python -m uvicorn server:app --reload --port 8000
-```
-
----
-
-## “Natural dialogue” control (v1)
-
-To reduce “interview / over-structured” replies **for all UIs** (not UI-specific), the core includes a lightweight controller that:
-
-- Keeps a small set of **style/turn-taking parameters** per `session_id`
-- Updates them smoothly (no big jumps)
-- Enforces “forced rules” such as:
-  - at most 1 question per turn (unless choices were explicitly requested)
-  - avoid permission-template prompts (“OK to proceed?” etc.)
-
-Implementation:
-
-- `persona_core/phase03/naturalness_controller.py`
-
----
-
-## Notes for production
-
-- Do **not** expose `SUPABASE_SERVICE_ROLE_KEY` to the client. Server-side only.
-- Prefer running the core close to users (region) to reduce first-token latency.
-- If you deploy behind a proxy, ensure SSE buffering is disabled (or use a streaming-friendly runtime).

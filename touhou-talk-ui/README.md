@@ -2,54 +2,40 @@
 
 # Touhou Talk UI
 
-This directory contains an **unofficial fan-made** (derivative) character chat UI inspired by **Touhou Project**.
+`touhou-talk-ui` is a Next.js UI in the Project Sigmaris monorepo.
+It is an unofficial fan-made (derivative) character chat UI inspired by Touhou Project, built to stress-test the persona core with a product-shaped UX.
 
-It is a UI variant in **Project Sigmaris** and uses:
+Core dependencies:
 
-- **Supabase Auth** (OAuth) for login
-- **Supabase DB** for session/message persistence
-- **Sigmaris Persona OS backend** (`gensokyo-persona-core`) for response generation (`/persona/chat`, `/persona/chat/stream`)
+- Next.js (App Router)
+- Supabase Auth (OAuth) + Postgres persistence (`common_*` tables)
+- Persona core proxying to `gensokyo-persona-core` (`/persona/chat`, `/persona/chat/stream`)
+- Optional desktop wrapper (Electron, Windows)
 
-## What’s in here
+## Run locally (web)
 
-- Next.js App Router UI (`/entry`, `/chat/session`, `/auth/*`)
-- Session-based chat persistence in Supabase (`common_sessions`, `common_messages`)
-- Server-side API routes that proxy to `gensokyo-persona-core` and optionally enrich messages (uploads / link analysis / web tools)
-- Optional PWA manifest (`public/site.webmanifest`) and service worker registration (`/sw.js`)
-- Optional Windows desktop packaging (Electron)
+### Prerequisites
 
-## Requirements
+- Node.js (LTS) + npm
+- A Supabase project
+- A running `gensokyo-persona-core` (default: `http://127.0.0.1:8000`)
 
-- Node.js + npm
-- A Supabase project (URL / anon key / service role key)
-- A running `gensokyo-persona-core` backend (default: `http://127.0.0.1:8000`)
+### Env
 
-## Environment variables
+You can configure env either:
 
-Create `touhou-talk-ui/.env.local` (or use the repo root `.env` in this monorepo).
+- Standard Next.js way: `touhou-talk-ui/.env.local`, or
+- Monorepo way: repo root `.env` (loaded first by `npm run dev` via `tools/dev.mjs`)
 
-Required:
+Minimum keys:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-side only)
-- `SIGMARIS_CORE_URL` (e.g. `http://127.0.0.1:8000`)
+- `SIGMARIS_CORE_URL` (server-to-server base URL, e.g. `http://127.0.0.1:8000`)
+- `NEXT_PUBLIC_SIGMARIS_CORE` (client-visible base URL; usually same as above for local dev)
 
-Recommended (ops / hardening):
-
-- `NEXT_PUBLIC_SITE_URL` (used for metadata, sitemap, robots; falls back to `VERCEL_URL` or `http://localhost:3000`)
-- `TOUHOU_ALLOWED_ORIGINS` (comma-separated; defaults to same-origin when unset)
-- `TOUHOU_RATE_LIMIT_MS` (best-effort per-user minimum interval; default `1200`)
-
-Optional (Phase04 features for `/api/session/[sessionId]/message`):
-
-- `TOUHOU_UPLOAD_ENABLED` (`0/1`) → enable file upload + parse via `gensokyo-persona-core` (`/io/upload`, `/io/parse`)
-- `TOUHOU_LINK_ANALYSIS_ENABLED` (`0/1`) → enable link analysis via `gensokyo-persona-core` (`/io/web/fetch`, `/io/web/search`, `/io/github/repos`)
-- `TOUHOU_AUTO_BROWSE_ENABLED` (`0/1`) → enable auto browse (best-effort) when link analysis is disabled
-
-## Run locally
-
-From this repository root:
+### Start
 
 ```bash
 cd touhou-talk-ui
@@ -57,49 +43,57 @@ npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000`.
+Open: `http://localhost:3000`
 
-Notes:
+## Supabase OAuth redirect URLs
 
-- `npm run dev` loads environment variables from the **repo root** first (monorepo convenience), then Next.js loads `touhou-talk-ui/.env*` files.
-- The main chat route is `GET /chat/session` (and `/chat` redirects there).
+In Supabase Dashboard, add redirect URLs such as:
 
-## Auth / OAuth
-
-- Login page: `GET /auth/login`
-- OAuth callback: `GET /auth/callback` (server-side code exchange via Supabase)
-
-In Supabase Dashboard, enable OAuth providers you want (the UI offers Google/GitHub/Discord by default) and add redirect URLs, e.g.:
-
-- `http://localhost:3000/auth/callback`
-- `https://<your-domain>/auth/callback`
-
-## Persistence model (Supabase)
-
-This UI stores data under `app = "touhou"` and uses:
-
-- `common_sessions` (chat sessions)
-- `common_messages` (chat messages)
-- `common_state_snapshots` (optional; stores core meta snapshots when available)
+- `http://localhost:3000/auth/callback` (web dev)
+- `http://localhost:3789/auth/callback` (desktop default; see below)
+- `https://<your-domain>/auth/callback` (production)
 
 ## Internal API routes (Next.js)
 
-Main (used by `/chat/session`):
+Main chat flow:
 
-- `GET /api/session` (list sessions; requires auth)
-- `POST /api/session` (create a session; requires auth)
-- `GET /api/session/[sessionId]/messages` (reload/restore; requires auth)
-- `POST /api/session/[sessionId]/message` (send a message; requires auth)
-  - Content-Type: `multipart/form-data`
-  - Proxies to `gensokyo-persona-core` (`/persona/chat` or `/persona/chat/stream`)
-  - Injects character persona via `persona_system` (built in `lib/touhouPersona.ts`)
+- `GET /api/session` / `POST /api/session`
+- `GET /api/session/[sessionId]/messages`
+- `POST /api/session/[sessionId]/message` (supports `?stream=1`)
+  - Proxies to the persona core (`/persona/chat` or `/persona/chat/stream`)
+  - Persists messages to Supabase (`common_sessions`, `common_messages`)
 
-Other:
+Desktop-only configuration endpoints:
 
-- `GET /api/io/attachment/[attachmentId]` (proxy to `gensokyo-persona-core` attachment download)
-- `POST /api/chat` (legacy; used by older components in this repo)
+- `GET /api/desktop/character-settings` (used by the desktop settings UI)
 
-## Desktop build (Windows, optional)
+## Desktop (Electron / Windows, optional)
+
+The desktop wrapper is local-only. It runs the UI in an Electron shell and stores per-character config (VRM / TTS / motions) on disk.
+
+### Dev
+
+```bash
+cd touhou-talk-ui
+npm run desktop:dev
+```
+
+`desktop:dev` will:
+
+- Find a free Next dev port starting from `3000`
+- Start Next dev (via `tools/dev.mjs`)
+- Start Electron (via `tools/desktop/main.cjs`)
+
+### Desktop env file
+
+The dev runner can load a dedicated env file via:
+
+- `TOUHOU_DESKTOP_ENV_PATH` (explicit file path), or
+- `%LOCALAPPDATA%/TouhouTalkDesktopDev/touhou-talk.env` / `%APPDATA%/...` (auto location when not set)
+
+It is intended for local dev only. Do not put privileged keys there.
+
+### Packaged build
 
 ```bash
 cd touhou-talk-ui
@@ -108,16 +102,6 @@ npm run desktop:dist
 
 ## Fan work notice
 
-This project is an **unofficial, non-commercial fan work** based on Touhou Project.
+This project is an unofficial, non-commercial fan work inspired by Touhou Project.
+It is not affiliated with or endorsed by the original creator or rights holders.
 
-It is **not affiliated with or endorsed by** the original creator or rights holder.
-
-Touhou-related characters, names, and settings are the property of:
-
-- Team Shanghai Alice (上海アリス幻樂団)
-
-## License
-
-This directory does not include a dedicated license file.
-
-Please follow the license policy of the repository and/or sibling packages.
