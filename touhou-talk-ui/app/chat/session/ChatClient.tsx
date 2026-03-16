@@ -176,6 +176,26 @@ export default function ChatClient() {
     return Math.max(260, Math.min(640, Math.trunc(n)));
   });
 
+  const [desktopAvatarPipRect, setDesktopAvatarPipRect] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }>(() => {
+    if (typeof window === "undefined") return { x: 0, y: 0, w: 340, h: 420 };
+    const readNum = (k: string, fallback: number) => {
+      const raw = String(window.localStorage.getItem(k) ?? "").trim();
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    const w = Math.max(260, Math.min(520, Math.trunc(readNum("touhou.desktop.avatar.pip.w", 340))));
+    const h = Math.max(260, Math.min(620, Math.trunc(readNum("touhou.desktop.avatar.pip.h", 420))));
+    const x = Math.trunc(readNum("touhou.desktop.avatar.pip.x", 0));
+    const y = Math.trunc(readNum("touhou.desktop.avatar.pip.y", 80));
+    return { x, y, w, h };
+  });
+
   const [desktopAvatarAvailRev, setDesktopAvatarAvailRev] = useState(0);
   const [desktopAvatarAvailable, setDesktopAvatarAvailable] = useState(false);
 
@@ -227,10 +247,14 @@ export default function ChatClient() {
       window.localStorage.setItem("touhou.desktop.avatar.visible", desktopAvatarVisible ? "1" : "0");
       window.localStorage.setItem("touhou.desktop.avatar.layout", desktopAvatarLayout);
       window.localStorage.setItem("touhou.desktop.avatar.dockWidth", String(desktopAvatarDockWidth));
+      window.localStorage.setItem("touhou.desktop.avatar.pip.x", String(desktopAvatarPipRect.x));
+      window.localStorage.setItem("touhou.desktop.avatar.pip.y", String(desktopAvatarPipRect.y));
+      window.localStorage.setItem("touhou.desktop.avatar.pip.w", String(desktopAvatarPipRect.w));
+      window.localStorage.setItem("touhou.desktop.avatar.pip.h", String(desktopAvatarPipRect.h));
     } catch {
       // ignore
     }
-  }, [desktopAvatarVisible, desktopAvatarLayout, desktopAvatarDockWidth]);
+  }, [desktopAvatarVisible, desktopAvatarLayout, desktopAvatarDockWidth, desktopAvatarPipRect]);
 
   const dockWrapRef = useRef<HTMLDivElement | null>(null);
   const dockDragRef = useRef<{
@@ -238,6 +262,52 @@ export default function ChatClient() {
     startX: number;
     startWidth: number;
   } | null>(null);
+
+  const pipWrapRef = useRef<HTMLDivElement | null>(null);
+  const pipDragRef = useRef<
+    | {
+        kind: "move";
+        pointerId: number;
+        startX: number;
+        startY: number;
+        startRect: { x: number; y: number; w: number; h: number };
+      }
+    | {
+        kind: "resize";
+        pointerId: number;
+        startX: number;
+        startY: number;
+        startRect: { x: number; y: number; w: number; h: number };
+      }
+    | null
+  >(null);
+
+  const clampPipRect = useCallback(
+    (rect: { x: number; y: number; w: number; h: number }) => {
+      const wrap = pipWrapRef.current;
+      const bounds = wrap?.getBoundingClientRect?.();
+      const bw = Math.trunc(bounds?.width ?? 0);
+      const bh = Math.trunc(bounds?.height ?? 0);
+
+      const minW = 260;
+      const minH = 260;
+      const maxW = 520;
+      const maxH = 620;
+
+      const w = Math.max(minW, Math.min(maxW, Math.trunc(rect.w)));
+      const h = Math.max(minH, Math.min(maxH, Math.trunc(rect.h)));
+
+      const pad = 8;
+      const maxX = bw > 0 ? Math.max(pad, bw - w - pad) : 10000;
+      const maxY = bh > 0 ? Math.max(pad, bh - h - pad) : 10000;
+
+      const x = Math.max(pad, Math.min(maxX, Math.trunc(rect.x)));
+      const y = Math.max(pad, Math.min(maxY, Math.trunc(rect.y)));
+
+      return { x, y, w, h };
+    },
+    [],
+  );
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
@@ -272,6 +342,48 @@ export default function ChatClient() {
       window.removeEventListener("pointercancel", onUp);
     };
   }, []);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const drag = pipDragRef.current;
+      if (!drag) return;
+      if (e.pointerId !== drag.pointerId) return;
+
+      if (drag.kind === "move") {
+        const next = {
+          ...drag.startRect,
+          x: drag.startRect.x + (e.clientX - drag.startX),
+          y: drag.startRect.y + (e.clientY - drag.startY),
+        };
+        setDesktopAvatarPipRect(clampPipRect(next));
+        return;
+      }
+
+      // resize (bottom-right)
+      const next = {
+        ...drag.startRect,
+        w: drag.startRect.w + (e.clientX - drag.startX),
+        h: drag.startRect.h + (e.clientY - drag.startY),
+      };
+      setDesktopAvatarPipRect(clampPipRect(next));
+    };
+
+    const onUp = (e: PointerEvent) => {
+      const drag = pipDragRef.current;
+      if (!drag) return;
+      if (e.pointerId !== drag.pointerId) return;
+      pipDragRef.current = null;
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [clampPipRect]);
 
   useEffect(() => {
     if (!isElectron) return;
@@ -1424,10 +1536,83 @@ export default function ChatClient() {
                       <>
                         <Thread />
                         {isElectron && desktopAvatarVisible && desktopAvatarAvailable ? (
-                          <DesktopLiveAvatar
-                            characterId={activeCharacterId}
-                            className="pointer-events-auto absolute right-4 top-20 hidden h-[420px] w-[340px] overflow-hidden rounded-2xl border bg-background/30 shadow-xl backdrop-blur lg:block"
-                          />
+                          <div ref={pipWrapRef} className="absolute inset-0 pointer-events-none">
+                            <div
+                              className="pointer-events-auto absolute hidden overflow-hidden rounded-2xl border bg-background/30 shadow-xl backdrop-blur lg:block"
+                              style={{
+                                left: `${desktopAvatarPipRect.x}px`,
+                                top: `${desktopAvatarPipRect.y}px`,
+                                width: `${desktopAvatarPipRect.w}px`,
+                                height: `${desktopAvatarPipRect.h}px`,
+                              }}
+                            >
+                              <div
+                                className="flex h-8 w-full items-center justify-between gap-2 border-b border-border/60 bg-background/40 px-2 text-xs text-foreground/80"
+                                onPointerDown={(e) => {
+                                  if (e.button !== 0) return;
+                                  pipDragRef.current = {
+                                    kind: "move",
+                                    pointerId: e.pointerId,
+                                    startX: e.clientX,
+                                    startY: e.clientY,
+                                    startRect: desktopAvatarPipRect,
+                                  };
+                                  try {
+                                    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+                                  } catch {
+                                    // ignore
+                                  }
+                                }}
+                                onDoubleClick={() => {
+                                  setDesktopAvatarPipRect((prev) =>
+                                    clampPipRect({
+                                      ...prev,
+                                      w: 340,
+                                      h: 420,
+                                    }),
+                                  );
+                                }}
+                                title="Drag to move (double-click to reset size)"
+                              >
+                                <div className="min-w-0 truncate">
+                                  {activeCharacter?.name ?? "Avatar"}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="rounded-md px-1.5 py-0.5 text-foreground/70 hover:bg-background/50"
+                                  onClick={() => setDesktopAvatarVisible(false)}
+                                  title="Hide avatar"
+                                >
+                                  ×
+                                </button>
+                              </div>
+
+                              <DesktopLiveAvatar
+                                characterId={activeCharacterId}
+                                className="h-[calc(100%-2rem)] w-full"
+                              />
+
+                              <div
+                                className="absolute bottom-1 right-1 h-4 w-4 cursor-nwse-resize rounded-sm border border-border/60 bg-background/50"
+                                onPointerDown={(e) => {
+                                  if (e.button !== 0) return;
+                                  pipDragRef.current = {
+                                    kind: "resize",
+                                    pointerId: e.pointerId,
+                                    startX: e.clientX,
+                                    startY: e.clientY,
+                                    startRect: desktopAvatarPipRect,
+                                  };
+                                  try {
+                                    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+                                  } catch {
+                                    // ignore
+                                  }
+                                }}
+                                title="Drag to resize"
+                              />
+                            </div>
+                          </div>
                         ) : null}
                       </>
                     )}
