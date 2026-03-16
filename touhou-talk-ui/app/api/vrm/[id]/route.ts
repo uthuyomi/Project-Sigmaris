@@ -21,7 +21,9 @@ function safeId(raw: string): string | null {
 }
 
 function vrmPathForId(id: string) {
-  return path.join(process.cwd(), "vrm-characters", `${id}.vrm`);
+  // Avoid `process.cwd()` here: on Vercel it can cause overly-broad output file tracing
+  // (pulling large `public/` assets into the function bundle). Keep paths relative.
+  return path.join("vrm-characters", `${id}.vrm`);
 }
 
 async function resolveVrmFilePath(id: string): Promise<string> {

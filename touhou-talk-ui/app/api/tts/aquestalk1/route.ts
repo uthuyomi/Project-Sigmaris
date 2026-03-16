@@ -142,8 +142,9 @@ export async function POST(req: Request) {
   //   Project-Sigmaris/
   //     aquestalk/
   //     touhou-talk-ui/  (this app)
-  const repoRoot = path.resolve(process.cwd(), "..");
-  const aqRoot = aqRootOverride ?? path.join(repoRoot, "aquestalk");
+  // Avoid `process.cwd()` here: on Vercel it can cause overly-broad output file tracing.
+  // In local dev, Next is started from `touhou-talk-ui/`, so `..` points to the monorepo root.
+  const aqRoot = aqRootOverride ?? path.join("..", "aquestalk");
 
   const aqtk1 = path.join(aqRoot, "aqtk1_win_200", "aqtk1_win");
   const aqtk1DllDir = path.join(aqtk1, "lib64", voice);
@@ -159,7 +160,7 @@ export async function POST(req: Request) {
     "powershell.exe",
   );
 
-  const scriptPath = path.join(process.cwd(), "tools", "aquestalk1-synth.ps1");
+  const scriptPath = path.join("tools", "aquestalk1-synth.ps1");
 
   const child = spawn(
     ps,
