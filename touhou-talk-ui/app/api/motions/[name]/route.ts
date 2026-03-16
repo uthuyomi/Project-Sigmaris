@@ -24,7 +24,8 @@ function safeName(raw: unknown): string | null {
 }
 
 function motionLibraryRoot() {
-  return path.join(process.cwd(), "vrm-characters", "motion-library");
+  // Avoid `process.cwd()` here: on Vercel it can cause overly-broad output file tracing.
+  return path.join("vrm-characters", "motion-library");
 }
 
 function motionsJsonPath() {

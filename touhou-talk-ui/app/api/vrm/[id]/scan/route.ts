@@ -35,7 +35,8 @@ async function unwrapParams(
 }
 
 function vrmPathForId(id: string) {
-  return path.join(process.cwd(), "vrm-characters", `${id}.vrm`);
+  // Avoid `process.cwd()` here: on Vercel it can cause overly-broad output file tracing.
+  return path.join("vrm-characters", `${id}.vrm`);
 }
 
 function scanPathForId(id: string) {
@@ -46,7 +47,7 @@ function scanPathForId(id: string) {
       return path.join(characterRootDir(userData, char), "scan.json");
     }
   }
-  return path.join(process.cwd(), "vrm-characters", `${id}.scan.json`);
+  return path.join("vrm-characters", `${id}.scan.json`);
 }
 
 async function resolveVrmPathForId(id: string) {
