@@ -1,6 +1,12 @@
-﻿# gensokyo-world-docs
+# gensokyo-world-docs
 
 AI幻想郷ワールド（Time Skip Simulation中心）の設計メモ。
+
+実装の対応フォルダ:
+
+- サーバ実装: `gensokyo-world-engine/`
+- WSゲートウェイ: `gensokyo-event-gateway/`
+- DBスキーマ: `supabase/GENSOKYO_WORLD_SCHEMA.sql`
 
 ## 読む順番（推奨）
 

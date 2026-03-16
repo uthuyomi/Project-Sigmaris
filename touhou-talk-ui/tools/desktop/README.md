@@ -1,46 +1,62 @@
-# Touhou Talk Desktop (Windows)
+# Touhou Talk Desktop (Windows / Electron)
 
-This is a **local-only** desktop wrapper for `touhou-talk-ui` using Electron.
+This folder contains the Electron wrapper for `touhou-talk-ui`.
+
+Design goals:
+
+- Desktop mode is **local-only** (a shell around the UI)
+- Desktop runtime stores settings under Electron `userData`
+- A bundled `default.env` can ship safe defaults (and is treated as highest priority)
 
 ## Prerequisites
 
 - Windows
 - Node.js (LTS)
 
-## Setup
+## Run (dev)
 
-1. Install deps:
+From `touhou-talk-ui/`:
 
-   - `cd touhou-talk-ui`
-   - `npm install`
+```powershell
+npm install
+npm run desktop:dev
+```
 
-2. Build the Next.js standalone bundle:
+What `desktop:dev` does:
 
-   - `npm run desktop:prepare`
+- Finds a free Next dev port starting from `3000`
+- Starts Next dev via `tools/dev.mjs` (so repo-root `.env` is loaded before SSR/API)
+- Starts Electron with `tools/desktop/main.cjs`
 
-3. Configure env for the desktop app:
+## Desktop env file locations
 
-   - Launch the desktop app once (it will create a file):
-     - `%APPDATA%/Touhou Talk/touhou-talk.env`
-    - Fill in at least:
-      - `NEXT_PUBLIC_SUPABASE_URL`
-      - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-      - `SUPABASE_SERVICE_ROLE_KEY`
-      - `SIGMARIS_CORE_URL`
+On launch, Electron sets:
 
-4. Make sure Supabase redirect URLs include:
+- `TOUHOU_DESKTOP_USERDATA_DIR` to the app’s `userData` directory
+- `TOUHOU_DESKTOP_ENV_PATH` to the env file used by desktop runtime (`touhou-talk.env`)
 
-   - `http://localhost:3789/auth/callback`
+Typical dev userData dir:
 
-   (Change the port if you set `TOUHOU_DESKTOP_PORT`.)
+- `%LOCALAPPDATA%/TouhouTalkDesktopDev/` (or `%APPDATA%/…` depending on environment)
 
-## Run
+The env file is:
 
-- Dev (uses existing `next dev`):
-  - Start Next dev server: `npm run dev:raw`
-  - Start Electron: `npm run desktop:dev`
+- `<userData>/touhou-talk.env`
 
-- Packaged app:
-  - `npm run desktop:dist`
+## Bundled defaults (`default.env`)
 
-## Notes
+Packaged builds can include a bundled `default.env` at:
+
+- `touhou-talk-ui/tools/desktop/.bundle/default.env`
+
+Electron loads bundled defaults **first** and treats them as **highest priority**.
+The user env file is used only to fill missing values (and will not override defaults).
+
+Security note: service role keys are intentionally not loaded from bundled defaults.
+
+## Supabase redirect URLs
+
+Desktop uses a local port (default `3789`, configurable via `TOUHOU_DESKTOP_PORT`).
+Make sure Supabase redirect URLs include:
+
+- `http://localhost:3789/auth/callback`

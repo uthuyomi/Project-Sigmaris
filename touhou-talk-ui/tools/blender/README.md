@@ -1,39 +1,48 @@
-# Blender 自動化（ヘッドレス）ツール
+# Blender tools (VRM scan / idle motion)
 
-Touhou-talk-ui の `vrm-characters/*.vrm` を、Blender を使って **自動スキャン**／**idleアニメ生成**するためのローカルツールです。
+This folder contains small Blender batch jobs used by `touhou-talk-ui` to:
 
-目的
-- `reimu.vrm` などのVRMを読み込み、骨/メッシュ/シェイプキー情報を `*.scan.json` に保存
-- “呼吸・微揺れ”の簡易 idle を生成し、`GLB` として書き出し（three.js 側で `AnimationMixer` で再生できる形）
+- Scan a VRM for bones + shape keys (morph targets)
+- Generate a simple “idle breathe” animation and export it as GLB
 
-## 前提
+Jobs live under `touhou-talk-ui/tools/blender/jobs/` and are executed via `run.ps1`.
+
+## Prerequisites
+
 - Windows
-- Blender がインストール済み
-- `BLENDER_EXE` 環境変数に `blender.exe` のフルパスを設定
+- Blender installed
 
-例（PowerShell）:
-```powershell
-$env:BLENDER_EXE="C:\Program Files\Blender Foundation\Blender 5.0\blender.exe"
-```
-
-## コマンド
-
-### VRMスキャン
-`vrm-characters/reimu.vrm` を読み込み、`vrm-characters/reimu.scan.json` を更新します。
+If `blender.exe` is not found automatically, set:
 
 ```powershell
-npm run blender:scan -- --input "vrm-characters/reimu.vrm" --output "vrm-characters/reimu.scan.json"
+$env:BLENDER_EXE="C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe"
 ```
 
-### idle生成（GLB書き出し）
-`idle_breathe` アクションを生成して `vrm-characters/motion-library/converted/glb/reimu_idle_breathe.glb` に書き出します。
+## How to run
+
+`run.ps1` resolves input/output paths relative to the **repo root**.
+
+### 1) Scan a VRM
+
+Produces a JSON containing bone names and mesh shape keys.
 
 ```powershell
-npm run blender:idle -- --input "vrm-characters/reimu.vrm" --output "vrm-characters/motion-library/converted/glb/reimu_idle_breathe.glb"
+pwsh -File touhou-talk-ui/tools/blender/run.ps1 `
+  -Job scan `
+  -Input "touhou-talk-ui/vrm-characters/reimu.vrm" `
+  -Output "touhou-talk-ui/vrm-characters/reimu.scan.json"
 ```
 
-## 設計メモ（重要）
-- VRMアドオンに依存しないよう、Blender標準の glTF インポート/エクスポートを使います。
-  - そのため Humanoid マップや VRM拡張（表情プリセット等）は“直接”は扱いません。
-  - 代わりに、アーマチュア骨名・メッシュ・シェイプキー（morph target）等をスキャンしてJSON化します。
-- アニメ生成は「安全第一」：回転中心になりやすい MMD骨（`センター/上半身/首/頭/肩` 等）が見つかる場合のみ軽く揺らします。
+### 2) Generate a base idle animation (GLB)
+
+```powershell
+pwsh -File touhou-talk-ui/tools/blender/run.ps1 `
+  -Job idle `
+  -Input "touhou-talk-ui/vrm-characters/reimu.vrm" `
+  -Output "touhou-talk-ui/vrm-characters/motion-library/converted/glb/reimu_idle_breathe.glb"
+```
+
+Notes:
+
+- The current `idle` job is conservative and primarily intended as a baseline for Reimu-like VRMs.
+- VRM is a glTF-based format; these jobs use Blender’s glTF importer/exporter (no VRM addon dependency).
