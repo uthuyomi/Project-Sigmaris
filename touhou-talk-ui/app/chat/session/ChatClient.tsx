@@ -140,6 +140,11 @@ export default function ChatClient() {
   const currentLayer = searchParams.get("layer");
   const currentLocationId = searchParams.get("loc");
 
+  const isElectron = useMemo(() => {
+    if (typeof navigator === "undefined") return false;
+    return String(navigator.userAgent ?? "").includes("Electron");
+  }, []);
+
   /* =========================
      State
   ========================= */
@@ -149,6 +154,22 @@ export default function ChatClient() {
   const [activeCharacterId, setActiveCharacterId] = useState<string | null>(
     null,
   );
+
+  const [desktopAvatarVisible, setDesktopAvatarVisible] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const v = String(window.localStorage.getItem("touhou.desktop.avatar.visible") ?? "").trim();
+    if (!v) return true;
+    return v !== "0" && v.toLowerCase() !== "false";
+  });
+
+  const [desktopAvatarLayout, setDesktopAvatarLayout] = useState<"pip" | "dock">(() => {
+    if (typeof window === "undefined") return "pip";
+    const v = String(window.localStorage.getItem("touhou.desktop.avatar.layout") ?? "").trim().toLowerCase();
+    return v === "dock" ? "dock" : "pip";
+  });
+
+  const [desktopAvatarAvailRev, setDesktopAvatarAvailRev] = useState(0);
+  const [desktopAvatarAvailable, setDesktopAvatarAvailable] = useState(false);
 
   const [artifactBusy, setArtifactBusy] = useState(false);
 
@@ -191,6 +212,58 @@ export default function ChatClient() {
   });
 
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("touhou.desktop.avatar.visible", desktopAvatarVisible ? "1" : "0");
+      window.localStorage.setItem("touhou.desktop.avatar.layout", desktopAvatarLayout);
+    } catch {
+      // ignore
+    }
+  }, [desktopAvatarVisible, desktopAvatarLayout]);
+
+  useEffect(() => {
+    if (!isElectron) return;
+    const onUpdated = (_ev: Event) => {
+      setDesktopAvatarAvailRev((n) => n + 1);
+    };
+    window.addEventListener("touhou-desktop:vrm-updated", onUpdated as EventListener);
+    return () => {
+      window.removeEventListener("touhou-desktop:vrm-updated", onUpdated as EventListener);
+    };
+  }, [isElectron]);
+
+  useEffect(() => {
+    if (!isElectron) {
+      setDesktopAvatarAvailable(false);
+      return;
+    }
+    if (!activeCharacterId) {
+      setDesktopAvatarAvailable(false);
+      return;
+    }
+
+    let canceled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/desktop/character-settings?char=${encodeURIComponent(activeCharacterId)}`, {
+          cache: "no-store",
+        });
+        const j = (await res.json().catch(() => null)) as
+          | { ok?: boolean; exists?: boolean; settings?: { vrm?: { enabled?: boolean; path?: string | null } } | null }
+          | null;
+        const ok = Boolean(res.ok && j?.ok && j.exists && j.settings?.vrm?.enabled && j.settings?.vrm?.path);
+        if (!canceled) setDesktopAvatarAvailable(ok);
+      } catch {
+        if (!canceled) setDesktopAvatarAvailable(false);
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [isElectron, activeCharacterId, desktopAvatarAvailRev]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1024px)");
@@ -1208,17 +1281,80 @@ export default function ChatClient() {
                </div>
 
                 <ThreadSearch activeSessionId={activeSessionId} />
+
+                {/* Desktop avatar controls (Electron only) */}
+                {isElectron && activeSessionId ? (
+                  <div className="ml-auto hidden items-center gap-2 lg:flex">
+                    <button
+                      type="button"
+                      className="rounded-md border border-border/60 bg-background/40 px-2 py-1 text-xs text-foreground/80 hover:bg-background/60 disabled:opacity-40"
+                      disabled={!desktopAvatarAvailable}
+                      onClick={() => setDesktopAvatarVisible((v) => !v)}
+                      title="Toggle avatar visibility"
+                    >
+                      {desktopAvatarVisible ? "Avatar: On" : "Avatar: Off"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="rounded-md border border-border/60 bg-background/40 px-2 py-1 text-xs text-foreground/80 hover:bg-background/60 disabled:opacity-40"
+                      disabled={!desktopAvatarAvailable || !desktopAvatarVisible}
+                      onClick={() =>
+                        setDesktopAvatarLayout((v) => (v === "pip" ? "dock" : "pip"))
+                      }
+                      title="Switch avatar layout"
+                    >
+                      {desktopAvatarLayout === "pip" ? "Layout: PiP" : "Layout: Dock"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="rounded-md border border-border/60 bg-background/40 px-2 py-1 text-xs text-foreground/80 hover:bg-background/60 disabled:opacity-40"
+                      disabled={!desktopAvatarAvailable || !desktopAvatarVisible || !activeCharacterId}
+                      onClick={() => {
+                        if (!activeCharacterId) return;
+                        const url = `/desktop/avatar?char=${encodeURIComponent(activeCharacterId)}`;
+                        try {
+                          window.open(url, "touhou-avatar", "width=420,height=560");
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                      title="Open avatar window"
+                    >
+                      Pop out
+                    </button>
+                  </div>
+                ) : null}
               </header>
 
               {/* Chat */}
               <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
                 {activeSessionId ? (
                   <>
-                    <Thread />
-                    <DesktopLiveAvatar
-                      characterId={activeCharacterId}
-                      className="pointer-events-auto absolute right-4 top-20 hidden h-[420px] w-[340px] overflow-hidden rounded-2xl border bg-background/30 shadow-xl backdrop-blur lg:block"
-                    />
+                    {isElectron && desktopAvatarVisible && desktopAvatarAvailable && desktopAvatarLayout === "dock" ? (
+                      <div className="flex h-full min-h-0 w-full">
+                        <div className="min-w-0 flex-1 overflow-hidden">
+                          <Thread />
+                        </div>
+                        <aside className="hidden h-full w-[360px] shrink-0 border-l border-border/60 bg-background/20 backdrop-blur lg:block">
+                          <DesktopLiveAvatar
+                            characterId={activeCharacterId}
+                            className="h-full w-full"
+                          />
+                        </aside>
+                      </div>
+                    ) : (
+                      <>
+                        <Thread />
+                        {isElectron && desktopAvatarVisible && desktopAvatarAvailable ? (
+                          <DesktopLiveAvatar
+                            characterId={activeCharacterId}
+                            className="pointer-events-auto absolute right-4 top-20 hidden h-[420px] w-[340px] overflow-hidden rounded-2xl border bg-background/30 shadow-xl backdrop-blur lg:block"
+                          />
+                        ) : null}
+                      </>
+                    )}
                   </>
                 ) : (
                   <div className="flex h-full items-center justify-center text-muted-foreground">
