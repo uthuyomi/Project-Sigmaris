@@ -311,6 +311,10 @@ function createWindow(url) {
     },
   });
 
+  try {
+    win.setMenuBarVisibility(false);
+  } catch {}
+
   const createAvatarWindow = (targetUrl) => {
     const avatarWin = new BrowserWindow({
       width: 420,
@@ -337,6 +341,13 @@ function createWindow(url) {
       },
     });
 
+    try {
+      avatarWin.setMenu(null);
+    } catch {}
+    try {
+      avatarWin.setMenuBarVisibility(false);
+    } catch {}
+
     avatarWin.loadURL(targetUrl);
     avatarWin.once("ready-to-show", () => {
       try {
@@ -345,11 +356,21 @@ function createWindow(url) {
     });
   };
 
-  // Intercept window.open from the renderer and create a frameless avatar-only window.
-  win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
+  const asSameOriginUrl = (targetUrl) => {
+    const base = new URL(url);
+    const u = new URL(targetUrl, base);
+    return { base, u };
+  };
+
+  const isAvatarRoute = (u) => {
+    const p = String(u?.pathname ?? "");
+    const normalized = p.endsWith("/") ? p.slice(0, -1) : p;
+    return normalized === "/desktop/avatar";
+  };
+
+  const handleOpenUrl = (targetUrl) => {
     try {
-      const base = new URL(url);
-      const u = new URL(targetUrl, base);
+      const { base, u } = asSameOriginUrl(targetUrl);
 
       // External links -> open in default browser.
       if (u.origin !== base.origin) {
@@ -359,17 +380,31 @@ function createWindow(url) {
         return { action: "deny" };
       }
 
-      if (u.pathname === "/desktop/avatar") {
+      if (isAvatarRoute(u)) {
         createAvatarWindow(u.toString());
         return { action: "deny" };
       }
 
-      // Default: allow same-origin windows as-is.
       return { action: "allow" };
     } catch {
       return { action: "deny" };
     }
-  });
+  };
+
+  // Intercept window.open from the renderer and create a frameless avatar-only window.
+  if (typeof win.webContents.setWindowOpenHandler === "function") {
+    win.webContents.setWindowOpenHandler(({ url: targetUrl }) =>
+      handleOpenUrl(targetUrl),
+    );
+  }
+
+  // Back-compat: some Electron builds still emit `new-window`.
+  try {
+    win.webContents.on("new-window", (event, targetUrl) => {
+      const r = handleOpenUrl(targetUrl);
+      if (r.action === "deny") event.preventDefault();
+    });
+  } catch {}
 
   win.loadURL(url);
 }
