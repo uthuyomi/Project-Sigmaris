@@ -5,10 +5,10 @@ export type CharacterDef = {
   name: string;
   title: string;
   promptVersion?: string;
-  enabled?: boolean; // true(default) / false(貅門ｙ荳ｭ: UI縺ｧ驕ｸ謚樔ｸ榊庄)
+  enabled?: boolean; // true(default) / false(UIで非表示・選択不可にする)
   world?: {
-    map: string; // gensokyo / deep / higan 縺ｪ縺ｩ
-    location: string; // scarlet_mansion / chireiden 縺ｪ縺ｩ
+    map: string; // gensokyo / deep / higan など
+    location: string; // scarlet_mansion / chireiden など
   };
   color: {
     accent: string;
@@ -24,9 +24,11 @@ export type CharacterDef = {
 };
 
 /**
- * 繧ｭ繝｣繝ｩ繧ｯ繧ｿ繝ｼ螳夂ｾｩ (id + world)
- * ================================
- * UI 陦ｨ遉ｺ縲∝ｴ謇/繝ｬ繧､繝､繝ｼ縲√・繝ｭ繝ｳ繝励ヨ縲ゝTS 縺ｪ縺ｩ縺ｮ蝓ｺ遉弱ョ繝ｼ繧ｿ縲・ */
+ * Character master (id + world)
+ * =============================
+ * - `characters.json` を単一の真実（SSOT）として扱います。
+ * - このファイルは型付けと、UI側の選択ロジック用ヘルパーを提供します。
+ */
 export const CHARACTERS = rawCharacters as Record<string, CharacterDef>;
 
 export function isCharacterEnabled(ch: CharacterDef | null | undefined): boolean {
