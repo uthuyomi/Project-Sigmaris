@@ -280,6 +280,65 @@ export function useAquesTalkAudioTts() {
     return out;
   }
 
+  function extractVowelTokensJaEn(koe: string): Viseme[] {
+    const s = String(koe ?? "");
+    const out: Viseme[] = [];
+
+    const push = (ch: string) => {
+      if (ch === "a") out.push("aa");
+      else if (ch === "i") out.push("ih");
+      else if (ch === "u") out.push("ou");
+      else if (ch === "e") out.push("ee");
+      else if (ch === "o") out.push("oh");
+      else if (ch === "あ" || ch === "ぁ" || ch === "ア" || ch === "ァ") out.push("aa");
+      else if (ch === "い" || ch === "ぃ" || ch === "イ" || ch === "ィ") out.push("ih");
+      else if (ch === "う" || ch === "ぅ" || ch === "ウ" || ch === "ゥ") out.push("ou");
+      else if (ch === "え" || ch === "ぇ" || ch === "エ" || ch === "ェ") out.push("ee");
+      else if (ch === "お" || ch === "ぉ" || ch === "オ" || ch === "ォ") out.push("oh");
+      else if (ch === "ー" && out.length) out.push(out[out.length - 1]!);
+    };
+
+    const lower = s.toLowerCase();
+    for (let i = 0; i < lower.length; i += 1) {
+      const ch = lower[i] ?? "";
+      if ("aiueo".includes(ch)) push(ch);
+    }
+
+    if (!out.length) {
+      for (let i = 0; i < s.length; i += 1) {
+        const ch = s[i] ?? "";
+        if ("あぁいぃうぅえぇおぉアイウエオァィゥェォー".includes(ch)) push(ch);
+      }
+    }
+
+    return out;
+  }
+
+  function normalizeTokens(tokens: Viseme[], durationSec: number | null): Viseme[] {
+    if (!tokens.length) return tokens;
+
+    // Collapse consecutive duplicates (prevents twitchy shapes).
+    const dedup: Viseme[] = [];
+    for (const t of tokens) {
+      if (!dedup.length || dedup[dedup.length - 1] !== t) dedup.push(t);
+    }
+
+    const dur = typeof durationSec === "number" && Number.isFinite(durationSec) ? durationSec : null;
+    if (dur == null || dur <= 0.01) return dedup;
+
+    // Cap to a reasonable rate (avoid "gacha-gacha" when koe contains too many vowels).
+    const minSeg = 0.06; // 60ms per vowel change max (~16Hz)
+    const maxCount = Math.max(1, Math.floor(dur / minSeg));
+    if (dedup.length <= maxCount) return dedup;
+
+    const out: Viseme[] = [];
+    for (let i = 0; i < maxCount; i += 1) {
+      const x = (i / (maxCount - 1)) * (dedup.length - 1);
+      out.push(dedup[Math.round(x)]!);
+    }
+    return out;
+  }
+
   function phonemeToViseme(raw: unknown): Viseme | null {
     const s = String(raw ?? "").trim();
     if (!s) return null;
@@ -583,7 +642,7 @@ export function useAquesTalkAudioTts() {
         return { ok: false, reason };
       }
 
-      const tokens = koe ? extractVowelTokensSafe(koe) : [];
+      const tokens = koe ? extractVowelTokensJaEn(koe) : [];
       vowelTokensRef.current = tokens;
 
       // Prefer explicit alignment labels from the TTS backend if present (e.g., VOICEVOX-style).
@@ -617,6 +676,11 @@ export function useAquesTalkAudioTts() {
         playDurationRef.current = dur;
         playStartCtxTimeRef.current = null;
         playModeRef.current = "htmlaudio";
+        try {
+          vowelTokensRef.current = normalizeTokens(vowelTokensRef.current, dur);
+        } catch {
+          // ignore
+        }
 
         a.onplay = () => {
           setSpeaking(true);
@@ -650,6 +714,13 @@ export function useAquesTalkAudioTts() {
 
       // If the backend didn't provide alignment labels, derive a coarse timeline
       // by snapping expected vowel boundaries to local energy minima in the decoded audio.
+      // Normalize tokens (dedupe + cap by duration) before building timelines.
+      try {
+        vowelTokensRef.current = normalizeTokens(vowelTokensRef.current, audioBuf.duration || 0);
+      } catch {
+        // ignore
+      }
+
       if (!segmentsRef.current && vowelTokensRef.current.length) {
         try {
           segmentsRef.current = buildSegmentsFromAudio(audioBuf, vowelTokensRef.current);
