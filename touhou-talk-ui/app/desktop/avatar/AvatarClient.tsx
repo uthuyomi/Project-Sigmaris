@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AssistantRuntimeProvider,
   useExternalStoreRuntime,
@@ -22,6 +22,8 @@ export default function AvatarClient() {
   useSearchParams(); // keep Next.js route reactive; pop-out character is fixed below.
   const char = "reimu";
   const enabled = useMemo(() => isElectronUa(), []);
+  const [hovered, setHovered] = useState(false);
+  const hideTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Make the page background fully transparent for the frameless window.
@@ -109,20 +111,40 @@ export default function AvatarClient() {
   }, []);
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-transparent">
-      {/* Frameless window controls: hover the top area to show move/resize/close. */}
-      <div className="group absolute inset-x-0 top-0 z-50 h-16">
-        {/* Drag hint: show only on hover (so it doesn't distract). */}
+    <div
+      className="relative h-dvh w-full overflow-hidden bg-transparent"
+      onMouseEnter={() => {
+        if (hideTimerRef.current != null) {
+          window.clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = null;
+        }
+        setHovered(true);
+      }}
+      onMouseLeave={() => {
+        if (hideTimerRef.current != null) window.clearTimeout(hideTimerRef.current);
+        // Small delay prevents flicker when crossing the top overlay edge.
+        hideTimerRef.current = window.setTimeout(() => {
+          setHovered(false);
+          hideTimerRef.current = null;
+        }, 160);
+      }}
+    >
+      {/* Frameless window controls: show when the window is hovered. */}
+      <div className="absolute inset-x-0 top-0 z-50 h-16">
+        {/* Drag hint */}
         <div className="absolute inset-x-0 top-0 h-10" style={{ WebkitAppRegion: "drag" } as any}>
-          <div className="pointer-events-none mx-auto mt-2 flex h-6 w-32 items-center justify-center rounded-full border border-border/50 bg-background/20 text-[11px] text-foreground/70 opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100">
+          <div
+            className="pointer-events-none mx-auto mt-2 flex h-6 w-32 items-center justify-center rounded-full border border-border/50 bg-background/20 text-[11px] text-foreground/70 shadow-sm backdrop-blur-sm transition-opacity"
+            style={{ opacity: hovered ? 1 : 0 }}
+          >
             ドラッグで移動
           </div>
         </div>
 
-        {/* Hover controls */}
+        {/* Controls */}
         <div
-          className="mx-auto mt-2 flex h-9 w-[calc(100%-16px)] max-w-[520px] items-center gap-1 rounded-full border border-border/60 bg-background/35 px-2 text-xs text-foreground/80 opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100"
-          style={{ WebkitAppRegion: "drag" } as any}
+          className="mx-auto mt-2 flex h-9 w-[calc(100%-16px)] max-w-[520px] items-center gap-1 rounded-full border border-border/60 bg-background/35 px-2 text-xs text-foreground/80 shadow-sm backdrop-blur transition-opacity"
+          style={{ ...( { WebkitAppRegion: "drag" } as any), opacity: hovered ? 1 : 0 }}
         >
           <div className="min-w-0 truncate px-1">移動 / リサイズ</div>
 
