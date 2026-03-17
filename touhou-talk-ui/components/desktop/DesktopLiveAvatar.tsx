@@ -51,6 +51,8 @@ function isAvatarPopoutWindow(): boolean {
   }
 }
 
+const POPOUT_HEARTBEAT_KEY = "touhou.desktop.avatar.popout.heartbeatUntil";
+
 type DesktopCharacterSettings = {
   tts?: {
     mode?: "none" | "browser" | "aquestalk";
@@ -70,6 +72,7 @@ export default function DesktopLiveAvatar({
   const aques = useAquesTalkAudioTts();
   const [browserSpeaking, setBrowserSpeaking] = useState(false);
   const [vrmConfigured, setVrmConfigured] = useState(false);
+  const [popoutActive, setPopoutActive] = useState(false);
 
   const stopAll = () => {
     try {
@@ -150,6 +153,67 @@ export default function DesktopLiveAvatar({
   const lastSpokenIdRef = useRef<string | null>(null);
   const prevRunningRef = useRef<boolean>(false);
 
+  // Heartbeat so the main window can detect an active popout and avoid double-speaking.
+  useEffect(() => {
+    if (!enabled) return;
+    if (!characterId) return;
+
+    // In the popout window we publish a short-lived heartbeat.
+    if (isPopout) {
+      const tick = () => {
+        try {
+          window.localStorage.setItem(POPOUT_HEARTBEAT_KEY, String(Date.now() + 2500));
+        } catch {
+          // ignore
+        }
+      };
+
+      tick();
+      const id = window.setInterval(tick, 1000);
+      return () => {
+        window.clearInterval(id);
+        try {
+          window.localStorage.removeItem(POPOUT_HEARTBEAT_KEY);
+        } catch {
+          // ignore
+        }
+      };
+    }
+
+    // In the main window we observe the heartbeat.
+    const read = () => {
+      try {
+        const raw = String(window.localStorage.getItem(POPOUT_HEARTBEAT_KEY) ?? "").trim();
+        const until = Number(raw);
+        const ok = Number.isFinite(until) && until > Date.now();
+        setPopoutActive(ok);
+      } catch {
+        setPopoutActive(false);
+      }
+    };
+
+    read();
+    const poll = window.setInterval(read, 1000);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== POPOUT_HEARTBEAT_KEY) return;
+      read();
+    };
+    try {
+      window.addEventListener("storage", onStorage);
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      window.clearInterval(poll);
+      try {
+        window.removeEventListener("storage", onStorage);
+      } catch {
+        // ignore
+      }
+    };
+  }, [enabled, isPopout, characterId]);
+
   useEffect(() => {
     // When switching character, stop any current audio to avoid cross-talk.
     stopAll();
@@ -207,6 +271,9 @@ export default function DesktopLiveAvatar({
     prevRunningRef.current = isRunning;
     if (!characterId) return;
 
+    // If a popout is active, let it own TTS playback (avoid double-speaking).
+    if (!isPopout && popoutActive) return;
+
     // Trigger on run end: the assistant message is now final.
     if (wasRunning && !isRunning) {
       const lastAssistant = [...messages].reverse().find((m: any) => (m as any)?.role === "assistant") as any;
@@ -217,7 +284,7 @@ export default function DesktopLiveAvatar({
       const rawText = extractTextFromContent(lastAssistant?.content);
       void speak(rawText);
     }
-  }, [isRunning, messages, characterId, speak]);
+  }, [isRunning, messages, characterId, speak, isPopout, popoutActive]);
 
   // Popout-only: listen for "speak" events coming from the chat window.
   useEffect(() => {
