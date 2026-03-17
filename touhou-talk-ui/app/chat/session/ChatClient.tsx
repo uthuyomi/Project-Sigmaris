@@ -157,6 +157,28 @@ export default function ChatClient() {
     null,
   );
 
+  const activeSession = useMemo(() => {
+    if (!activeSessionId) return null;
+    return sessions.find((s) => s.id === activeSessionId) ?? null;
+  }, [sessions, activeSessionId]);
+
+  const [relationshipHud, setRelationshipHud] = useState<{
+    trust: number;
+    familiarity: number;
+    trustLabel: string;
+    familiarityLabel: string;
+  } | null>(null);
+
+  const [worldHud, setWorldHud] = useState<{
+    layer: string;
+    location: string;
+    timeOfDay?: string;
+    weather?: string;
+    season?: string;
+    anomaly?: string | null;
+    recent?: string[];
+  } | null>(null);
+
   const [desktopAvatarVisible, setDesktopAvatarVisible] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     const v = String(window.localStorage.getItem("touhou.desktop.avatar.visible") ?? "").trim();
@@ -258,6 +280,99 @@ export default function ChatClient() {
       // ignore
     }
   }, [desktopAvatarVisible, desktopAvatarLayout, desktopAvatarDockWidth, desktopAvatarPipRect]);
+
+  useEffect(() => {
+    const characterId = String(activeCharacterId ?? "").trim();
+    if (!characterId) {
+      setRelationshipHud(null);
+      return;
+    }
+
+    let canceled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/relationship?characterId=${encodeURIComponent(characterId)}`, {
+          cache: "no-store",
+        });
+        const j = (await r.json().catch(() => null)) as any;
+        if (!r.ok) throw new Error(j?.error || "relationship fetch failed");
+        const row = Array.isArray(j?.relationships) ? j.relationships[0] : null;
+        const trust = Number(row?.trust ?? 0);
+        const familiarity = Number(row?.familiarity ?? 0);
+        const tl =
+          trust <= -0.6 ? "不信（強）" : trust <= -0.2 ? "不信" : trust < 0.2 ? "中立" : trust < 0.6 ? "信頼" : "信頼（強）";
+        const fl = familiarity < 0.25 ? "低" : familiarity < 0.6 ? "中" : "高";
+        if (!canceled) setRelationshipHud({ trust, familiarity, trustLabel: tl, familiarityLabel: fl });
+      } catch {
+        if (!canceled) setRelationshipHud(null);
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [activeCharacterId]);
+
+  useEffect(() => {
+    const layer = String(activeSession?.layer ?? currentLayer ?? "").trim();
+    const location = String(activeSession?.location ?? currentLocationId ?? "").trim();
+    if (!layer) {
+      setWorldHud(null);
+      return;
+    }
+
+    let canceled = false;
+    (async () => {
+      try {
+        const qs = new URLSearchParams({ world_id: layer, location_id: location }).toString();
+        const [stateRes, recentRes] = await Promise.all([
+          fetch(`/api/world/state?${qs}`, { cache: "no-store" }),
+          fetch(`/api/world/recent?${qs}&limit=6`, { cache: "no-store" }),
+        ]);
+        const state = (await stateRes.json().catch(() => null)) as any;
+        const recent = (await recentRes.json().catch(() => null)) as any;
+        const recentEvents = Array.isArray(recent?.recent_events)
+          ? (recent.recent_events as any[]).map((e) => String(e?.summary ?? "").trim()).filter(Boolean).slice(-6)
+          : [];
+
+        if (!canceled) {
+          setWorldHud({
+            layer,
+            location,
+            timeOfDay: typeof state?.time_of_day === "string" ? state.time_of_day : undefined,
+            weather: typeof state?.weather === "string" ? state.weather : undefined,
+            season: typeof state?.season === "string" ? state.season : undefined,
+            anomaly: typeof state?.anomaly === "string" ? state.anomaly : null,
+            recent: recentEvents.length ? recentEvents : undefined,
+          });
+        }
+
+        // Best-effort: register a "visit" snapshot (world service owns persistence).
+        if (!canceled && activeSessionId) {
+          try {
+            await fetch("/api/world/visit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                world_id: layer,
+                location_id: location,
+                visitor_key: activeSessionId,
+                user_time: new Date().toISOString(),
+              }),
+            });
+          } catch {
+            // ignore
+          }
+        }
+      } catch {
+        if (!canceled) setWorldHud(null);
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [activeSession?.layer, activeSession?.location, activeSessionId, currentLayer, currentLocationId]);
 
   // If a dedicated avatar popout window is active, hide the in-chat avatar to avoid showing two VRMs.
   useEffect(() => {
@@ -1514,14 +1629,29 @@ export default function ChatClient() {
 
                 <SidebarTrigger />
                 <Separator orientation="vertical" className="mr-2 h-4" />
-               <div className="min-w-0">
-                 <div className="truncate font-gensou text-sm">
-                   {activeCharacter?.name ?? "キャラを選択"}
-                 </div>
-                 <div className="truncate text-xs text-muted-foreground">
-                   {activeSessionId ? "セッション: " + activeSessionId : "—"}
-                 </div>
-               </div>
+                <div className="min-w-0">
+                  <div className="truncate font-gensou text-sm">
+                    {activeCharacter?.name ?? "キャラを選択"}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {activeSessionId ? "セッション: " + activeSessionId : "—"}
+                  </div>
+                  {relationshipHud || worldHud ? (
+                    <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                      {relationshipHud ? (
+                        <span>
+                          関係性: 信頼 {relationshipHud.trustLabel} / 親密 {relationshipHud.familiarityLabel}
+                        </span>
+                      ) : null}
+                      {worldHud ? (
+                        <span>
+                          世界: {worldHud.season ?? "—"} / {worldHud.weather ?? "—"} / {worldHud.timeOfDay ?? "—"}
+                          {worldHud.anomaly ? ` / 異変:${worldHud.anomaly}` : ""}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
 
                 <ThreadSearch activeSessionId={activeSessionId} />
 

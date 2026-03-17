@@ -69,6 +69,9 @@ export default function SettingsWebClient() {
         <Button asChild variant="outline">
           <Link href="/chat/session">チャットへ</Link>
         </Button>
+        <Button asChild variant="outline">
+          <Link href="/settings/relationship">関係性・記憶</Link>
+        </Button>
       </div>
 
       <Separator />
@@ -141,4 +144,3 @@ export default function SettingsWebClient() {
     </div>
   );
 }
-

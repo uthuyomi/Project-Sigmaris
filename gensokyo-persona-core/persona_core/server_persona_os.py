@@ -802,6 +802,92 @@ class PersonaIntentResponse(BaseModel):
         return self
 
 
+"""
+Relationship scoring (Touhou-talk)
+- Used by client apps to update per-user, per-character relationship state.
+- JSON-only output (validated).
+- Must NOT produce user-facing prose; this is internal scoring.
+"""
+
+
+class RelationshipScoreRequest(BaseModel):
+    user_message: str
+    assistant_message: str
+    relationship: Optional[Dict[str, Any]] = None
+    character_id: Optional[str] = None
+    chat_mode: Optional[str] = None
+    session_id: Optional[str] = None
+    scope_key: Optional[str] = "global"
+
+    @model_validator(mode="after")
+    def _require_fields(self) -> "RelationshipScoreRequest":
+        if not isinstance(self.user_message, str) or not (self.user_message or "").strip():
+            raise ValueError("`user_message` is required")
+        if not isinstance(self.assistant_message, str) or not (self.assistant_message or "").strip():
+            raise ValueError("`assistant_message` is required")
+        return self
+
+
+class RelationshipScoreResponse(BaseModel):
+    delta: Dict[str, int] = {}
+    confidence: float = 0.0  # 0..1
+    reasons: List[str] = []
+    scopeHints: List[str] = ["global"]
+    memory: Dict[str, List[str]] = {
+        "topics_add": [],
+        "emotions_add": [],
+        "recurring_issues_add": [],
+        "traits_add": [],
+    }
+
+    @model_validator(mode="after")
+    def _validate_ranges(self) -> "RelationshipScoreResponse":
+        # confidence
+        try:
+            self.confidence = float(self.confidence)
+        except Exception:
+            self.confidence = 0.0
+        self.confidence = max(0.0, min(1.0, float(self.confidence)))
+
+        # delta: only allow small steps; ignore unknown keys
+        out: Dict[str, int] = {}
+        try:
+            if isinstance(self.delta, dict):
+                for k, v in self.delta.items():
+                    kk = str(k or "").strip()
+                    if kk not in ("trust", "familiarity"):
+                        continue
+                    try:
+                        iv = int(v)
+                    except Exception:
+                        continue
+                    out[kk] = max(-2, min(2, iv))
+        except Exception:
+            out = {}
+        self.delta = out
+
+        # reasons: cap for safety/logging
+        if not isinstance(self.reasons, list):
+            self.reasons = []
+        self.reasons = [str(x)[:160] for x in self.reasons if isinstance(x, (str, int, float))][:6]
+
+        # scope hints
+        if not isinstance(self.scopeHints, list):
+            self.scopeHints = ["global"]
+        self.scopeHints = [str(x)[:80] for x in self.scopeHints if isinstance(x, (str, int, float))][:4] or ["global"]
+
+        # memory patch: ensure shape
+        if not isinstance(self.memory, dict):
+            self.memory = {"topics_add": [], "emotions_add": [], "recurring_issues_add": [], "traits_add": []}
+        for k in ("topics_add", "emotions_add", "recurring_issues_add", "traits_add"):
+            v = self.memory.get(k)
+            if not isinstance(v, list):
+                self.memory[k] = []
+            else:
+                self.memory[k] = [str(x)[:80] for x in v if isinstance(x, (str, int, float))][:12]
+        return self
+
+
 _intent_cache_ttl_sec = float(os.getenv("SIGMARIS_INTENT_CACHE_TTL_SEC", "10") or "10")
 _intent_cache_max = int(os.getenv("SIGMARIS_INTENT_CACHE_MAX", "2048") or "2048")
 _intent_cache_max = max(0, min(20000, _intent_cache_max))
@@ -993,6 +1079,110 @@ def _llm_intent_classify(
         msg = resp.choices[0].message
         text = (msg.content or "").strip()
         return llm._extract_json_object(text)  # best-effort JSON extraction
+    except Exception:
+        return None
+
+
+def _relationship_score_prompt(
+    *,
+    character_id: Optional[str],
+    chat_mode: Optional[str],
+    user_message: str,
+    assistant_message: str,
+    relationship: Optional[Dict[str, Any]],
+    scope_key: str,
+) -> str:
+    """
+    JSON-only turn analyzer for relationship + memory updates.
+    - Does NOT generate user-facing prose.
+    - Must not do psychological diagnosis; only describe interaction signals.
+    """
+    uid = (character_id or "").strip() or "unknown"
+    mode = (chat_mode or "").strip() or "partner"
+    scope = (scope_key or "").strip() or "global"
+    rel = relationship if isinstance(relationship, dict) else {}
+    try:
+        rel_json = json.dumps(rel, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    except Exception:
+        rel_json = "{}"
+    u = (user_message or "").strip()
+    a = (assistant_message or "").strip()
+    if len(u) > 1600:
+        u = u[:1599] + "…"
+    if len(a) > 1600:
+        a = a[:1599] + "…"
+
+    return (
+        "You are a strict JSON-only evaluator for a chat relationship system.\n"
+        "Return ONLY one JSON object. No prose, no code fences.\n\n"
+        "TASK:\n"
+        "- Evaluate how THIS turn should adjust relationship between the user and the character.\n"
+        "- Also extract lightweight memory additions (topics/emotions/recurring issues/traits).\n"
+        "- Do NOT do psychological diagnosis. Do NOT infer hidden mental disorders.\n"
+        "- Use only observable signals in the messages.\n\n"
+        "RELATIONSHIP DELTA RULES:\n"
+        "- Output integer steps in range [-2..2] for each key.\n"
+        "- Keys: trust, familiarity (only).\n"
+        "- If the content is too short/ambiguous, set delta to 0 and confidence low.\n\n"
+        "MEMORY PATCH RULES:\n"
+        "- Provide ONLY additions (no removals).\n"
+        "- Keep items short (<= 20 chars ideal). Use Japanese.\n"
+        "- When unsure, return empty arrays.\n\n"
+        "JSON SCHEMA:\n"
+        "{\n"
+        "  \"delta\": {\"trust\": 0, \"familiarity\": 0},\n"
+        "  \"confidence\": 0.0,\n"
+        "  \"reasons\": [\"...\"],\n"
+        "  \"scopeHints\": [\"global\"],\n"
+        "  \"memory\": {\n"
+        "    \"topics_add\": [],\n"
+        "    \"emotions_add\": [],\n"
+        "    \"recurring_issues_add\": [],\n"
+        "    \"traits_add\": []\n"
+        "  }\n"
+        "}\n\n"
+        f"CHARACTER_ID: {uid}\n"
+        f"CHAT_MODE: {mode}\n"
+        f"SCOPE_KEY: {scope}\n"
+        f"CURRENT_RELATIONSHIP_JSON: {rel_json}\n\n"
+        f"USER_MESSAGE:\n{u}\n\n"
+        f"ASSISTANT_MESSAGE:\n{a}\n"
+    )
+
+
+def _llm_relationship_score(
+    *,
+    model: str,
+    prompt: str,
+    max_tokens: int,
+) -> Optional[Dict[str, Any]]:
+    llm = _get_llm_client()
+    try:
+        try:
+            resp = llm.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "Return ONLY JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.0,
+                max_completion_tokens=max(64, int(max_tokens)),
+            )
+        except Exception as e:
+            if "Unsupported parameter: 'max_completion_tokens'" not in str(e):
+                raise
+            resp = llm.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "Return ONLY JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.0,
+                max_tokens=max(64, int(max_tokens)),
+            )
+        msg = resp.choices[0].message
+        text = (msg.content or "").strip()
+        return llm._extract_json_object(text)
     except Exception:
         return None
 
@@ -1294,6 +1484,41 @@ def _web_rag_time_sensitive_hint(message: str) -> bool:
         "バージョン",
     ]
     return any(k in s for k in keywords)
+
+
+@app.post("/persona/relationship/score", response_model=RelationshipScoreResponse)
+async def persona_relationship_score(
+    req: RelationshipScoreRequest,
+    auth: Optional[AuthContext] = Depends(get_auth_context),
+) -> RelationshipScoreResponse:
+    """
+    Relationship + memory scoring endpoint for Touhou-talk.
+    - JSON-only output (validated).
+    - No side effects; callers persist results in their own DB.
+    """
+    _ = (auth.user_id if auth is not None else DEFAULT_USER_ID)  # reserved for future per-user tuning
+
+    model = (os.getenv("SIGMARIS_RELATIONSHIP_MODEL") or DEFAULT_MODEL or "").strip() or "gpt-5.2"
+    max_tokens = int(os.getenv("SIGMARIS_RELATIONSHIP_MAX_TOKENS", "450") or "450")
+    max_tokens = max(120, min(1200, max_tokens))
+
+    prompt = _relationship_score_prompt(
+        character_id=req.character_id,
+        chat_mode=req.chat_mode,
+        user_message=req.user_message,
+        assistant_message=req.assistant_message,
+        relationship=req.relationship,
+        scope_key=(req.scope_key or "global"),
+    )
+    v = _llm_relationship_score(model=model, prompt=prompt, max_tokens=max_tokens)
+
+    if isinstance(v, dict):
+        try:
+            return RelationshipScoreResponse.model_validate(v)
+        except Exception:
+            pass
+
+    return RelationshipScoreResponse(delta={"trust": 0, "familiarity": 0}, confidence=0.0, reasons=["parse_failed"])
 
 
 async def _maybe_web_rag_for_turn(
@@ -2982,9 +3207,9 @@ async def io_upload(
         )
 
     # Demo fallback: local disk
-                    base_dir = os.getenv("SIGMARIS_UPLOAD_DIR") or str(
-                        Path(__file__).resolve().parents[2] / "data" / "uploads"
-                    )
+    base_dir = os.getenv("SIGMARIS_UPLOAD_DIR") or str(
+        Path(__file__).resolve().parents[2] / "data" / "uploads"
+    )
     os.makedirs(base_dir, exist_ok=True)
     path = os.path.join(base_dir, attachment_id)
     meta_path = path + ".json"
@@ -3111,9 +3336,9 @@ async def io_parse(
         return ParseResponse(ok=True, kind=parsed_kind, parsed=parsed)
 
     # Demo fallback: local disk
-                    base_dir = os.getenv("SIGMARIS_UPLOAD_DIR") or str(
-                        Path(__file__).resolve().parents[2] / "data" / "uploads"
-                    )
+    base_dir = os.getenv("SIGMARIS_UPLOAD_DIR") or str(
+        Path(__file__).resolve().parents[2] / "data" / "uploads"
+    )
     path = os.path.join(base_dir, str(req.attachment_id))
     meta_path = path + ".json"
     if not os.path.exists(path):
@@ -3214,9 +3439,9 @@ async def io_attachment_get(
         )
 
     # Demo fallback: local disk
-                    base_dir = os.getenv("SIGMARIS_UPLOAD_DIR") or str(
-                        Path(__file__).resolve().parents[2] / "data" / "uploads"
-                    )
+    base_dir = os.getenv("SIGMARIS_UPLOAD_DIR") or str(
+        Path(__file__).resolve().parents[2] / "data" / "uploads"
+    )
     path = os.path.join(base_dir, str(attachment_id))
     meta_path = path + ".json"
     if not os.path.exists(path):
