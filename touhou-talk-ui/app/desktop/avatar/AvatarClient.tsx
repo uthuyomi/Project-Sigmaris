@@ -9,7 +9,7 @@ import {
   type ExternalStoreAdapter,
 } from "@assistant-ui/react";
 import DesktopLiveAvatar from "@/components/desktop/DesktopLiveAvatar";
-import { MinusIcon, PlusIcon, XIcon } from "lucide-react";
+import { GripHorizontalIcon, MinusIcon, PlusIcon, XIcon } from "lucide-react";
 
 const POPOUT_HEARTBEAT_KEY = "touhou.desktop.avatar.popout.heartbeatUntil";
 
@@ -131,22 +131,15 @@ export default function AvatarClient() {
     >
       {/* Frameless window controls: show when the window is hovered. */}
       <div className="absolute inset-x-0 top-0 z-50 h-16">
-        {/* Drag hint */}
-        <div className="absolute inset-x-0 top-0 h-10" style={{ WebkitAppRegion: "drag" } as any}>
-          <div
-            className="pointer-events-none mx-auto mt-2 flex h-6 w-32 items-center justify-center rounded-full border border-border/50 bg-background/20 text-[11px] text-foreground/70 shadow-sm backdrop-blur-sm transition-opacity"
-            style={{ opacity: hovered ? 1 : 0 }}
-          >
-            ドラッグで移動
-          </div>
-        </div>
-
         {/* Controls */}
         <div
           className="mx-auto mt-2 flex h-9 w-[calc(100%-16px)] max-w-[520px] items-center gap-1 rounded-full border border-border/60 bg-background/35 px-2 text-xs text-foreground/80 shadow-sm backdrop-blur transition-opacity"
           style={{ ...( { WebkitAppRegion: "drag" } as any), opacity: hovered ? 1 : 0 }}
         >
-          <div className="min-w-0 truncate px-1">移動 / リサイズ</div>
+          <div className="flex min-w-0 items-center gap-1 truncate px-1">
+            <GripHorizontalIcon className="size-4 opacity-80" />
+            <span>ドラッグで移動 / リサイズ</span>
+          </div>
 
           <div className="ml-auto flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" } as any}>
             <button
