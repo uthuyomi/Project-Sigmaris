@@ -1284,6 +1284,46 @@ export default function ChatClient() {
 
   const runtime = useExternalStoreRuntime(store);
 
+  // Desktop (Electron) popout avatar: notify once on assistant completion so the avatar-only window can speak/lip-sync.
+  const popoutTtsPrevRunningRef = useRef(false);
+  const popoutTtsLastIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isElectron) return;
+    if (!activeSessionId) return;
+    if (!activeCharacterId) return;
+
+    const isRunning = isRunningBySession[activeSessionId] ?? false;
+    const wasRunning = popoutTtsPrevRunningRef.current;
+    popoutTtsPrevRunningRef.current = isRunning;
+
+    if (!wasRunning || isRunning) return;
+
+    const lastAi = [...activeMessages].reverse().find((m) => m?.role === "ai") ?? null;
+    const id = String(lastAi?.id ?? "").trim() || null;
+    const text = String(lastAi?.content ?? "").trim();
+    if (!text) return;
+    if (id && popoutTtsLastIdRef.current === id) return;
+    popoutTtsLastIdRef.current = id;
+
+    const detail = { characterId: activeCharacterId, messageId: id, text };
+
+    try {
+      window.dispatchEvent(new CustomEvent("touhou-desktop:tts-speak", { detail }));
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel("touhou-desktop-tts");
+        ch.postMessage({ type: "speak", ...detail });
+        ch.close();
+      }
+    } catch {
+      // ignore
+    }
+  }, [isElectron, activeSessionId, activeCharacterId, activeMessages, isRunningBySession]);
+
   useLayoutEffect(() => {
     const root = document.documentElement;
     const vv = window.visualViewport ?? null;
@@ -1452,9 +1492,9 @@ export default function ChatClient() {
                       className="rounded-md border border-border/60 bg-background/40 px-2 py-1 text-xs text-foreground/80 hover:bg-background/60 disabled:opacity-40"
                       disabled={!desktopAvatarAvailable}
                       onClick={() => setDesktopAvatarVisible((v) => !v)}
-                      title="Toggle avatar visibility"
+                      title={desktopAvatarVisible ? "アバターを非表示にします" : "アバターを表示します"}
                     >
-                      {desktopAvatarVisible ? "Avatar: On" : "Avatar: Off"}
+                      {desktopAvatarVisible ? "アバターを隠す" : "アバターを表示"}
                     </button>
 
                     <button
@@ -1464,9 +1504,13 @@ export default function ChatClient() {
                       onClick={() =>
                         setDesktopAvatarLayout((v) => (v === "pip" ? "dock" : "pip"))
                       }
-                      title="Switch avatar layout"
+                      title={
+                        desktopAvatarLayout === "pip"
+                          ? "配置を「右ドック」に切り替えます（現在: 重ね表示）"
+                          : "配置を「重ね表示」に切り替えます（現在: 右ドック）"
+                      }
                     >
-                      {desktopAvatarLayout === "pip" ? "Layout: PiP" : "Layout: Dock"}
+                      {desktopAvatarLayout === "pip" ? "右ドックにする" : "重ね表示にする"}
                     </button>
 
                     <button
@@ -1474,17 +1518,17 @@ export default function ChatClient() {
                       className="rounded-md border border-border/60 bg-background/40 px-2 py-1 text-xs text-foreground/80 hover:bg-background/60 disabled:opacity-40"
                       disabled={!desktopAvatarAvailable || !desktopAvatarVisible || !activeCharacterId}
                       onClick={() => {
-                        if (!activeCharacterId) return;
-                        const url = `/desktop/avatar?char=${encodeURIComponent(activeCharacterId)}`;
+                        // Pop-out is currently fixed to Reimu for desktop (per UX decision).
+                        const url = `/desktop/avatar?char=reimu`;
                         try {
                           window.open(url, "touhou-avatar", "width=420,height=560");
                         } catch {
                           // ignore
                         }
                       }}
-                      title="Open avatar window"
+                      title="別ウィンドウでアバターを開きます"
                     >
-                      Pop out
+                      別ウィンドウで開く
                     </button>
                   </div>
                 ) : null}
@@ -1503,7 +1547,7 @@ export default function ChatClient() {
                           className="hidden h-full w-2 shrink-0 cursor-col-resize bg-transparent lg:block"
                           role="separator"
                           aria-orientation="vertical"
-                          aria-label="Resize avatar panel"
+                          aria-label="アバターパネルの幅を変更"
                           onPointerDown={(e) => {
                             if (e.button !== 0) return;
                             dockDragRef.current = {
@@ -1518,7 +1562,7 @@ export default function ChatClient() {
                             }
                           }}
                           onDoubleClick={() => setDesktopAvatarDockWidth(360)}
-                          title="Drag to resize (double-click to reset)"
+                          title="ドラッグで幅を変更（ダブルクリックでリセット）"
                         >
                           <div className="mx-auto h-full w-px bg-border/60" />
                         </div>
@@ -1572,16 +1616,16 @@ export default function ChatClient() {
                                     }),
                                   );
                                 }}
-                                title="Drag to move (double-click to reset size)"
+                                title="ドラッグで移動（ダブルクリックでサイズをリセット）"
                               >
                                 <div className="min-w-0 truncate">
-                                  {activeCharacter?.name ?? "Avatar"}
+                                  {activeCharacter?.name ?? "アバター"}
                                 </div>
                                 <button
                                   type="button"
                                   className="rounded-md px-1.5 py-0.5 text-foreground/70 hover:bg-background/50"
                                   onClick={() => setDesktopAvatarVisible(false)}
-                                  title="Hide avatar"
+                                  title="アバターを隠します"
                                 >
                                   ×
                                 </button>
@@ -1609,7 +1653,7 @@ export default function ChatClient() {
                                     // ignore
                                   }
                                 }}
-                                title="Drag to resize"
+                                title="ドラッグでサイズを変更"
                               />
                             </div>
                           </div>

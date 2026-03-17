@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, shell } = require("electron");
 const { fork } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -304,11 +304,108 @@ function createWindow(url) {
     width: 1200,
     height: 800,
     backgroundColor: "#0b0b12",
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  try {
+    win.setMenuBarVisibility(false);
+  } catch {}
+
+  const createAvatarWindow = (targetUrl) => {
+    const avatarWin = new BrowserWindow({
+      width: 420,
+      height: 560,
+      backgroundColor: "#00000000",
+      autoHideMenuBar: true,
+      frame: false, // no native title bar / window chrome
+      // Windows: remove the resizable frame border that can remain even with frame:false.
+      thickFrame: false,
+      titleBarStyle: "hidden",
+      // For true "cutout overlay" (no 1px border), disable OS resize frame.
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      transparent: true,
+      hasShadow: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    try {
+      avatarWin.setMenu(null);
+    } catch {}
+    try {
+      avatarWin.setMenuBarVisibility(false);
+    } catch {}
+
+    avatarWin.loadURL(targetUrl);
+    avatarWin.once("ready-to-show", () => {
+      try {
+        avatarWin.show();
+      } catch {}
+    });
+  };
+
+  const asSameOriginUrl = (targetUrl) => {
+    const base = new URL(url);
+    const u = new URL(targetUrl, base);
+    return { base, u };
+  };
+
+  const isAvatarRoute = (u) => {
+    const p = String(u?.pathname ?? "");
+    const normalized = p.endsWith("/") ? p.slice(0, -1) : p;
+    return normalized === "/desktop/avatar";
+  };
+
+  const handleOpenUrl = (targetUrl) => {
+    try {
+      const { base, u } = asSameOriginUrl(targetUrl);
+
+      // External links -> open in default browser.
+      if (u.origin !== base.origin) {
+        try {
+          shell.openExternal(u.toString());
+        } catch {}
+        return { action: "deny" };
+      }
+
+      if (isAvatarRoute(u)) {
+        createAvatarWindow(u.toString());
+        return { action: "deny" };
+      }
+
+      return { action: "allow" };
+    } catch {
+      return { action: "deny" };
+    }
+  };
+
+  // Intercept window.open from the renderer and create a frameless avatar-only window.
+  if (typeof win.webContents.setWindowOpenHandler === "function") {
+    win.webContents.setWindowOpenHandler(({ url: targetUrl }) =>
+      handleOpenUrl(targetUrl),
+    );
+  }
+
+  // Back-compat: some Electron builds still emit `new-window`.
+  try {
+    win.webContents.on("new-window", (event, targetUrl) => {
+      const r = handleOpenUrl(targetUrl);
+      if (r.action === "deny") event.preventDefault();
+    });
+  } catch {}
+
   win.loadURL(url);
 }
 

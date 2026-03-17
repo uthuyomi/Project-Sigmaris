@@ -72,6 +72,7 @@ export class MotionManager {
 
   private talkWeight = 0;
   private mouthOpen = 0;
+  private jawOpen = 0;
   private lipSyncLevel = 0;
   private lipSyncWeights: { wAa: number; wIh: number; wOu: number; wEe: number; wOh: number } | null =
     null;
@@ -86,6 +87,7 @@ export class MotionManager {
   private blinkPhase = 0;
   private viseme = "aa";
   private visemePhase = 0;
+  private visemeKeyMode: "unknown" | "vrm1" | "vrm0" | "both" = "unknown";
 
   private baseQuat = new Map<BoneName, ThreeQuaternion>();
   private jawOverride: Object3D | null = null;
@@ -222,7 +224,66 @@ export class MotionManager {
     this.exprTargets.set(key, clamp01(value));
   }
 
-  private flushExpressionTargets(dt: number) {
+  private resolveVisemeKeyMode(em: any) {
+    if (this.visemeKeyMode !== "unknown") return;
+
+    const collectKeys = (): Set<string> | null => {
+      try {
+        const keys = new Set<string>();
+
+        const addKey = (k: unknown) => {
+          const s = typeof k === "string" ? k : "";
+          if (s) keys.add(s);
+        };
+
+        const addFrom = (v: any) => {
+          if (!v) return;
+          if (v instanceof Map) {
+            for (const k of v.keys()) addKey(k);
+            return;
+          }
+          if (Array.isArray(v)) {
+            for (const it of v) {
+              if (!it || typeof it !== "object") continue;
+              addKey((it as any).expressionName);
+              addKey((it as any).presetName);
+              addKey((it as any).name);
+              addKey((it as any).key);
+            }
+            return;
+          }
+          if (typeof v === "object") {
+            for (const k of Object.keys(v)) addKey(k);
+          }
+        };
+
+        addFrom((em as any).expressionMap);
+        addFrom((em as any)._expressionMap);
+        addFrom((em as any).expressions);
+
+        return keys.size ? keys : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const keys = collectKeys();
+    if (!keys) {
+      this.visemeKeyMode = "both";
+      return;
+    }
+
+    const vrm1 = ["aa", "ih", "ou", "ee", "oh"];
+    const vrm0 = ["A", "I", "U", "E", "O"];
+    const hasVrm1 = vrm1.some((k) => keys.has(k));
+    const hasVrm0 = vrm0.some((k) => keys.has(k));
+
+    // Prefer VRM1 when both exist.
+    this.visemeKeyMode = hasVrm1 ? "vrm1" : hasVrm0 ? "vrm0" : "both";
+  }
+
+  private flushExpressionTargets(dt: number, em: any) {
+    this.resolveVisemeKeyMode(em);
     // NOTE:
     // Some VRM loaders expose `expressionManager.expressions` as an Array/Map,
     // so enumerating keys can yield only indices ("0", "1", ...).
@@ -265,17 +326,33 @@ export class MotionManager {
     const open = this.mouthOpen;
     if (open > 0) {
       const { wAa, wIh, wOu, wEe, wOh } = this.lipSyncWeights ?? this.computeVisemeWeights(dt);
-      // Prefer VRM1 viseme names; VRM0 (A/I/U/E/O) are also set as fallback.
-      this.setExprTarget("aa", open * wAa);
-      this.setExprTarget("ih", open * wIh);
-      this.setExprTarget("ou", open * wOu);
-      this.setExprTarget("ee", open * wEe);
-      this.setExprTarget("oh", open * wOh);
-      this.setExprTarget("A", open * wAa);
-      this.setExprTarget("I", open * wIh);
-      this.setExprTarget("U", open * wOu);
-      this.setExprTarget("E", open * wEe);
-      this.setExprTarget("O", open * wOh);
+
+      // Driving both VRM1 and VRM0 visemes (when a model exposes both) can over-blend and look "gacha-gacha".
+      // Choose a single key set when possible.
+      if (this.visemeKeyMode === "vrm0") {
+        this.setExprTarget("A", open * wAa);
+        this.setExprTarget("I", open * wIh);
+        this.setExprTarget("U", open * wOu);
+        this.setExprTarget("E", open * wEe);
+        this.setExprTarget("O", open * wOh);
+      } else if (this.visemeKeyMode === "vrm1") {
+        this.setExprTarget("aa", open * wAa);
+        this.setExprTarget("ih", open * wIh);
+        this.setExprTarget("ou", open * wOu);
+        this.setExprTarget("ee", open * wEe);
+        this.setExprTarget("oh", open * wOh);
+      } else {
+        this.setExprTarget("aa", open * wAa);
+        this.setExprTarget("ih", open * wIh);
+        this.setExprTarget("ou", open * wOu);
+        this.setExprTarget("ee", open * wEe);
+        this.setExprTarget("oh", open * wOh);
+        this.setExprTarget("A", open * wAa);
+        this.setExprTarget("I", open * wIh);
+        this.setExprTarget("U", open * wOu);
+        this.setExprTarget("E", open * wEe);
+        this.setExprTarget("O", open * wOh);
+      }
     }
   }
 
@@ -384,6 +461,16 @@ export class MotionManager {
       : 0;
     const rate = targetOpen >= this.mouthOpen ? 18 : 10;
     this.mouthOpen = approach(this.mouthOpen, targetOpen, rate, d);
+
+    // Jaw follows audio RMS a bit more aggressively than the viseme amplitude.
+    // This adds "talking energy" without changing the viseme shapes themselves.
+    const targetJaw = this.speaking
+      ? hasAudioLevel
+        ? clamp01(this.lipSyncLevel * 1.15)
+        : this.mouthOpen
+      : 0;
+    const jawRate = targetJaw >= this.jawOpen ? 22 : 12;
+    this.jawOpen = approach(this.jawOpen, targetJaw, jawRate, d);
 
     const gestureWeight = this.getGestureWeight();
 
@@ -619,7 +706,7 @@ export class MotionManager {
     // Jaw lip-sync disabled by default for this model (jaw is not mapped in humanoid).
     // Keep jaw override hook for future models, but prefer viseme expressions.
     if (jaw) {
-      const open = this.mouthOpen;
+      const open = this.jawOpen;
       const maxOpen = 0.35;
       const ang = -maxOpen * open;
       applyOffsetEuler("jaw", jaw, new Euler(ang, 0, 0), 16);
@@ -752,7 +839,7 @@ export class MotionManager {
     const em: any = (this.vrm as any).expressionManager;
     if (!em) return;
 
-    this.flushExpressionTargets(dt);
+    this.flushExpressionTargets(dt, em);
 
     for (const [key, target] of this.exprTargets) {
       const current = this.exprValues.get(key) ?? 0;
