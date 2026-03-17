@@ -20,6 +20,8 @@ function clamp01(x: number) {
 }
 
 type VisemeWeights = { wAa: number; wIh: number; wOu: number; wEe: number; wOh: number };
+type Viseme = "aa" | "ih" | "ou" | "ee" | "oh";
+type VisemeSegment = { t0Sec: number; t1Sec: number; v: Viseme };
 
 export type TtsPlaybackInfo = {
   mode: "webaudio" | "htmlaudio" | "none";
@@ -44,7 +46,8 @@ export function useAquesTalkAudioTts() {
   const rafRef = useRef<number | null>(null);
   const levelRef = useRef(0);
 
-  const vowelTokensRef = useRef<Array<"aa" | "ih" | "ou" | "ee" | "oh">>([]);
+  const vowelTokensRef = useRef<Viseme[]>([]);
+  const segmentsRef = useRef<VisemeSegment[] | null>(null);
   const playStartCtxTimeRef = useRef<number | null>(null);
   const playDurationRef = useRef<number>(0);
   const playModeRef = useRef<"webaudio" | "htmlaudio" | "none">("none");
@@ -140,6 +143,7 @@ export function useAquesTalkAudioTts() {
     playStartCtxTimeRef.current = null;
     playDurationRef.current = 0;
     vowelTokensRef.current = [];
+    segmentsRef.current = null;
     levelRef.current = 0;
     setSpeaking(false);
     stopLevelRaf();
@@ -224,6 +228,167 @@ export function useAquesTalkAudioTts() {
     }
 
     return out;
+  }
+
+  function phonemeToViseme(raw: unknown): Viseme | null {
+    const s = String(raw ?? "").trim();
+    if (!s) return null;
+
+    const lower = s.toLowerCase();
+    // Prefer the last vowel-like char in the token.
+    for (let i = lower.length - 1; i >= 0; i -= 1) {
+      const ch = lower[i] ?? "";
+      if (ch === "a") return "aa";
+      if (ch === "i") return "ih";
+      if (ch === "u") return "ou";
+      if (ch === "e") return "ee";
+      if (ch === "o") return "oh";
+    }
+
+    // Kana vowels (hiragana/katakana + small vowels)
+    for (let i = s.length - 1; i >= 0; i -= 1) {
+      const ch = s[i] ?? "";
+      if ("あぁアァ".includes(ch)) return "aa";
+      if ("いぃイィ".includes(ch)) return "ih";
+      if ("うぅウゥ".includes(ch)) return "ou";
+      if ("えぇエェ".includes(ch)) return "ee";
+      if ("おぉオォ".includes(ch)) return "oh";
+    }
+
+    return null;
+  }
+
+  function normalizeTimeline(tl: unknown): VisemeSegment[] | null {
+    if (!Array.isArray(tl) || tl.length < 1) return null;
+
+    const segs: VisemeSegment[] = [];
+
+    for (const item of tl) {
+      if (!item || typeof item !== "object") continue;
+      const o = item as any;
+
+      const t0Raw = o.t0Sec ?? o.startSec ?? o.start ?? o.t0 ?? null;
+      const t1Raw = o.t1Sec ?? o.endSec ?? o.end ?? o.t1 ?? null;
+      const t0 = Number(t0Raw);
+      const t1 = Number(t1Raw);
+      if (!Number.isFinite(t0) || !Number.isFinite(t1)) continue;
+      if (t1 <= t0) continue;
+
+      const v = (o.v as Viseme) ?? phonemeToViseme(o.viseme ?? o.phoneme ?? o.p);
+      if (!v) continue;
+
+      segs.push({ t0Sec: t0, t1Sec: t1, v });
+    }
+
+    if (segs.length < 1) return null;
+
+    // Heuristic: if looks like milliseconds, convert to seconds.
+    const maxT = Math.max(...segs.map((s) => s.t1Sec));
+    if (maxT > 120) {
+      for (const s of segs) {
+        s.t0Sec = s.t0Sec / 1000;
+        s.t1Sec = s.t1Sec / 1000;
+      }
+    }
+
+    segs.sort((a, b) => a.t0Sec - b.t0Sec);
+    return segs;
+  }
+
+  function buildSegmentsFromAudio(audioBuf: AudioBuffer, tokens: Viseme[]): VisemeSegment[] | null {
+    if (!tokens.length) return null;
+    if (!Number.isFinite(audioBuf.duration) || audioBuf.duration <= 0.05) return null;
+
+    const sr = audioBuf.sampleRate || 48000;
+    const ch0 = audioBuf.getChannelData(0);
+    if (!ch0 || ch0.length < 128) return null;
+
+    const frameSize = Math.max(256, Math.floor(sr * 0.01)); // ~10ms
+    const hop = frameSize;
+    const nFrames = Math.max(1, Math.floor(ch0.length / hop));
+    const rms: number[] = new Array(nFrames);
+    let max = 0;
+
+    for (let fi = 0; fi < nFrames; fi += 1) {
+      const off = fi * hop;
+      let sum = 0;
+      for (let i = 0; i < frameSize; i += 1) {
+        const v = ch0[off + i] ?? 0;
+        sum += v * v;
+      }
+      const r = Math.sqrt(sum / frameSize);
+      rms[fi] = r;
+      if (r > max) max = r;
+    }
+
+    if (max <= 1e-6) return null;
+
+    // Smooth a little.
+    for (let i = 1; i < rms.length - 1; i += 1) {
+      rms[i] = (rms[i - 1]! + rms[i]! + rms[i + 1]!) / 3;
+    }
+
+    const thr = Math.max(0.004, max * 0.12);
+    let startI = -1;
+    let endI = -1;
+    for (let i = 0; i < rms.length; i += 1) {
+      if (rms[i]! >= thr) {
+        startI = i;
+        break;
+      }
+    }
+    for (let i = rms.length - 1; i >= 0; i -= 1) {
+      if (rms[i]! >= thr) {
+        endI = i;
+        break;
+      }
+    }
+    if (startI < 0 || endI < 0 || endI <= startI) return null;
+
+    const tStart = (startI * hop) / sr;
+    const tEnd = Math.min(audioBuf.duration, ((endI + 1) * hop) / sr);
+    const total = Math.max(0.05, tEnd - tStart);
+
+    const boundaries: number[] = new Array(tokens.length + 1);
+    boundaries[0] = tStart;
+    boundaries[boundaries.length - 1] = tEnd;
+
+    const searchWinSec = 0.12;
+    const toFrame = (tSec: number) => Math.max(0, Math.min(rms.length - 1, Math.round((tSec * sr) / hop)));
+
+    for (let bi = 1; bi < boundaries.length - 1; bi += 1) {
+      const expected = tStart + (total * bi) / tokens.length;
+      const loF = toFrame(expected - searchWinSec);
+      const hiF = toFrame(expected + searchWinSec);
+      let bestF = loF;
+      let bestV = Number.POSITIVE_INFINITY;
+      for (let f = loF; f <= hiF; f += 1) {
+        const v = rms[f]!;
+        if (v < bestV) {
+          bestV = v;
+          bestF = f;
+        }
+      }
+      boundaries[bi] = (bestF * hop) / sr;
+    }
+
+    // Enforce monotonic boundaries with a small minimum duration.
+    const minSeg = 0.03;
+    for (let i = 1; i < boundaries.length; i += 1) {
+      const prev = boundaries[i - 1]!;
+      boundaries[i] = Math.max(prev + minSeg, boundaries[i]!);
+    }
+    boundaries[boundaries.length - 1] = Math.max(boundaries[boundaries.length - 1]!, boundaries[boundaries.length - 2]! + minSeg);
+
+    const segs: VisemeSegment[] = [];
+    for (let i = 0; i < tokens.length; i += 1) {
+      const t0 = boundaries[i]!;
+      const t1 = boundaries[i + 1]!;
+      if (t1 <= t0) continue;
+      segs.push({ t0Sec: t0, t1Sec: t1, v: tokens[i]! });
+    }
+
+    return segs.length ? segs : null;
   }
 
   const unlockAudio = useCallback(async (): Promise<SpeakResult> => {
@@ -327,7 +492,7 @@ export function useAquesTalkAudioTts() {
         return { ok: false, reason };
       }
 
-      let j: { b64?: unknown; koe?: unknown } | null = null;
+      let j: { b64?: unknown; koe?: unknown; timeline?: unknown; alignment?: unknown; labels?: unknown } | null = null;
       try {
         const url = `/api/tts/aquestalk1?format=json${characterId ? `&char=${encodeURIComponent(characterId)}` : ""}`;
         const body: Record<string, unknown> = { text };
@@ -368,7 +533,13 @@ export function useAquesTalkAudioTts() {
         return { ok: false, reason };
       }
 
-      vowelTokensRef.current = koe ? extractVowelTokensSafe(koe) : [];
+      const tokens = koe ? extractVowelTokensSafe(koe) : [];
+      vowelTokensRef.current = tokens;
+
+      // Prefer explicit alignment labels from the TTS backend if present (e.g., VOICEVOX-style).
+      const providedTimeline =
+        normalizeTimeline((j as any)?.timeline ?? (j as any)?.alignment ?? (j as any)?.labels ?? null) ?? null;
+      segmentsRef.current = providedTimeline;
 
       const ab = wavBytes.buffer.slice(wavBytes.byteOffset, wavBytes.byteOffset + wavBytes.byteLength);
 
@@ -405,6 +576,7 @@ export function useAquesTalkAudioTts() {
           setSpeaking(false);
           levelRef.current = 0;
           vowelTokensRef.current = [];
+          segmentsRef.current = null;
           stopLevelRaf();
           cleanupUrl();
         };
@@ -425,6 +597,16 @@ export function useAquesTalkAudioTts() {
         return { ok: true };
       }
 
+      // If the backend didn't provide alignment labels, derive a coarse timeline
+      // by snapping expected vowel boundaries to local energy minima in the decoded audio.
+      if (!segmentsRef.current && vowelTokensRef.current.length) {
+        try {
+          segmentsRef.current = buildSegmentsFromAudio(audioBuf, vowelTokensRef.current);
+        } catch {
+          segmentsRef.current = null;
+        }
+      }
+
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
       src.connect(analyser);
@@ -438,6 +620,7 @@ export function useAquesTalkAudioTts() {
         playStartCtxTimeRef.current = null;
         playDurationRef.current = 0;
         vowelTokensRef.current = [];
+        segmentsRef.current = null;
         levelRef.current = 0;
         setSpeaking(false);
         stopLevelRaf();
@@ -492,11 +675,12 @@ export function useAquesTalkAudioTts() {
   const getLipSyncFrame = useCallback((): { level: number; weights: null | VisemeWeights } => {
     const level = levelRef.current;
     const tokens = vowelTokensRef.current;
+    const segs = segmentsRef.current;
 
     const ctx = audioCtxRef.current;
     const start = playStartCtxTimeRef.current;
     const dur = playDurationRef.current;
-    if (!Number.isFinite(dur) || dur <= 0.01 || tokens.length < 1) {
+    if (!Number.isFinite(dur) || dur <= 0.01 || (tokens.length < 1 && !(segs && segs.length))) {
       return { level, weights: null };
     }
 
@@ -514,6 +698,50 @@ export function useAquesTalkAudioTts() {
       levelRef.current = clamp01(0.15 + 0.85 * approx);
     } else {
       return { level, weights: null };
+    }
+
+    if (segs && segs.length) {
+      // Time-aligned viseme timeline (preferred when available).
+      let idx = 0;
+      while (idx < segs.length && t > segs[idx]!.t1Sec) idx += 1;
+      if (idx >= segs.length) idx = segs.length - 1;
+      if (idx < 0) idx = 0;
+
+      const curSeg = segs[idx]!;
+      const prevSeg = idx > 0 ? segs[idx - 1]! : null;
+      const nextSeg = idx < segs.length - 1 ? segs[idx + 1]! : null;
+
+      const xfade = 0.06; // seconds
+
+      let wPrev = 0;
+      let wCur = 1;
+      let wNext = 0;
+
+      if (prevSeg) {
+        const a = clamp01(1 - (t - curSeg.t0Sec) / xfade);
+        wPrev = a;
+        wCur *= 1 - a;
+      }
+      if (nextSeg) {
+        const a = clamp01(1 - (curSeg.t1Sec - t) / xfade);
+        wNext = a;
+        wCur *= 1 - a;
+      }
+
+      const sum = Math.max(1e-6, wPrev + wCur + wNext);
+      wPrev /= sum;
+      wCur /= sum;
+      wNext /= sum;
+
+      const base = { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 } as Record<Viseme, number>;
+      base[curSeg.v] += wCur;
+      if (prevSeg) base[prevSeg.v] += wPrev;
+      if (nextSeg) base[nextSeg.v] += wNext;
+
+      return {
+        level,
+        weights: { wAa: base.aa, wIh: base.ih, wOu: base.ou, wEe: base.ee, wOh: base.oh },
+      };
     }
 
     const x = (t / dur) * tokens.length;
