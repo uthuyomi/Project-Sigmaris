@@ -32,12 +32,121 @@ import {
   MicIcon,
   MoreHorizontalIcon,
   PencilIcon,
+  PlayIcon,
   RefreshCwIcon,
   SquareIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useAui, useMessage } from "@assistant-ui/react";
+
+const TTS_CHANNEL = "touhou-desktop-tts";
+const POPOUT_HEARTBEAT_KEY = "touhou.desktop.avatar.popout.heartbeatUntil";
+
+function isElectronUa(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return String(navigator.userAgent ?? "").includes("Electron");
+}
+
+function extractTextForTts(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (!content || typeof content !== "object") return "";
+  const parts = Array.isArray(content) ? (content as any[]) : [];
+  return parts
+    .map((p) => (p && typeof p === "object" && (p as any).type === "text" ? String((p as any).text ?? "") : ""))
+    .join("")
+    .trim();
+}
+
+type DesktopTtsState = { speaking: boolean; characterId: string; messageId: string } | null;
+
+function useDesktopTtsState(): DesktopTtsState {
+  const [state, setState] = useState<DesktopTtsState>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let bc: BroadcastChannel | null = null;
+
+    const apply = (d: any) => {
+      const speaking = !!d?.speaking;
+      const characterId = String(d?.characterId ?? "").trim();
+      const messageId = String(d?.messageId ?? "").trim();
+      if (!characterId || !messageId) return;
+      setState({ speaking, characterId, messageId });
+    };
+
+    const onCustom = (ev: Event) => {
+      const e = ev as CustomEvent<any>;
+      apply(e?.detail ?? null);
+    };
+
+    try {
+      window.addEventListener("touhou-desktop:tts-state", onCustom as EventListener);
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        bc = new BroadcastChannel(TTS_CHANNEL);
+        bc.onmessage = (e) => {
+          const d = (e as MessageEvent<any>)?.data ?? null;
+          if (d?.type !== "state") return;
+          apply(d);
+        };
+      }
+    } catch {
+      bc = null;
+    }
+
+    return () => {
+      try {
+        window.removeEventListener("touhou-desktop:tts-state", onCustom as EventListener);
+      } catch {}
+      try {
+        bc?.close();
+      } catch {}
+    };
+  }, []);
+
+  return state;
+}
+
+const DesktopTtsStateContext = createContext<DesktopTtsState>(null);
+
+function useDesktopTtsStateValue() {
+  return useContext(DesktopTtsStateContext);
+}
+
+function isPopoutActive(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = String(window.localStorage.getItem(POPOUT_HEARTBEAT_KEY) ?? "").trim();
+    const until = Number(raw);
+    return Number.isFinite(until) && until > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function dispatchDesktopTts(msg: any) {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent("touhou-desktop:tts-speak", { detail: msg }));
+  } catch {
+    // ignore
+  }
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      const ch = new BroadcastChannel(TTS_CHANNEL);
+      ch.postMessage(msg);
+      ch.close();
+    }
+  } catch {
+    // ignore
+  }
+}
 
 type Phase04UploadMeta = {
   attachment_id: string;
@@ -204,6 +313,7 @@ const UserMessagePersistedUploads: FC = () => {
 };
 
 export const Thread: FC = () => {
+  const desktopTtsState = useDesktopTtsState();
   return (
     <ThreadPrimitive.Root
       className="aui-root aui-thread-root @container flex h-full flex-col bg-transparent"
@@ -215,6 +325,7 @@ export const Thread: FC = () => {
         turnAnchor="top"
         className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4 max-lg:pb-[calc(12rem+var(--app-vvb,0px))]"
       >
+        <DesktopTtsStateContext.Provider value={desktopTtsState}>
         <AuiIf condition={(s) => s.thread.isEmpty}>
           <ThreadWelcome />
         </AuiIf>
@@ -226,6 +337,7 @@ export const Thread: FC = () => {
             AssistantMessage,
           }}
         />
+        </DesktopTtsStateContext.Provider>
 
         <ThreadPrimitive.ViewportFooter
           className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl pb-4 md:pb-6 max-lg:fixed max-lg:left-0 max-lg:right-0 max-lg:bottom-[calc(var(--app-vvb,0px)+env(safe-area-inset-bottom))] max-lg:z-40 max-lg:mx-0 max-lg:max-w-none max-lg:px-4 max-lg:pb-4 max-lg:bg-background/80 max-lg:backdrop-blur"
@@ -526,6 +638,33 @@ const AssistantAvatar: FC = () => {
 };
 
 const AssistantMessage: FC = () => {
+  const { activeSessionId, sessions } = useTouhouUi();
+  const desktopTtsState = useDesktopTtsStateValue();
+  const messageId = useMessage((s) => s.id) as string;
+  const content = useMessage((s) => s.content) as unknown;
+
+  const assistantCharacterId = useMemo(() => {
+    if (!activeSessionId) return null;
+    const session = sessions.find((s) => s.id === activeSessionId);
+    return session?.characterId ?? null;
+  }, [activeSessionId, sessions]);
+
+  const ttsCharacterId = useMemo(() => {
+    if (!assistantCharacterId) return null;
+    if (typeof window === "undefined") return assistantCharacterId;
+    // Popout avatar is currently fixed to Reimu; when active, let it own playback.
+    return isPopoutActive() ? "reimu" : assistantCharacterId;
+  }, [assistantCharacterId]);
+
+  const text = useMemo(() => extractTextForTts(content), [content]);
+
+  const isPlaying =
+    !!desktopTtsState &&
+    desktopTtsState.speaking &&
+    desktopTtsState.messageId === messageId &&
+    !!ttsCharacterId &&
+    desktopTtsState.characterId === ttsCharacterId;
+
   return (
     <MessagePrimitive.Root
       className="aui-assistant-message-root fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-(--thread-max-width) animate-in py-3 duration-150"
@@ -543,6 +682,7 @@ const AssistantMessage: FC = () => {
         aui-assistant-message-content
         wrap-break-word
         relative
+        group
         rounded-2xl
         bg-background/80
         backdrop-blur-md
@@ -553,6 +693,38 @@ const AssistantMessage: FC = () => {
         leading-relaxed
       "
         >
+          {isElectronUa() && ttsCharacterId ? (
+            <div
+              className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100 data-[playing=true]:opacity-100"
+              data-playing={isPlaying ? "true" : "false"}
+            >
+              <TooltipIconButton
+                tooltip={isPlaying ? "停止" : "再生"}
+                side="left"
+                type="button"
+                variant="ghost"
+                className="h-7 w-7 rounded-full bg-background/70 shadow-sm backdrop-blur hover:bg-background"
+                disabled={!text || !ttsCharacterId}
+                onClick={() => {
+                  if (!ttsCharacterId) return;
+                  if (!text) return;
+                  if (isPlaying) {
+                    dispatchDesktopTts({ type: "stop", characterId: ttsCharacterId, messageId, source: "manual" });
+                  } else {
+                    dispatchDesktopTts({
+                      type: "speak",
+                      source: "manual",
+                      characterId: ttsCharacterId,
+                      messageId,
+                      text,
+                    });
+                  }
+                }}
+              >
+                {isPlaying ? <SquareIcon className="size-4" /> : <PlayIcon className="size-4" />}
+              </TooltipIconButton>
+            </div>
+          ) : null}
           <MessagePrimitive.Parts
             components={{
               Text: MarkdownText,

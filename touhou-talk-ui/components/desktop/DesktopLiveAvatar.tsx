@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuiState } from "@assistant-ui/react";
 import VrmStage from "@/components/vrm/VrmStage";
 import { useAquesTalkAudioTts } from "@/hooks/useAquesTalkAudioTts";
@@ -52,6 +52,7 @@ function isAvatarPopoutWindow(): boolean {
 }
 
 const POPOUT_HEARTBEAT_KEY = "touhou.desktop.avatar.popout.heartbeatUntil";
+const TTS_CHANNEL = "touhou-desktop-tts";
 
 type DesktopCharacterSettings = {
   tts?: {
@@ -73,8 +74,12 @@ export default function DesktopLiveAvatar({
   const [browserSpeaking, setBrowserSpeaking] = useState(false);
   const [vrmConfigured, setVrmConfigured] = useState(false);
   const [popoutActive, setPopoutActive] = useState(false);
+  const playbackRef = useRef<{ messageId: string | null; source: string | null }>({
+    messageId: null,
+    source: null,
+  });
 
-  const stopAll = () => {
+  const stopAll = useCallback(() => {
     try {
       aques.cancel();
     } catch {
@@ -87,12 +92,32 @@ export default function DesktopLiveAvatar({
       // ignore
     }
     setBrowserSpeaking(false);
-  };
 
-  const speak = async (text: string) => {
+    try {
+      const mid = playbackRef.current.messageId;
+      if (mid) {
+        const detail = { speaking: false, characterId, messageId: mid };
+        window.dispatchEvent(new CustomEvent("touhou-desktop:tts-state", { detail }));
+        if (typeof BroadcastChannel !== "undefined") {
+          const ch = new BroadcastChannel(TTS_CHANNEL);
+          ch.postMessage({ type: "state", ...detail });
+          ch.close();
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [aques, characterId]);
+
+  const speak = useCallback(async (text: string, meta?: { messageId?: string | null; source?: string | null }) => {
     if (!characterId) return;
     const t = stripForTts(text);
     if (!t) return;
+
+    playbackRef.current = {
+      messageId: String(meta?.messageId ?? "").trim() || null,
+      source: String(meta?.source ?? "").trim() || null,
+    };
 
     stopAll();
 
@@ -142,7 +167,7 @@ export default function DesktopLiveAvatar({
       // ignore
     }
     await aques.speak({ text: t, characterId });
-  };
+  }, [aques, characterId, stopAll]);
 
   const [vrmRev, setVrmRev] = useState<string>("");
 
@@ -281,33 +306,60 @@ export default function DesktopLiveAvatar({
       if (!id || lastSpokenIdRef.current === id) return;
       lastSpokenIdRef.current = id;
 
-      const rawText = extractTextFromContent(lastAssistant?.content);
-      void speak(rawText);
-    }
+       const rawText = extractTextFromContent(lastAssistant?.content);
+       void speak(rawText, { messageId: id, source: "auto" });
+     }
   }, [isRunning, messages, characterId, speak, isPopout, popoutActive]);
 
-  // Popout-only: listen for "speak" events coming from the chat window.
+  // Listen for "speak/stop" events coming from the chat window (manual replay, etc).
   useEffect(() => {
     if (!enabled) return;
-    if (!isPopout) return;
     if (!characterId) return;
 
     let bc: BroadcastChannel | null = null;
 
     const onSpeak = (payload: any) => {
+      if (!payload || typeof payload !== "object") return;
+
+      // If a popout is active, let it own TTS playback (avoid double-speaking).
+      if (!isPopout && popoutActive) return;
+
       const id = String(payload?.messageId ?? "").trim() || null;
       const cid = String(payload?.characterId ?? "").trim();
       const text = String(payload?.text ?? "");
       if (!cid || cid !== characterId) return;
       if (!text.trim()) return;
-      if (id && lastSpokenIdRef.current === id) return;
-      if (id) lastSpokenIdRef.current = id;
-      void speak(text);
+
+      // Manual replay should allow the same message to be replayed repeatedly.
+      const source = String(payload?.source ?? "").trim() || null;
+      if (source !== "hover" && source !== "manual") {
+        if (id && lastSpokenIdRef.current === id) return;
+        if (id) lastSpokenIdRef.current = id;
+      }
+
+      void speak(text, { messageId: id, source });
+    };
+
+    const onStop = (payload: any) => {
+      if (!payload || typeof payload !== "object") return;
+
+      // If a popout is active, let it own stop (avoid main cancelling popout).
+      if (!isPopout && popoutActive) return;
+
+      const cid = String(payload?.characterId ?? "").trim();
+      const mid = String(payload?.messageId ?? "").trim() || null;
+      if (!cid || cid !== characterId) return;
+
+      if (!mid || mid === playbackRef.current.messageId) {
+        stopAll();
+      }
     };
 
     const onCustom = (ev: Event) => {
       const e = ev as CustomEvent<any>;
-      onSpeak(e?.detail ?? null);
+      const d = e?.detail ?? null;
+      if (d?.type === "stop") onStop(d);
+      else onSpeak(d);
     };
 
     try {
@@ -318,11 +370,11 @@ export default function DesktopLiveAvatar({
 
     try {
       if (typeof BroadcastChannel !== "undefined") {
-        bc = new BroadcastChannel("touhou-desktop-tts");
+        bc = new BroadcastChannel(TTS_CHANNEL);
         bc.onmessage = (e) => {
           const d = (e as MessageEvent<any>)?.data ?? null;
-          if (d?.type !== "speak") return;
-          onSpeak(d);
+          if (d?.type === "speak") onSpeak(d);
+          else if (d?.type === "stop") onStop(d);
         };
       }
     } catch {
@@ -337,7 +389,33 @@ export default function DesktopLiveAvatar({
         bc?.close();
       } catch {}
     };
-  }, [enabled, isPopout, characterId, speak]);
+  }, [enabled, isPopout, popoutActive, characterId, speak, stopAll]);
+
+  // Emit playback state so the chat UI can show play/stop on messages.
+  useEffect(() => {
+    if (!enabled) return;
+    if (!characterId) return;
+
+    const speakingNow = aques.speaking || browserSpeaking;
+    const mid = playbackRef.current.messageId;
+    if (!mid) return;
+
+    const detail = { speaking: speakingNow, characterId, messageId: mid };
+    try {
+      window.dispatchEvent(new CustomEvent("touhou-desktop:tts-state", { detail }));
+    } catch {
+      // ignore
+    }
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel(TTS_CHANNEL);
+        ch.postMessage({ type: "state", ...detail });
+        ch.close();
+      }
+    } catch {
+      // ignore
+    }
+  }, [enabled, characterId, aques.speaking, browserSpeaking]);
 
   if (!enabled || !characterId) return null;
   if (!vrmConfigured) return null;
