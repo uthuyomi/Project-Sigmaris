@@ -2,6 +2,12 @@
 
 import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
+import {
+  AssistantRuntimeProvider,
+  useExternalStoreRuntime,
+  type AppendMessage,
+  type ExternalStoreAdapter,
+} from "@assistant-ui/react";
 import DesktopLiveAvatar from "@/components/desktop/DesktopLiveAvatar";
 
 function isElectronUa(): boolean {
@@ -30,10 +36,40 @@ export default function AvatarClient() {
     );
   }
 
+  const store = useMemo<ExternalStoreAdapter>(
+    () => ({
+      isDisabled: true,
+      isRunning: false,
+      isLoading: false,
+      messages: [],
+      onNew: async (_message: AppendMessage) => {
+        // no-op (avatar window is view-only)
+      },
+      adapters: {
+        threadList: {
+          isLoading: false,
+          threadId: undefined,
+          threads: [],
+          archivedThreads: [],
+          onSwitchToNewThread: undefined,
+          onSwitchToThread: undefined,
+          onRename: undefined,
+          onArchive: undefined,
+          onUnarchive: undefined,
+          onDelete: undefined,
+        },
+      },
+    }),
+    [],
+  );
+
+  const runtime = useExternalStoreRuntime(store);
+
   return (
     <div className="h-dvh w-full bg-background">
-      <DesktopLiveAvatar characterId={char} className="h-full w-full" />
+      <AssistantRuntimeProvider runtime={runtime}>
+        <DesktopLiveAvatar characterId={char} className="h-full w-full" />
+      </AssistantRuntimeProvider>
     </div>
   );
 }
-
