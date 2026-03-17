@@ -39,6 +39,18 @@ function isElectronUa(): boolean {
   return String(navigator.userAgent ?? "").includes("Electron");
 }
 
+function isAvatarPopoutWindow(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (String(window.name ?? "") === "touhou-avatar") return true;
+  } catch {}
+  try {
+    return String(window.location?.pathname ?? "") === "/desktop/avatar";
+  } catch {
+    return false;
+  }
+}
+
 type DesktopCharacterSettings = {
   tts?: {
     mode?: "none" | "browser" | "aquestalk";
@@ -54,6 +66,7 @@ export default function DesktopLiveAvatar({
   className?: string;
 }) {
   const enabled = useMemo(() => isElectronUa(), []);
+  const isPopout = useMemo(() => isAvatarPopoutWindow(), []);
   const aques = useAquesTalkAudioTts();
   const [browserSpeaking, setBrowserSpeaking] = useState(false);
   const [vrmConfigured, setVrmConfigured] = useState(false);
@@ -205,6 +218,59 @@ export default function DesktopLiveAvatar({
       void speak(rawText);
     }
   }, [isRunning, messages, characterId, speak]);
+
+  // Popout-only: listen for "speak" events coming from the chat window.
+  useEffect(() => {
+    if (!enabled) return;
+    if (!isPopout) return;
+    if (!characterId) return;
+
+    let bc: BroadcastChannel | null = null;
+
+    const onSpeak = (payload: any) => {
+      const id = String(payload?.messageId ?? "").trim() || null;
+      const cid = String(payload?.characterId ?? "").trim();
+      const text = String(payload?.text ?? "");
+      if (!cid || cid !== characterId) return;
+      if (!text.trim()) return;
+      if (id && lastSpokenIdRef.current === id) return;
+      if (id) lastSpokenIdRef.current = id;
+      void speak(text);
+    };
+
+    const onCustom = (ev: Event) => {
+      const e = ev as CustomEvent<any>;
+      onSpeak(e?.detail ?? null);
+    };
+
+    try {
+      window.addEventListener("touhou-desktop:tts-speak", onCustom as EventListener);
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        bc = new BroadcastChannel("touhou-desktop-tts");
+        bc.onmessage = (e) => {
+          const d = (e as MessageEvent<any>)?.data ?? null;
+          if (d?.type !== "speak") return;
+          onSpeak(d);
+        };
+      }
+    } catch {
+      bc = null;
+    }
+
+    return () => {
+      try {
+        window.removeEventListener("touhou-desktop:tts-speak", onCustom as EventListener);
+      } catch {}
+      try {
+        bc?.close();
+      } catch {}
+    };
+  }, [enabled, isPopout, characterId, speak]);
 
   if (!enabled || !characterId) return null;
   if (!vrmConfigured) return null;

@@ -1284,6 +1284,46 @@ export default function ChatClient() {
 
   const runtime = useExternalStoreRuntime(store);
 
+  // Desktop (Electron) popout avatar: notify once on assistant completion so the avatar-only window can speak/lip-sync.
+  const popoutTtsPrevRunningRef = useRef(false);
+  const popoutTtsLastIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isElectron) return;
+    if (!activeSessionId) return;
+    if (!activeCharacterId) return;
+
+    const isRunning = isRunningBySession[activeSessionId] ?? false;
+    const wasRunning = popoutTtsPrevRunningRef.current;
+    popoutTtsPrevRunningRef.current = isRunning;
+
+    if (!wasRunning || isRunning) return;
+
+    const lastAi = [...activeMessages].reverse().find((m) => m?.role === "ai") ?? null;
+    const id = String(lastAi?.id ?? "").trim() || null;
+    const text = String(lastAi?.content ?? "").trim();
+    if (!text) return;
+    if (id && popoutTtsLastIdRef.current === id) return;
+    popoutTtsLastIdRef.current = id;
+
+    const detail = { characterId: activeCharacterId, messageId: id, text };
+
+    try {
+      window.dispatchEvent(new CustomEvent("touhou-desktop:tts-speak", { detail }));
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        const ch = new BroadcastChannel("touhou-desktop-tts");
+        ch.postMessage({ type: "speak", ...detail });
+        ch.close();
+      }
+    } catch {
+      // ignore
+    }
+  }, [isElectron, activeSessionId, activeCharacterId, activeMessages, isRunningBySession]);
+
   useLayoutEffect(() => {
     const root = document.documentElement;
     const vv = window.visualViewport ?? null;

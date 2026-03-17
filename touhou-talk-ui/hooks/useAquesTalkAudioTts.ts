@@ -191,6 +191,41 @@ export function useAquesTalkAudioTts() {
     return out;
   }
 
+  function extractVowelTokensSafe(koe: string): Array<"aa" | "ih" | "ou" | "ee" | "oh"> {
+    const s = String(koe ?? "");
+    const out: Array<"aa" | "ih" | "ou" | "ee" | "oh"> = [];
+
+    const push = (v: string) => {
+      const ch = String(v ?? "");
+      if (ch === "a") out.push("aa");
+      else if (ch === "i") out.push("ih");
+      else if (ch === "u") out.push("ou");
+      else if (ch === "e") out.push("ee");
+      else if (ch === "o") out.push("oh");
+      else if (ch === "あ" || ch === "ぁ" || ch === "ア" || ch === "ァ") out.push("aa");
+      else if (ch === "い" || ch === "ぃ" || ch === "イ" || ch === "ィ") out.push("ih");
+      else if (ch === "う" || ch === "ぅ" || ch === "ウ" || ch === "ゥ") out.push("ou");
+      else if (ch === "え" || ch === "ぇ" || ch === "エ" || ch === "ェ") out.push("ee");
+      else if (ch === "お" || ch === "ぉ" || ch === "オ" || ch === "ォ") out.push("oh");
+      else if (ch === "ー" && out.length) out.push(out[out.length - 1]!);
+    };
+
+    const lower = s.toLowerCase();
+    for (let i = 0; i < lower.length; i += 1) {
+      const ch = lower[i] ?? "";
+      if ("aiueo".includes(ch)) push(ch);
+    }
+
+    if (!out.length) {
+      for (let i = 0; i < s.length; i += 1) {
+        const ch = s[i] ?? "";
+        if ("あぁいぃうぅえぇおぉアイウエオァィゥェォー".includes(ch)) push(ch);
+      }
+    }
+
+    return out;
+  }
+
   const unlockAudio = useCallback(async (): Promise<SpeakResult> => {
     if (!supported) return { ok: false, reason: "fetch is not supported" };
     setLastError(null);
@@ -333,7 +368,7 @@ export function useAquesTalkAudioTts() {
         return { ok: false, reason };
       }
 
-      vowelTokensRef.current = koe ? extractVowelTokens(koe) : [];
+      vowelTokensRef.current = koe ? extractVowelTokensSafe(koe) : [];
 
       const ab = wavBytes.buffer.slice(wavBytes.byteOffset, wavBytes.byteOffset + wavBytes.byteLength);
 
