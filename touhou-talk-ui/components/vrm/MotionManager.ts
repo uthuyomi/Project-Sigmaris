@@ -72,6 +72,7 @@ export class MotionManager {
 
   private talkWeight = 0;
   private mouthOpen = 0;
+  private jawOpen = 0;
   private lipSyncLevel = 0;
   private lipSyncWeights: { wAa: number; wIh: number; wOu: number; wEe: number; wOh: number } | null =
     null;
@@ -385,6 +386,16 @@ export class MotionManager {
     const rate = targetOpen >= this.mouthOpen ? 18 : 10;
     this.mouthOpen = approach(this.mouthOpen, targetOpen, rate, d);
 
+    // Jaw follows audio RMS a bit more aggressively than the viseme amplitude.
+    // This adds "talking energy" without changing the viseme shapes themselves.
+    const targetJaw = this.speaking
+      ? hasAudioLevel
+        ? clamp01(this.lipSyncLevel * 1.15)
+        : this.mouthOpen
+      : 0;
+    const jawRate = targetJaw >= this.jawOpen ? 22 : 12;
+    this.jawOpen = approach(this.jawOpen, targetJaw, jawRate, d);
+
     const gestureWeight = this.getGestureWeight();
 
     if (gestureWeight > 0.12) this.state = "gesture";
@@ -619,7 +630,7 @@ export class MotionManager {
     // Jaw lip-sync disabled by default for this model (jaw is not mapped in humanoid).
     // Keep jaw override hook for future models, but prefer viseme expressions.
     if (jaw) {
-      const open = this.mouthOpen;
+      const open = this.jawOpen;
       const maxOpen = 0.35;
       const ang = -maxOpen * open;
       applyOffsetEuler("jaw", jaw, new Euler(ang, 0, 0), 16);
