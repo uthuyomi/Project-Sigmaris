@@ -315,7 +315,7 @@ function createWindow(url) {
     const avatarWin = new BrowserWindow({
       width: 420,
       height: 560,
-      backgroundColor: "#0b0b12",
+      backgroundColor: "#00000000",
       autoHideMenuBar: true,
       frame: false, // no native title bar / window chrome
       titleBarStyle: "hidden",
@@ -323,6 +323,9 @@ function createWindow(url) {
       minimizable: true,
       maximizable: false,
       fullscreenable: false,
+      transparent: true,
+      hasShadow: false,
+      show: false,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -330,6 +333,11 @@ function createWindow(url) {
     });
 
     avatarWin.loadURL(targetUrl);
+    avatarWin.once("ready-to-show", () => {
+      try {
+        avatarWin.show();
+      } catch {}
+    });
   };
 
   // Intercept window.open from the renderer and create a frameless avatar-only window.
