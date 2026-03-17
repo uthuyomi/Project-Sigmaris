@@ -112,9 +112,9 @@ export default function AvatarClient() {
     <div className="relative h-dvh w-full overflow-hidden bg-transparent">
       {/* Frameless window controls: hover the top area to show move/resize/close. */}
       <div className="group absolute inset-x-0 top-0 z-50 h-16">
-        {/* Always-visible drag hint (so users know where to grab). */}
+        {/* Drag hint: show only on hover (so it doesn't distract). */}
         <div className="absolute inset-x-0 top-0 h-10" style={{ WebkitAppRegion: "drag" } as any}>
-          <div className="mx-auto mt-2 flex h-6 w-32 items-center justify-center rounded-full border border-border/50 bg-background/20 text-[11px] text-foreground/70 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-30">
+          <div className="pointer-events-none mx-auto mt-2 flex h-6 w-32 items-center justify-center rounded-full border border-border/50 bg-background/20 text-[11px] text-foreground/70 opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100">
             ドラッグで移動
           </div>
         </div>
