@@ -1468,11 +1468,12 @@ export default function ChatClient() {
     const lastAi = [...activeMessages].reverse().find((m) => m?.role === "ai") ?? null;
     const id = String(lastAi?.id ?? "").trim() || null;
     const text = String(lastAi?.content ?? "").trim();
+    const readingText = String((lastAi?.meta as any)?.tts?.reading_text ?? "").trim() || null;
     if (!text) return;
     if (id && popoutTtsLastIdRef.current === id) return;
     popoutTtsLastIdRef.current = id;
 
-    const detail = { characterId: activeCharacterId, messageId: id, text };
+    const detail = { characterId: activeCharacterId, messageId: id, text, readingText };
 
     try {
       window.dispatchEvent(new CustomEvent("touhou-desktop:tts-speak", { detail }));

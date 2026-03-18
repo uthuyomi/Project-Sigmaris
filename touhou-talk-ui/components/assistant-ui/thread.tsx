@@ -642,6 +642,7 @@ const AssistantMessage: FC = () => {
   const desktopTtsState = useDesktopTtsStateValue();
   const messageId = useMessage((s) => s.id) as string;
   const content = useMessage((s) => s.content) as unknown;
+  const custom = useMessage((s) => s.metadata?.custom) as Record<string, unknown> | null;
 
   const assistantCharacterId = useMemo(() => {
     if (!activeSessionId) return null;
@@ -657,6 +658,11 @@ const AssistantMessage: FC = () => {
   }, [assistantCharacterId]);
 
   const text = useMemo(() => extractTextForTts(content), [content]);
+  const readingText = useMemo(() => {
+    const tts = (custom?.tts ?? null) as Record<string, unknown> | null;
+    const value = String(tts?.reading_text ?? "").trim();
+    return value || null;
+  }, [custom]);
 
   const isPlaying =
     !!desktopTtsState &&
@@ -717,6 +723,7 @@ const AssistantMessage: FC = () => {
                       characterId: ttsCharacterId,
                       messageId,
                       text,
+                      readingText,
                     });
                   }
                 }}

@@ -18,6 +18,14 @@ function extractTextFromContent(content: ThreadMessageContent): string {
     .trim();
 }
 
+function extractReadingText(meta: unknown): string | null {
+  if (!meta || typeof meta !== "object") return null;
+  const tts = (meta as Record<string, unknown>).tts;
+  if (!tts || typeof tts !== "object") return null;
+  const readingText = String((tts as Record<string, unknown>).reading_text ?? "").trim();
+  return readingText || null;
+}
+
 function stripForTts(raw: string): string {
   let s = String(raw ?? "");
   // Remove fenced code blocks (including ```vrm directives already stripped elsewhere).
@@ -109,7 +117,10 @@ export default function DesktopLiveAvatar({
     }
   }, [aques, characterId]);
 
-  const speak = useCallback(async (text: string, meta?: { messageId?: string | null; source?: string | null }) => {
+  const speak = useCallback(async (
+    text: string,
+    meta?: { messageId?: string | null; source?: string | null; readingText?: string | null }
+  ) => {
     if (!characterId) return;
     const t = stripForTts(text);
     if (!t) return;
@@ -145,7 +156,7 @@ export default function DesktopLiveAvatar({
       if (!synth || !Utterance) return;
       try {
         synth.cancel();
-        const u = new Utterance(t);
+        const u = new Utterance(String(meta?.readingText ?? "").trim() || t);
         u.lang = "ja-JP";
         u.onstart = () => setBrowserSpeaking(true);
         u.onend = () => setBrowserSpeaking(false);
@@ -166,7 +177,7 @@ export default function DesktopLiveAvatar({
     } catch {
       // ignore
     }
-    await aques.speak({ text: t, characterId });
+    await aques.speak({ text: t, readingText: meta?.readingText, characterId });
   }, [aques, characterId, stopAll]);
 
   const [vrmRev, setVrmRev] = useState<string>("");
@@ -306,8 +317,9 @@ export default function DesktopLiveAvatar({
       if (!id || lastSpokenIdRef.current === id) return;
       lastSpokenIdRef.current = id;
 
-       const rawText = extractTextFromContent(lastAssistant?.content);
-       void speak(rawText, { messageId: id, source: "auto" });
+      const rawText = extractTextFromContent(lastAssistant?.content);
+      const readingText = extractReadingText((lastAssistant as any)?.metadata?.custom);
+      void speak(rawText, { messageId: id, source: "auto", readingText });
      }
   }, [isRunning, messages, characterId, speak, isPopout, popoutActive]);
 
@@ -327,6 +339,7 @@ export default function DesktopLiveAvatar({
       const id = String(payload?.messageId ?? "").trim() || null;
       const cid = String(payload?.characterId ?? "").trim();
       const text = String(payload?.text ?? "");
+      const readingText = String(payload?.readingText ?? "").trim() || null;
       if (!cid || cid !== characterId) return;
       if (!text.trim()) return;
 
@@ -337,7 +350,7 @@ export default function DesktopLiveAvatar({
         if (id) lastSpokenIdRef.current = id;
       }
 
-      void speak(text, { messageId: id, source });
+      void speak(text, { messageId: id, source, readingText });
     };
 
     const onStop = (payload: any) => {

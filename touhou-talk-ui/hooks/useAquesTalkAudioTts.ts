@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 type SpeakParams = {
   text: string;
+  readingText?: string | null;
   characterId?: string | null;
   speed?: number | null;
   voice?: string | null;
@@ -579,6 +580,7 @@ export function useAquesTalkAudioTts() {
       if (!supported) return { ok: false, reason: "fetch is not supported" };
 
       const text = String(params.text ?? "").trim();
+      const readingText = String(params.readingText ?? "").trim();
       if (!text) return { ok: false, reason: "Empty text" };
 
       const characterId = String(params.characterId ?? "").trim();
@@ -604,7 +606,7 @@ export function useAquesTalkAudioTts() {
       let j: { b64?: unknown; koe?: unknown; timeline?: unknown; alignment?: unknown; labels?: unknown } | null = null;
       try {
         const url = `/api/tts/aquestalk1?format=json${characterId ? `&char=${encodeURIComponent(characterId)}` : ""}`;
-        const body: Record<string, unknown> = { text };
+        const body: Record<string, unknown> = { text: readingText || text };
         if (speed != null) body.speed = speed;
         if (voice != null) body.voice = voice;
 
