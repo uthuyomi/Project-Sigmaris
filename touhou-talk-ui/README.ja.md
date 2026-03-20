@@ -2,40 +2,58 @@
 
 # Touhou Talk UI
 
-`touhou-talk-ui` は Project Sigmaris の Next.js UI です。  
-Touhou Project にインスパイアされた **非公式の二次創作キャラチャット UI** として、Persona OS コアを“実運用に近い UX”で検証することを目的としています。
+`touhou-talk-ui` は Project Sigmaris モノレポ内の Next.js フロントエンドです。  
+東方 Project に着想を得た非公式の二次創作チャット UI で、キャラクターとの対話体験をプロダクトとして成立させることを目的に設計しています。
 
-主な構成:
+この UI では、単なるチャット画面ではなく、次のような体験を扱っています。
 
-- Next.js（App Router）
-- Supabase Auth（OAuth）+ 永続化（`common_*` テーブル）
-- `gensokyo-persona-core` へプロキシして応答生成（`/persona/chat`, `/persona/chat/stream`）
-- 任意: Electron デスクトップラッパ（Windows）
+- Next.js App Router ベースの Web アプリ
+- Supabase Auth による OAuth ログイン
+- セッション単位のチャット履歴保存
+- 幻想郷マップからのキャラクター導線
+- テーマ切り替えと演出付きの導入画面
+- Electron によるデスクトップ実行
+- VRM / TTS / モーション設定によるキャラクター表現の拡張
 
-## ローカル起動（Web）
+## 技術スタック
+
+- Next.js
+- React
+- TypeScript
+- Supabase
+- Tailwind CSS
+- three.js / @pixiv/three-vrm
+- Electron
+
+## ローカル起動
 
 ### 前提
 
-- Node.js（LTS）+ npm
+- Node.js LTS
+- npm
 - Supabase プロジェクト
-- `gensokyo-persona-core` が起動していること（既定: `http://127.0.0.1:8000`）
+- 起動済みの `gensokyo-persona-core`
 
-### env
+デフォルトの persona core URL:
 
-env は以下いずれかで設定できます。
+- `http://127.0.0.1:8000`
 
-- Next.js 標準: `touhou-talk-ui/.env.local`
-- モノレポ運用: repo root の `.env`（`npm run dev` は `tools/dev.mjs` でこれを先に読み込みます）
+### 環境変数
 
-最低限:
+次のいずれかで設定できます。
+
+- `touhou-talk-ui/.env.local`
+- リポジトリルートの `.env`
+
+最低限必要なキー:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`（サーバ側のみ）
-- `SIGMARIS_CORE_URL`（サーバ→コア URL。例: `http://127.0.0.1:8000`）
-- `NEXT_PUBLIC_SIGMARIS_CORE`（クライアントに公開する URL。ローカルは上と同一で問題ありません）
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SIGMARIS_CORE_URL`
+- `NEXT_PUBLIC_SIGMARIS_CORE`
 
-### 起動
+### Web アプリ起動
 
 ```bash
 cd touhou-talk-ui
@@ -43,34 +61,33 @@ npm install
 npm run dev
 ```
 
-`http://localhost:3000`
+ブラウザで `http://localhost:3000` を開きます。
 
-## Supabase の Redirect URLs（OAuth）
+## Supabase OAuth リダイレクト設定
 
-Supabase Dashboard 側に以下のような URL を登録してください。
+Supabase Dashboard で次のような URL を追加してください。
 
-- `http://localhost:3000/auth/callback`（Web 開発）
-- `http://localhost:3789/auth/callback`（デスクトップ既定。下記参照）
-- `https://<your-domain>/auth/callback`（本番）
+- `http://localhost:3000/auth/callback`
+- `http://localhost:3789/auth/callback`
+- `https://<your-domain>/auth/callback`
 
-## 内部 API（Next.js Route Handlers）
+## 主な API ルート
 
-チャットの主要フロー:
+チャット関連:
 
-- `GET /api/session` / `POST /api/session`
+- `GET /api/session`
+- `POST /api/session`
 - `GET /api/session/[sessionId]/messages`
-- `POST /api/session/[sessionId]/message`（`?stream=1` 対応）
-  - コアへプロキシ（`/persona/chat` / `/persona/chat/stream`）
-  - Supabase へ保存（`common_sessions`, `common_messages`）
+- `POST /api/session/[sessionId]/message`
 
-デスクトップ専用:
+デスクトップ関連:
 
-- `GET /api/desktop/character-settings`（設定 UI が参照します）
+- `GET /api/desktop/character-settings`
 
-## デスクトップ（Electron / Windows、任意）
+## デスクトップモード
 
-デスクトップ版はローカル専用のラッパです。  
-キャラクターごとの設定（VRM / TTS / モーション）をディスクへ保存し、UI を Electron シェル内で動作させます。
+Electron ラッパーを使うと、ローカル専用のデスクトップアプリとして動作します。  
+キャラクターごとの VRM / TTS / モーション設定をローカル保存できます。
 
 ### 開発起動
 
@@ -79,21 +96,21 @@ cd touhou-talk-ui
 npm run desktop:dev
 ```
 
-`desktop:dev` は以下を行います。
+### 配布ビルド
 
-- `3000` から空きポートを探索して Next dev を起動します
-- `tools/dev.mjs` 経由で Next を起動し、SSR/API 側にも env を引き継ぎます
-- Electron（`tools/desktop/main.cjs`）を起動します
+```bash
+cd touhou-talk-ui
+npm run desktop:dist
+```
 
-### デスクトップ用 env ファイル
+## ポートフォリオ観点での見どころ
 
-開発ランナーは、専用の env ファイルを読み込めます。
+- 世界観と UI 演出を一体で設計していること
+- 認証、永続化、チャット導線まで含めたプロダクト構成
+- Web と Electron の両方で同一体験を組み立てていること
+- 3D アバターと音声設定を UI 側から扱っていること
 
-- `TOUHOU_DESKTOP_ENV_PATH`（ファイルパス指定）
-- 未指定の場合は `%LOCALAPPDATA%/TouhouTalkDesktopDev/touhou-talk.env`（環境により `%APPDATA%`）
+## 注意
 
-## 二次創作に関する注意
-
-本 UI は Touhou Project にインスパイアされた **非公式・非営利の二次創作**です。  
-原作者/権利者とは無関係であり、公式に承認されているものではありません。
-
+このプロジェクトは東方 Project に着想を得た非公式・非商用の二次創作です。  
+原作の権利元・関係者とは無関係であり、公式の製品ではありません。

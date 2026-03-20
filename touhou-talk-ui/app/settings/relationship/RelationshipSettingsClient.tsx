@@ -46,22 +46,23 @@ function clampTrust(n: number) {
 }
 
 function trustLabel(t: number) {
-  if (t <= -0.6) return "不信（強）";
+  if (t <= -0.6) return "強い不信";
   if (t <= -0.2) return "不信";
   if (t < 0.2) return "中立";
-  if (t < 0.6) return "信頼";
-  return "信頼（強）";
+  if (t < 0.6) return "好意";
+  return "強い好意";
 }
 
 function familiarityLabel(f: number) {
-  if (f < 0.25) return "低";
-  if (f < 0.6) return "中";
-  return "高";
+  if (f < 0.25) return "低い";
+  if (f < 0.6) return "中程度";
+  return "高い";
 }
 
 function Meter(props: { label: string; value: number; min: number; max: number }) {
   const v = Math.max(props.min, Math.min(props.max, props.value));
   const pct = ((v - props.min) / (props.max - props.min)) * 100;
+
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
@@ -91,8 +92,11 @@ export default function RelationshipSettingsClient() {
     setLoading(true);
     setError(null);
     setInfo(null);
+
     try {
-      const r = await fetch(`/api/relationship?characterId=${encodeURIComponent(selectedChar)}`, { cache: "no-store" });
+      const r = await fetch(`/api/relationship?characterId=${encodeURIComponent(selectedChar)}`, {
+        cache: "no-store",
+      });
       const j = (await r.json().catch(() => null)) as RelationshipResponse | null;
       if (!r.ok) throw new Error(j?.error || "fetch failed");
       setRelationships(Array.isArray(j?.relationships) ? j.relationships : []);
@@ -106,7 +110,7 @@ export default function RelationshipSettingsClient() {
 
   useEffect(() => {
     void fetchAll();
-  }, [selectedChar, fetchAll]);
+  }, [fetchAll]);
 
   const activeRel = useMemo(() => {
     const row = relationships.find((r) => r.characterId === selectedChar) ?? null;
@@ -123,11 +127,12 @@ export default function RelationshipSettingsClient() {
     setLoading(true);
     setError(null);
     setInfo(null);
+
     try {
       const body =
         kind === "all"
           ? { resetRelationships: true, resetMemory: true }
-        : kind === "memory"
+          : kind === "memory"
             ? { characterId: selectedChar, resetRelationships: false, resetMemory: true }
             : { characterId: selectedChar, resetRelationships: true, resetMemory: false };
 
@@ -150,9 +155,11 @@ export default function RelationshipSettingsClient() {
   const doExport = async () => {
     setError(null);
     setInfo(null);
+
     try {
       const r = await fetch("/api/relationship/export", { cache: "no-store" });
       if (!r.ok) throw new Error("export failed");
+
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -172,6 +179,7 @@ export default function RelationshipSettingsClient() {
     setLoading(true);
     setError(null);
     setInfo(null);
+
     try {
       const text = await file.text();
       const json = JSON.parse(text);
@@ -195,9 +203,9 @@ export default function RelationshipSettingsClient() {
     <div className="flex w-full flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-gensou text-2xl">関係性・記憶の管理</h1>
-          <p className="text-muted-foreground text-sm">
-            Relationship（trust/familiarity）と、会話から抽出した Memory を確認・リセット・輸出入できます。
+          <h1 className="font-gensou text-2xl">関係性設定</h1>
+          <p className="text-sm text-muted-foreground">
+            キャラクターごとの trust / familiarity と、会話メモリの内容を確認・管理できます。
           </p>
         </div>
         <Button asChild variant="outline">
@@ -210,7 +218,7 @@ export default function RelationshipSettingsClient() {
       <section className="rounded-2xl border bg-card/60 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="text-sm font-medium">キャラ</div>
+            <div className="text-sm font-medium">キャラクター</div>
             <select
               className="h-9 rounded-md border bg-background px-2 text-sm"
               value={selectedChar}
@@ -219,7 +227,7 @@ export default function RelationshipSettingsClient() {
             >
               {characterOptions.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}（{c.id}）
+                  {c.name} ({c.id})
                 </option>
               ))}
             </select>
@@ -261,7 +269,7 @@ export default function RelationshipSettingsClient() {
                   trust={trustLabel(activeRel.trust)}, familiarity={familiarityLabel(activeRel.familiarity)}
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground">未作成（0扱い）</div>
+                <div className="text-xs text-muted-foreground">まだ保存されていません</div>
               )}
             </div>
 
@@ -269,16 +277,16 @@ export default function RelationshipSettingsClient() {
               <Meter label="trust (-1..1)" value={activeRel?.trust ?? 0} min={-1} max={1} />
               <Meter label="familiarity (0..1)" value={activeRel?.familiarity ?? 0} min={0} max={1} />
               <div className="text-xs text-muted-foreground">
-                更新日時: {activeRel?.lastUpdated ?? "—"}
+                最終更新: {activeRel?.lastUpdated ?? "-"}
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <Button variant="destructive" onClick={() => void doReset("character")} disabled={loading}>
-                このキャラをリセット
+                このキャラクターをリセット
               </Button>
               <Button variant="outline" onClick={() => void doReset("all")} disabled={loading}>
-                全部リセット
+                すべてリセット
               </Button>
             </div>
           </div>
@@ -286,38 +294,38 @@ export default function RelationshipSettingsClient() {
           <div className="rounded-xl border bg-background/40 p-4">
             <div className="flex items-center justify-between">
               <div className="text-sm font-medium">Memory</div>
-              <div className="text-xs text-muted-foreground">更新日時: {memory?.updatedAt ?? "—"}</div>
+              <div className="text-xs text-muted-foreground">最終更新: {memory?.updatedAt ?? "-"}</div>
             </div>
 
             <div className="mt-3 space-y-3 text-sm">
               <div>
                 <div className="text-xs text-muted-foreground">topics</div>
-                <div className="font-mono text-xs">{memory?.topics?.join(", ") || "—"}</div>
+                <div className="font-mono text-xs">{memory?.topics?.join(", ") || "-"}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">emotions</div>
-                <div className="font-mono text-xs">{memory?.emotions?.join(", ") || "—"}</div>
+                <div className="font-mono text-xs">{memory?.emotions?.join(", ") || "-"}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">recurring issues</div>
-                <div className="font-mono text-xs">{memory?.recurringIssues?.join(", ") || "—"}</div>
+                <div className="font-mono text-xs">{memory?.recurringIssues?.join(", ") || "-"}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">traits</div>
-                <div className="font-mono text-xs">{memory?.traits?.join(", ") || "—"}</div>
+                <div className="font-mono text-xs">{memory?.traits?.join(", ") || "-"}</div>
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <Button variant="destructive" onClick={() => void doReset("memory")} disabled={loading}>
-                Memoryをリセット
+                Memory をリセット
               </Button>
             </div>
           </div>
         </div>
 
         <div className="mt-4 text-xs">
-          {loading ? <span className="text-muted-foreground">処理中…</span> : null}
+          {loading ? <span className="text-muted-foreground">処理中...</span> : null}
           {info ? <span className="text-foreground/80">{info}</span> : null}
           {error ? <span className="text-red-400">{error}</span> : null}
         </div>

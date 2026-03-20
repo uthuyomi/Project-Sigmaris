@@ -3,9 +3,10 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import type { SignInWithOAuthCredentials } from "@supabase/supabase-js";
+import { SiDiscord, SiGithub, SiGoogle } from "react-icons/si";
+
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import TopShell from "@/components/top/TopShell";
-import { SiDiscord, SiGithub, SiGoogle } from "react-icons/si";
 import EntryTouhouBackground from "@/app/entry/EntryTouhouBackground";
 import styles from "@/app/entry/entry-theme.module.css";
 import { getLastSelectedChatNext } from "@/components/entry/EntrySelectionTracker";
@@ -36,24 +37,20 @@ export default function LoginClient(props: {
   initialErrorDescription?: string | null;
 }) {
   const router = useRouter();
-  const [loadingProvider, setLoadingProvider] = React.useState<Provider | null>(
-    null,
-  );
+  const [loadingProvider, setLoadingProvider] = React.useState<Provider | null>(null);
   const [error, setError] = React.useState<string | null>(
     props.initialError
       ? `${props.initialError}${props.initialErrorDescription ? `: ${props.initialErrorDescription}` : ""}`
       : null,
   );
 
-  const nextSafe =
-    safeNextPath(props.nextPath) || safeNextPath(getLastSelectedChatNext());
+  const nextSafe = safeNextPath(props.nextPath) || safeNextPath(getLastSelectedChatNext());
   const nextOrChat = nextSafe || "/chat/session";
 
-  // 既にログイン済みなら、次の遷移先（next）へ自動で移動
   React.useEffect(() => {
-    if (!nextOrChat) return;
     let canceled = false;
-    (async () => {
+
+    void (async () => {
       try {
         const { data } = await supabaseBrowser().auth.getSession();
         if (canceled) return;
@@ -62,6 +59,7 @@ export default function LoginClient(props: {
         // ignore
       }
     })();
+
     return () => {
       canceled = true;
     };
@@ -75,6 +73,7 @@ export default function LoginClient(props: {
     const options: SignInWithOAuthCredentials["options"] = {
       redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextOrChat)}`,
     };
+
     if (provider === "google") {
       options.queryParams = {
         prompt: "select_account",
@@ -83,19 +82,19 @@ export default function LoginClient(props: {
       };
     }
 
-    const { error } = await supabaseBrowser().auth.signInWithOAuth({
+    const { error: signInError } = await supabaseBrowser().auth.signInWithOAuth({
       provider,
       options,
     });
 
-    if (error) setError(error.message);
+    if (signInError) setError(signInError.message);
     setLoadingProvider(null);
   }
 
   const providers: Array<{ id: Provider; label: string }> = [
-    { id: "google", label: "Googleでログイン" },
-    { id: "github", label: "GitHubでログイン" },
-    { id: "discord", label: "Discordでログイン" },
+    { id: "google", label: "Google でログイン" },
+    { id: "github", label: "GitHub でログイン" },
+    { id: "discord", label: "Discord でログイン" },
   ];
 
   return (
@@ -109,24 +108,26 @@ export default function LoginClient(props: {
         <h1 className="mb-4 text-lg font-semibold tracking-wide">ログイン</h1>
 
         <p className="mb-4 text-sm text-muted-foreground">
-          Supabase Auth の OAuth でログインします。
+          Supabase Auth の OAuth を利用してログインします。
         </p>
+
         {nextSafe ? (
           <p className="mb-4 text-xs text-muted-foreground">
-            ログイン後、指定のページへ移動します。
+            ログイン後は直前に選択していたページへ戻ります。
           </p>
         ) : null}
 
-        {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
+        {error ? <p className="mb-2 text-sm text-destructive">{error}</p> : null}
 
         <div className="grid gap-2">
           {providers.map(({ id, label }) => {
             const Icon = providerIcon[id];
             const isLoading = loadingProvider === id;
+
             return (
               <button
                 key={id}
-                onClick={() => signInWithOAuth(id)}
+                onClick={() => void signInWithOAuth(id)}
                 disabled={Boolean(loadingProvider)}
                 className={
                   id === "google"
@@ -135,7 +136,7 @@ export default function LoginClient(props: {
                 }
               >
                 <Icon className="h-4 w-4" aria-hidden />
-                <span>{isLoading ? "リダイレクト中…" : label}</span>
+                <span>{isLoading ? "リダイレクト中..." : label}</span>
               </button>
             );
           })}

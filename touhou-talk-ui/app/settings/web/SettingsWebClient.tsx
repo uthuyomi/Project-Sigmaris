@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import DevCoreToggle from "@/components/dev/DevCoreToggle";
@@ -35,8 +36,8 @@ function ThemeButton({
         active ? "border-ring bg-accent/70" : "border-border hover:bg-accent/40",
       ].join(" ")}
     >
-      <div className="font-medium text-sm">{label}</div>
-      <div className="text-muted-foreground text-xs">{active ? "選択中" : " "}</div>
+      <div className="text-sm font-medium">{label}</div>
+      <div className="text-xs text-muted-foreground">{active ? "選択中" : " "}</div>
     </button>
   );
 }
@@ -52,20 +53,22 @@ export default function SettingsWebClient() {
     applyThemeClass(t);
   };
 
-  const title = useMemo(() => "設定（Web）", []);
+  const title = useMemo(() => "Web 設定", []);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="font-gensou text-2xl">{title}</h1>
-          <p className="text-muted-foreground text-sm">基本設定のみ。VRM/TTSはElectron版の設定でやってね。</p>
+          <p className="text-sm text-muted-foreground">
+            Web 版で利用する表示設定と会話モードを調整できます。
+          </p>
         </div>
         <Button asChild variant="outline">
           <Link href="/chat/session">チャットへ</Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href="/settings/relationship">関係性・記憶</Link>
+          <Link href="/settings/relationship">関係性設定</Link>
         </Button>
       </div>
 
@@ -74,14 +77,16 @@ export default function SettingsWebClient() {
       <DevCoreToggle />
 
       <section className="rounded-2xl border bg-card/60 p-5">
-        <h2 className="font-medium">起動</h2>
-        <p className="mt-1 text-muted-foreground text-sm">Touhou Talk を起動した時の挙動を設定します。</p>
+        <h2 className="font-medium">起動設定</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          起動時にマップ画面を表示するかどうかを切り替えます。
+        </p>
 
         <div className="mt-4 flex items-center justify-between gap-4">
           <div>
-            <div className="font-medium text-sm">マップをスキップ</div>
-            <div className="text-muted-foreground text-xs">
-              起動時にマップを表示せず、チャット画面に直接移動します。
+            <div className="text-sm font-medium">マップをスキップ</div>
+            <div className="text-xs text-muted-foreground">
+              有効にすると、ログイン後にマップを経由せずチャット画面へ移動します。
             </div>
           </div>
 
@@ -103,23 +108,23 @@ export default function SettingsWebClient() {
 
       <section className="rounded-2xl border bg-card/60 p-5">
         <h2 className="font-medium">テーマ</h2>
-        <p className="mt-1 text-muted-foreground text-sm">見た目のテーマを切り替えます。</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          表示テーマを選択できます。
+        </p>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <ThemeButton label="Light" active={theme === "light"} onClick={() => updateTheme("light")} />
           <ThemeButton label="Dark" active={theme === "dark"} onClick={() => updateTheme("dark")} />
-          <ThemeButton
-            label="Sigmaris"
-            active={theme === "sigmaris"}
-            onClick={() => updateTheme("sigmaris")}
-          />
+          <ThemeButton label="Sigmaris" active={theme === "sigmaris"} onClick={() => updateTheme("sigmaris")} />
           <ThemeButton label="Soft" active={theme === "soft"} onClick={() => updateTheme("soft")} />
         </div>
       </section>
 
       <section className="rounded-2xl border bg-card/60 p-5">
         <h2 className="font-medium">会話モード</h2>
-        <p className="mt-1 text-muted-foreground text-sm">応答のスタイル（雑談/ロールプレイ等）を切り替えます。</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          会話スタイルの基本モードを選択できます。
+        </p>
 
         <div className="mt-4">
           <select
@@ -132,9 +137,9 @@ export default function SettingsWebClient() {
               setDefaultChatMode(next);
             }}
           >
-            <option value="partner">雑談（バランス）</option>
-            <option value="roleplay">ロールプレイ（キャラ口調）</option>
-            <option value="coach">コーチ（改善寄り）</option>
+            <option value="partner">パートナー</option>
+            <option value="roleplay">ロールプレイ</option>
+            <option value="coach">コーチ</option>
           </select>
         </div>
       </section>

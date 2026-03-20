@@ -13,10 +13,6 @@ export default function TopPage() {
 
   const [fog, setFog] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // =========================
-  // 認証状態
-  // =========================
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -27,10 +23,10 @@ export default function TopPage() {
       setAuthChecked(true);
     };
 
-    fetchUser();
+    void fetchUser();
 
     const { data: listener } = supabaseBrowser().auth.onAuthStateChange(() => {
-      fetchUser();
+      void fetchUser();
     });
 
     return () => {
@@ -38,7 +34,6 @@ export default function TopPage() {
     };
   }, []);
 
-  // If enabled, skip map and go straight to chat after login.
   useEffect(() => {
     if (!authChecked) return;
     if (!user) return;
@@ -47,11 +42,11 @@ export default function TopPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authChecked, user]);
 
-  // =========================
-  // タイピング表示用テキスト
-  // =========================
   const lines = useMemo(
-    () => ["考えが、うまく言葉にならないとき。", "少しだけ、話してみる場所。"],
+    () => [
+      "ようこそ、幻想郷の対話端末へ。",
+      "霧の向こうで、誰かがあなたを待っています。",
+    ],
     [],
   );
 
@@ -80,30 +75,24 @@ export default function TopPage() {
     };
   }, [fullText]);
 
-  // =========================
-  // ログイン画面へ（演出付き）
-  // =========================
   const goLogin = () => {
     if (loading) return;
 
     setFog(true);
     setLoading(true);
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       router.push("/auth/login");
     }, 1200);
   };
 
-  // =========================
-  // チャットへ（演出付き）
-  // =========================
   const enter = () => {
     if (loading) return;
 
     setFog(true);
     setLoading(true);
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       const skip = getSkipMapOnStart();
       router.push(skip ? "/chat/session" : "/map/session/gensokyo");
     }, 1200);
@@ -127,7 +116,7 @@ export default function TopPage() {
         >
           {typed}
           {typed.length < fullText.length && (
-            <span className="ml-1 inline-block animate-pulse">▍</span>
+            <span className="ml-1 inline-block animate-pulse">|</span>
           )}
         </p>
 
@@ -165,7 +154,7 @@ export default function TopPage() {
                   hover:bg-white/20
                 "
               >
-                チャットへ
+                チャットを始める
               </button>
             )}
           </div>
@@ -173,14 +162,15 @@ export default function TopPage() {
 
         <div className="mt-8 max-w-xl text-pretty text-xs leading-relaxed text-white/70 drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]">
           <p>
-            本サイトは「東方Project」の二次創作（ファンメイド）です。原作・公式とは一切関係ありません。
+            このサイトは Touhou Project に着想を得た非公式の二次創作チャット UI です。
+            幻想郷の世界観をベースに、キャラクターとの対話体験をプロダクトとして構築しています。
           </p>
           <p className="mt-2">
-            本作は上海アリス幻樂団様および関係者様とは無関係です。権利者様からの申し立てがあった場合は速やかに対応します。
+            原作および権利元とは関係ありません。二次創作としての範囲で制作しており、
+            キャラクター表現や名称の取り扱いには十分配慮しています。
           </p>
         </div>
       </div>
     </TopShell>
   );
 }
-

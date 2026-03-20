@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+
 import FogOverlay from "@/components/top/FogOverlay";
 import YinYangLoader from "@/components/top/YinYangLoader";
 
@@ -33,10 +34,9 @@ export default function TopShell({
           : "relative h-dvh w-full overflow-hidden") + (className ? ` ${className}` : "")
       }
     >
-      {/* 背景動画（PC） */}
       {backgroundVariant === "top" ? (
         <video
-          className={`${bgPos} inset-0 hidden h-full object-cover lg:block m-auto`}
+          className={`${bgPos} inset-0 m-auto hidden h-full object-cover lg:block`}
           src="/top/top-pc.mp4"
           autoPlay
           muted
@@ -44,20 +44,18 @@ export default function TopShell({
         />
       ) : null}
 
-      {/* 背景イラスト（SP） */}
       {backgroundVariant === "top" ? (
         <div className={`${bgPos} inset-0 lg:hidden`}>
           <Image
-          src="/top/top-sp.png"
-          alt="幻想郷"
-          fill
-          priority
-          className="object-cover"
+            src="/top/top-sp.png"
+            alt="幻想郷の導入画面"
+            fill
+            priority
+            className="object-cover"
           />
         </div>
       ) : null}
 
-      {/* 中央コンテンツ */}
       {backgroundSlot}
 
       <div
@@ -70,7 +68,6 @@ export default function TopShell({
         {children}
       </div>
 
-      {/* 演出（必要なページだけONにする） */}
       <FogOverlay visible={fog} />
       <YinYangLoader visible={loading} />
     </main>

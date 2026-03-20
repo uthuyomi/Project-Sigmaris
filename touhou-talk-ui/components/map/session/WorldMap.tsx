@@ -17,6 +17,7 @@ import {
   TransformWrapper,
   type ReactZoomPanPinchRef,
 } from "react-zoom-pan-pinch";
+
 import { CHARACTERS, isCharacterSelectable, type CharacterDef } from "@/data/characters";
 import type { DeviceType, LayerId, MapLocation } from "@/lib/map/locations";
 import {
@@ -82,25 +83,20 @@ function useElementSize<T extends HTMLElement>(ref: RefObject<T>): Size {
 }
 
 function computeContainTransform(container: Size, natural: Size) {
-  const scale = Math.min(
-    container.width / natural.width,
-    container.height / natural.height,
-  );
-
+  const scale = Math.min(container.width / natural.width, container.height / natural.height);
   const x = (container.width - natural.width * scale) / 2;
   const y = (container.height - natural.height * scale) / 2;
-
   return { x, y, scale };
 }
 
 function labelByLayer(layer: LayerId) {
   switch (layer) {
     case "gensokyo":
-      return "Layer1：幻想郷";
+      return "Layer 1: 幻想郷";
     case "deep":
-      return "Layer2：地底";
+      return "Layer 2: 地底";
     case "higan":
-      return "Layer3：彼岸";
+      return "Layer 3: 彼岸";
   }
 }
 
@@ -188,6 +184,7 @@ function LocationPin({
     },
     buttonRef,
   );
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -203,23 +200,19 @@ function LocationPin({
           whileTap={{ scale: 0.96 }}
           transition={{ type: "spring", stiffness: 420, damping: 26 }}
         >
-          {/* Hit area (bigger than visuals) */}
           <span className="pointer-events-none absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full" />
 
-          {/* Ground projection */}
           <span
             className={[
               "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full",
               isActive ? "h-16 w-16 opacity-95" : "h-14 w-14 opacity-60",
             ].join(" ")}
             style={{
-              background:
-                "radial-gradient(circle at center, var(--map-marker-strong) 0%, transparent 65%)",
+              background: "radial-gradient(circle at center, var(--map-marker-strong) 0%, transparent 65%)",
               filter: "blur(0.4px)",
             }}
           />
 
-          {/* Beam */}
           <span
             className={[
               "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[110%] origin-bottom rounded-full",
@@ -228,13 +221,11 @@ function LocationPin({
                 : "h-20 w-6 opacity-45 group-hover:opacity-70 group-focus-visible:opacity-70",
             ].join(" ")}
             style={{
-              background:
-                "linear-gradient(to top, transparent 0%, var(--map-marker-glow) 40%, transparent 100%)",
+              background: "linear-gradient(to top, transparent 0%, var(--map-marker-glow) 40%, transparent 100%)",
               boxShadow: "0 0 28px var(--map-marker-strong)",
             }}
           />
 
-          {/* Hex base */}
           <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-[beacon-float_2.6s_ease-in-out_infinite]">
             <span
               className={[
@@ -244,10 +235,8 @@ function LocationPin({
                   : "shadow-[0_0_18px_var(--map-marker-strong)]",
               ].join(" ")}
               style={{
-                clipPath:
-                  "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)",
-                background:
-                  "linear-gradient(180deg, var(--map-marker-soft), var(--map-marker-weak))",
+                clipPath: "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)",
+                background: "linear-gradient(180deg, var(--map-marker-soft), var(--map-marker-weak))",
                 border: "1px solid var(--map-marker-soft)",
               }}
             />
@@ -260,7 +249,6 @@ function LocationPin({
             />
           </span>
 
-          {/* Label */}
           <span
             className={[
               "pointer-events-none mt-3 block whitespace-nowrap rounded-xl border px-3 py-1.5 text-base backdrop-blur-md shadow-[0_12px_30px_rgba(0,0,0,0.35)]",
@@ -275,7 +263,7 @@ function LocationPin({
       </TooltipTrigger>
 
       <TooltipContent side="top" sideOffset={10}>
-        クリック/タップで選択
+        クリックしてチャットを開始
       </TooltipContent>
     </Tooltip>
   );
@@ -332,10 +320,7 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
     api.setTransform(x, y, scale, 0);
   }, [containerSize, naturalSize, device, layerPanelSize.height]);
 
-  const active = useMemo(
-    () => locations.find((l) => l.id === activeId) ?? null,
-    [activeId, locations],
-  );
+  const active = useMemo(() => locations.find((l) => l.id === activeId) ?? null, [activeId, locations]);
 
   const characters = useMemo(
     () => Object.values(CHARACTERS).filter(isCharacterSelectable) as CharacterDef[],
@@ -383,11 +368,7 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="relative h-full w-full overflow-hidden bg-slate-900 touch-none"
-    >
-      {/* base background */}
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-slate-900 touch-none">
       <img
         src="/maps/base-pc.png"
         alt=""
@@ -396,7 +377,6 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
         className="pointer-events-none absolute inset-0 h-full w-full scale-110 select-none object-cover blur-[1px] opacity-70 brightness-110 contrast-125 saturate-110"
       />
 
-      {/* blurred map background */}
       <img
         src={mapSrc}
         alt=""
@@ -408,7 +388,6 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
       <div className="pointer-events-none absolute inset-0 bg-black/5" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.10)_0%,rgba(0,0,0,0.38)_70%,rgba(0,0,0,0.65)_100%)]" />
 
-      {/* HUD frame */}
       <div className="pointer-events-none absolute inset-0 z-20">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:48px_48px] opacity-20" />
       </div>
@@ -425,199 +404,162 @@ export default function WorldMap({ layer, backgroundSrc, locations }: Props) {
             pinch={{ step: 5 }}
             panning={{ excluded: ["map-ui", "map-pin"] }}
           >
-          <TransformComponent
-            wrapperClass="!w-full !h-full"
-            contentClass="flex items-center justify-center"
-          >
-            <div
-              className="relative select-none"
-              style={{
-                width: naturalSize.width > 0 ? naturalSize.width : 1,
-                height: naturalSize.height > 0 ? naturalSize.height : 1,
-              }}
-            >
-              <img
-                src={mapSrc}
-                alt={`${layer} map`}
-                draggable={false}
-                className="block h-full w-full select-none brightness-105"
-                onLoad={(e) => {
-                  const img = e.currentTarget;
-                  setNaturalSize({
-                    width: img.naturalWidth,
-                    height: img.naturalHeight,
-                  });
+            <TransformComponent wrapperClass="!w-full !h-full" contentClass="flex items-center justify-center">
+              <div
+                className="relative select-none"
+                style={{
+                  width: naturalSize.width > 0 ? naturalSize.width : 1,
+                  height: naturalSize.height > 0 ? naturalSize.height : 1,
                 }}
-              />
+              >
+                <img
+                  src={mapSrc}
+                  alt={`${layer} map`}
+                  draggable={false}
+                  className="block h-full w-full select-none brightness-105"
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setNaturalSize({
+                      width: img.naturalWidth,
+                      height: img.naturalHeight,
+                    });
+                  }}
+                />
 
-              {locations.map((loc) => {
-                const pos = loc.pos[device] ?? loc.pos.pc;
-                const charactersAtLocation =
-                  charactersByLocation.get(loc.id) ?? [];
-                if (charactersAtLocation.length === 0) return null;
+                {locations.map((loc) => {
+                  const pos = loc.pos[device] ?? loc.pos.pc;
+                  const charactersAtLocation = charactersByLocation.get(loc.id) ?? [];
+                  if (charactersAtLocation.length === 0) return null;
 
-                return (
-                  <LocationPin
-                    key={loc.id}
-                    location={loc}
-                    position={pos}
-                    isActive={activeId === loc.id}
-                    onSelect={() => setActiveId(loc.id)}
-                  />
-                );
-              })}
-            </div>
-          </TransformComponent>
-
-          {/* Layer panel */}
-          <div className="map-ui pointer-events-auto absolute left-1/2 top-4 z-30 -translate-x-1/2 touch-auto">
-            <div
-              ref={layerPanelRef}
-              onClickCapture={(e) => e.stopPropagation()}
-              className="w-[520px] max-w-[94vw] rounded-2xl border border-[color:var(--map-accent-weak)] bg-black/45 px-4 py-3 text-white backdrop-blur-md shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
-            >
-              <div className="mt-1 text-center font-gensou text-2xl tracking-[0.16em] drop-shadow-[0_2px_14px_var(--map-accent-strong)]">
-                {titleByLayer(layer)}
+                  return (
+                    <LocationPin
+                      key={loc.id}
+                      location={loc}
+                      position={pos}
+                      isActive={activeId === loc.id}
+                      onSelect={() => setActiveId(loc.id)}
+                    />
+                  );
+                })}
               </div>
+            </TransformComponent>
 
-              <div className="mt-3 flex justify-center gap-2">
-                {hasAnyCharacterInLayer("gensokyo") && (
-                  <LayerPill
-                    href="/map/session/gensokyo"
-                    label="幻想郷"
-                    active={layer === "gensokyo"}
-                  />
-                )}
-                {hasAnyCharacterInLayer("deep") && (
-                  <LayerPill
-                    href="/map/session/deep"
-                    label="地底"
-                    active={layer === "deep"}
-                  />
-                )}
-                {hasAnyCharacterInLayer("higan") && (
-                  <LayerPill
-                    href="/map/session/higan"
-                    label="彼岸"
-                    active={layer === "higan"}
-                  />
-                )}
-              </div>
-
-              <div className="mt-2 text-center text-xs text-white/70">
-                場所を選択してください
-              </div>
-            </div>
-          </div>
-
-          {/* A: Desktop drawer (PC) */}
-          {active ? (
-            <div className="map-ui pointer-events-auto hidden lg:block absolute right-0 top-0 bottom-0 z-20 w-[440px] max-w-[34vw] touch-auto">
-              <div className="flex h-full flex-col overflow-hidden border-l border-border bg-card text-card-foreground backdrop-blur">
-                <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
-                  <div className="min-w-0">
-                    <div className="text-sm text-muted-foreground">
-                      {labelByLayer(layer)}
-                    </div>
-                    <div className="mt-1 truncate text-2xl font-semibold">
-                      {active.name}
-                    </div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      キャラクターを選択
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground/80 hover:bg-muted/60"
-                    onClick={() => setActiveId(null)}
-                  >
-                    閉じる
-                  </button>
+            <div className="map-ui pointer-events-auto absolute left-1/2 top-4 z-30 -translate-x-1/2 touch-auto">
+              <div
+                ref={layerPanelRef}
+                onClickCapture={(e) => e.stopPropagation()}
+                className="w-[520px] max-w-[94vw] rounded-2xl border border-[color:var(--map-accent-weak)] bg-black/45 px-4 py-3 text-white backdrop-blur-md shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
+              >
+                <div className="mt-1 text-center font-gensou text-2xl tracking-[0.16em] drop-shadow-[0_2px_14px_var(--map-accent-strong)]">
+                  {titleByLayer(layer)}
                 </div>
 
-                <div className="flex-1 overflow-auto p-5">
-                  <div className="grid grid-cols-1 gap-3">
-                    {charactersHere.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => openCharacterChat(c)}
-                        disabled={loadingChar === c.id}
-                        className="group flex items-center gap-4 rounded-2xl border border-border bg-muted/30 px-4 py-4 text-left transition hover:bg-muted/45 disabled:opacity-60"
-                      >
-                        <CharacterAvatar character={c} size="md" />
-                        <div className="min-w-0">
-                          <div className="truncate text-lg font-semibold">
-                            {c.name}
-                          </div>
-                          <div className="mt-1 truncate text-sm text-muted-foreground">
-                            {c.title}
-                          </div>
-                          <div className="mt-2 text-sm text-muted-foreground">
-                            {loadingChar === c.id ? "接続中…" : "話しかける"}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                <div className="mt-3 flex justify-center gap-2">
+                  {hasAnyCharacterInLayer("gensokyo") && (
+                    <LayerPill href="/map/session/gensokyo" label="幻想郷" active={layer === "gensokyo"} />
+                  )}
+                  {hasAnyCharacterInLayer("deep") && (
+                    <LayerPill href="/map/session/deep" label="地底" active={layer === "deep"} />
+                  )}
+                  {hasAnyCharacterInLayer("higan") && (
+                    <LayerPill href="/map/session/higan" label="彼岸" active={layer === "higan"} />
+                  )}
+                </div>
+
+                <div className="mt-2 text-center text-xs text-white/70">
+                  場所を選択して会話するキャラクターを決めてください
                 </div>
               </div>
             </div>
-          ) : null}
 
-          {/* B: Mobile/Tablet bottom bar */}
-          {active ? (
-            <div className="map-ui pointer-events-auto lg:hidden absolute inset-x-0 bottom-0 z-20 touch-auto">
-              <div className="border-t border-border bg-card text-card-foreground backdrop-blur">
-                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="text-xs text-muted-foreground">
-                      {labelByLayer(layer)}
+            {active ? (
+              <div className="map-ui pointer-events-auto absolute right-0 top-0 bottom-0 z-20 hidden w-[440px] max-w-[34vw] touch-auto lg:block">
+                <div className="flex h-full flex-col overflow-hidden border-l border-border bg-card text-card-foreground backdrop-blur">
+                  <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
+                    <div className="min-w-0">
+                      <div className="text-sm text-muted-foreground">{labelByLayer(layer)}</div>
+                      <div className="mt-1 truncate text-2xl font-semibold">{active.name}</div>
+                      <div className="mt-1 text-sm text-muted-foreground">キャラクターを選択</div>
                     </div>
-                    <div className="truncate text-lg font-semibold">
-                      {active.name}
-                    </div>
+                    <button
+                      type="button"
+                      className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground/80 hover:bg-muted/60"
+                      onClick={() => setActiveId(null)}
+                    >
+                      閉じる
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground/80 hover:bg-muted/60"
-                    onClick={() => setActiveId(null)}
-                  >
-                    閉じる
-                  </button>
-                </div>
 
-                <div className="px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-                  <div className="mx-auto flex max-w-[720px] flex-col items-stretch gap-3">
-                    {charactersHere.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => openCharacterChat(c)}
-                        disabled={loadingChar === c.id}
-                        className="w-full max-w-[560px] rounded-2xl border border-border bg-muted/30 px-4 py-4 text-left transition hover:bg-muted/45 disabled:opacity-60"
-                      >
-                        <div className="flex items-center justify-start gap-4">
+                  <div className="flex-1 overflow-auto p-5">
+                    <div className="grid grid-cols-1 gap-3">
+                      {charactersHere.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => openCharacterChat(c)}
+                          disabled={loadingChar === c.id}
+                          className="group flex items-center gap-4 rounded-2xl border border-border bg-muted/30 px-4 py-4 text-left transition hover:bg-muted/45 disabled:opacity-60"
+                        >
                           <CharacterAvatar character={c} size="md" />
-                          <div className="min-w-0 text-left">
-                            <div className="truncate text-base font-semibold">
-                              {c.name}
-                            </div>
-                            <div className="mt-1 truncate text-xs text-muted-foreground">
-                              {c.title}
-                            </div>
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              {loadingChar === c.id ? "接続中…" : "タップで会話"}
+                          <div className="min-w-0">
+                            <div className="truncate text-lg font-semibold">{c.name}</div>
+                            <div className="mt-1 truncate text-sm text-muted-foreground">{c.title}</div>
+                            <div className="mt-2 text-sm text-muted-foreground">
+                              {loadingChar === c.id ? "読み込み中..." : "話しかける"}
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+
+            {active ? (
+              <div className="map-ui pointer-events-auto absolute inset-x-0 bottom-0 z-20 touch-auto lg:hidden">
+                <div className="border-t border-border bg-card text-card-foreground backdrop-blur">
+                  <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="text-xs text-muted-foreground">{labelByLayer(layer)}</div>
+                      <div className="truncate text-lg font-semibold">{active.name}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-foreground/80 hover:bg-muted/60"
+                      onClick={() => setActiveId(null)}
+                    >
+                      閉じる
+                    </button>
+                  </div>
+
+                  <div className="px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+                    <div className="mx-auto flex max-w-[720px] flex-col items-stretch gap-3">
+                      {charactersHere.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => openCharacterChat(c)}
+                          disabled={loadingChar === c.id}
+                          className="w-full max-w-[560px] rounded-2xl border border-border bg-muted/30 px-4 py-4 text-left transition hover:bg-muted/45 disabled:opacity-60"
+                        >
+                          <div className="flex items-center justify-start gap-4">
+                            <CharacterAvatar character={c} size="md" />
+                            <div className="min-w-0 text-left">
+                              <div className="truncate text-base font-semibold">{c.name}</div>
+                              <div className="mt-1 truncate text-xs text-muted-foreground">{c.title}</div>
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                {loadingChar === c.id ? "読み込み中..." : "タップして会話"}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </TransformWrapper>
         </div>
       </TooltipProvider>

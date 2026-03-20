@@ -46,7 +46,7 @@ export function isCharacterSelectable(ch: CharacterDef | null | undefined): bool
 }
 
 /* =========================================================
- * 繧ｻ繝ｬ繧ｯ繧ｿ
+ * Selector helpers
  * ========================================================= */
 
 export function getCharactersByLocation(map: string, locationId: string) {
