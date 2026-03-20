@@ -13,6 +13,9 @@ import DesktopLiveAvatar from "@/components/desktop/DesktopLiveAvatar";
 import { GripHorizontalIcon, MinusIcon, PlusIcon, XIcon } from "lucide-react";
 
 const POPOUT_HEARTBEAT_KEY = "touhou.desktop.avatar.popout.heartbeatUntil";
+type ElectronDragStyle = CSSProperties & {
+  WebkitAppRegion?: "drag" | "no-drag";
+};
 
 function isElectronUa(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -25,8 +28,8 @@ export default function AvatarClient() {
   const enabled = useMemo(() => isElectronUa(), []);
   const [hovered, setHovered] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
-  const dragStyle = useMemo<CSSProperties>(() => ({ WebkitAppRegion: "drag" }), []);
-  const noDragStyle = useMemo<CSSProperties>(() => ({ WebkitAppRegion: "no-drag" }), []);
+  const dragStyle = useMemo<ElectronDragStyle>(() => ({ WebkitAppRegion: "drag" }), []);
+  const noDragStyle = useMemo<ElectronDragStyle>(() => ({ WebkitAppRegion: "no-drag" }), []);
 
   useEffect(() => {
     // Make the page background fully transparent for the frameless window.

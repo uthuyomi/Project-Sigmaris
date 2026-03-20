@@ -64,6 +64,8 @@ function mergeDefaultsIntoEnvFile(envPath, defaults) {
     String(defaults.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? defaults.SUPABASE_ANON_KEY ?? "").trim();
   const sigmarisCoreUrl =
     String(defaults.SIGMARIS_CORE_URL ?? defaults.NEXT_PUBLIC_SIGMARIS_CORE ?? "").trim();
+  const sigmarisCoreLocalUrl =
+    String(defaults.SIGMARIS_CORE_URL_LOCAL ?? "").trim();
   const autoBrowseEnabled =
     String(defaults.TOUHOU_AUTO_BROWSE_ENABLED ?? "").trim();
   const uploadEnabled =
@@ -85,6 +87,12 @@ function mergeDefaultsIntoEnvFile(envPath, defaults) {
       sigmarisCoreUrl,
       "",
     ) || changed;
+  changed =
+    setIfEmptyOrTemplateDefault(
+      "SIGMARIS_CORE_URL_LOCAL",
+      sigmarisCoreLocalUrl,
+      "http://127.0.0.1:8000",
+    ) || changed;
   changed = setIfMissing("TOUHOU_AUTO_BROWSE_ENABLED", autoBrowseEnabled) || changed;
   changed = setIfMissing("TOUHOU_UPLOAD_ENABLED", uploadEnabled) || changed;
 
@@ -101,8 +109,9 @@ function mergeDefaultsIntoEnvFile(envPath, defaults) {
     "SUPABASE_SERVICE_ROLE_KEY=",
     "",
     "# Backend Persona OS URL (FastAPI / gensokyo-persona-core)",
-    `SIGMARIS_CORE_URL=${String(current.SIGMARIS_CORE_URL ?? "http://127.0.0.1:8000")}`,
+    `SIGMARIS_CORE_URL=${String(current.SIGMARIS_CORE_URL ?? "https://project-sigmaris.fly.dev")}`,
     `NEXT_PUBLIC_SIGMARIS_CORE=${String(current.NEXT_PUBLIC_SIGMARIS_CORE ?? "")}`,
+    `SIGMARIS_CORE_URL_LOCAL=${String(current.SIGMARIS_CORE_URL_LOCAL ?? "http://127.0.0.1:8000")}`,
     "",
     "# Optional: force port",
     `TOUHOU_DESKTOP_PORT=${String(current.TOUHOU_DESKTOP_PORT ?? "3789")}`,
@@ -129,7 +138,9 @@ function ensureEnvTemplate(envPath) {
     "SUPABASE_SERVICE_ROLE_KEY=",
     "",
     "# Backend Persona OS URL (FastAPI / gensokyo-persona-core)",
-    "SIGMARIS_CORE_URL=http://127.0.0.1:8000",
+    "SIGMARIS_CORE_URL=https://project-sigmaris.fly.dev",
+    "NEXT_PUBLIC_SIGMARIS_CORE=https://project-sigmaris.fly.dev",
+    "SIGMARIS_CORE_URL_LOCAL=http://127.0.0.1:8000",
     "",
     "# Optional: force port",
     "TOUHOU_DESKTOP_PORT=3789",

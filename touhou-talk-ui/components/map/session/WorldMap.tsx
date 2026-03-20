@@ -184,12 +184,18 @@ function LocationPin({
     },
     buttonRef,
   );
+  const {
+    onDrag: _onDrag,
+    onDragStart: _onDragStart,
+    onDragEnd: _onDragEnd,
+    ...motionButtonProps
+  } = buttonProps;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <motion.button
-          {...buttonProps}
+          {...(motionButtonProps as any)}
           ref={buttonRef}
           type="button"
           aria-pressed={isActive}

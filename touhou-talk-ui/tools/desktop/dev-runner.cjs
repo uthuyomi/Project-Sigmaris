@@ -30,7 +30,9 @@ function ensureEnvTemplate(envPath) {
     "SUPABASE_SERVICE_ROLE_KEY=",
     "",
     "# Backend Persona OS URL (FastAPI / gensokyo-persona-core)",
-    "SIGMARIS_CORE_URL=http://127.0.0.1:8000",
+    "SIGMARIS_CORE_URL=https://project-sigmaris.fly.dev",
+    "NEXT_PUBLIC_SIGMARIS_CORE=https://project-sigmaris.fly.dev",
+    "SIGMARIS_CORE_URL_LOCAL=http://127.0.0.1:8000",
     "",
     "# Optional: force port",
     "TOUHOU_DESKTOP_PORT=3789",
@@ -109,6 +111,10 @@ function bundleDefaultEnvPath(projectRoot) {
   return path.join(projectRoot, "tools", "desktop", ".bundle", "default.env");
 }
 
+function trackedDefaultEnvPath(projectRoot) {
+  return path.join(projectRoot, "tools", "desktop", "default.env");
+}
+
 function isPortFreeOnHost(port, host) {
   return new Promise((resolve) => {
     const server = net.createServer();
@@ -161,7 +167,11 @@ async function main() {
   fs.mkdirSync(userDataDir, { recursive: true });
   ensureEnvTemplate(envPath);
 
-  const defaultVars = readEnvFile(bundleDefaultEnvPath(projectRoot)) || {};
+  const defaultVars =
+    readFirstExisting([
+      bundleDefaultEnvPath(projectRoot),
+      trackedDefaultEnvPath(projectRoot),
+    ]) || {};
   const fileVars = readEnvFile(envPath) || {};
   const repoRoot = path.resolve(projectRoot, "..");
   const repoEnv =
